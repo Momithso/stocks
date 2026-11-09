@@ -1,0 +1,42 @@
+portals_repo_url: "https://github.com/fsr5-fhaachen/portals.git"
+portals_local_path: "/opt/portals"
+portals_branch_or_tag: "main"
+portals_seed_database: false
+# each of these copies its file/folder and (for tutors/students) runs only that one
+# seeder, independent of portals_seed_database and of each other
+portals_seed_tutors: false
+portals_seed_students: false
+portals_seed_telegram: false
+portals_seed_avatars: false
+
+# tune to the actual vCPU count of the target server
+octane_workers: 4
+octane_max_requests: 512
+
+php_version: "8.4"
+node_version: "24.10.0"
+
+redis_password: "portals"
+db_name: "portals"
+db_user: "portals"
+db_password: "portals"
+
+letsencrypt_email: "your-mail@example.com"
+
+# monitoring stack
+node_exporter_version: "1.12.1"
+prometheus_version: "3.14.0"
+postgres_exporter_version: "0.20.1"
+redis_exporter_version: "1.90.0"
+nginx_exporter_version: "1.5.3"
+postgres_exporter_db_user: "postgres_exporter"
+postgres_exporter_db_password: "change-me"
+
+env_app_name: "Your Event Name"
+env_app_environment: "production" # use "local" for test/dry-run deployments (keeps Telescope active)
+env_app_key: "base64:your-app-key"
+env_app_debug: false
+env_app_event_type: "demo"
+env_app_public_api_secret: "your-api-secret"
+env_app_tutor_password: "your-tutor-password"
+env_app_admin_password: "your-admin-password"

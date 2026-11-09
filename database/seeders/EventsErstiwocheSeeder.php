@@ -1,0 +1,644 @@
+<?php
+
+namespace Database\Seeders;
+
+use App\Models\Course;
+use App\Models\CourseEvent;
+use App\Models\CourseGroup;
+use App\Models\Event;
+use App\Models\Group;
+use App\Models\Slot;
+use DateTime;
+use Illuminate\Database\Seeder;
+
+class EventsErstiwocheSeeder extends Seeder
+{
+    /**
+     * Set path to the file with telegram data.
+     *
+     * @var string
+     */
+    private const TELEGRAM_CSV_PATH = __DIR__.'/telegram.csv';
+
+    /**
+     * Run the events seeds.
+     */
+    public function run(): void
+    {
+        $telegram_links = $this->parseTelegramCsv();
+        $this->runGruppenphase();
+        $this->runGruppenphaseISMaster();
+        $this->runMocktail();
+        $this->runStadtrallye($telegram_links);
+        $this->runHausfuehrung();
+        $this->runKneipentour($telegram_links);
+        $this->runKaterbrunch();
+        $this->runKultur();
+        $this->runSport();
+    }
+
+    /**
+     * Parse the 'telegram.csv' file.
+     */
+    private function parseTelegramCsv(): array
+    {
+        // check if the telegram file exists
+        if (! file_exists(self::TELEGRAM_CSV_PATH)) {
+            return [];
+        }
+
+        // read the telegram.csv file
+        $data = array_map('str_getcsv', file(self::TELEGRAM_CSV_PATH));
+
+        // remove the header row
+        array_shift($data);
+
+        // save telegram links
+        $telegram_links = [];
+
+        // loop through the data
+        foreach ($data as $row) {
+            $telegram_link = explode(';', $row[0]);
+
+            $event_name = $telegram_link[0];
+            $group_or_slot_name = $telegram_link[1];
+            $link = $telegram_link[2];
+
+            $telegram_links[$event_name][$group_or_slot_name] = $link;
+        }
+
+        return $telegram_links;
+    }
+
+    /**
+     * Run the "Gruppenphase" event seeds.
+     */
+    public function runGruppenphase(): void
+    {
+        // check if event with name "Gruppenphase" exists
+        $event = Event::where('name', 'Gruppenphase')->first();
+        if ($event) {
+            return;
+        }
+
+        // create a new event
+        $event = new Event;
+        $event->name = 'Gruppenphase';
+        $event->description = '<p>Während der Gruppenphase erhältst du von deinen Tutoren und Tutorinnen wichtige Informationen rund um das Studium. Außerdem ist die Gruppenphase dazu da, um direkt die anderen Erstis kennenzulernen und erste Freundschaften zu schließen.</p>';
+        $event->type = 'group_phase';
+        $event->registration_from = new DateTime('2026-09-28 8:00:00');
+        $event->registration_to = new DateTime('2026-09-28 12:30:00');
+        $event->has_requirements = false;
+        $event->consider_alcohol = false;
+        $event->sort_order = 100;
+
+        // save the event
+        $event->save();
+
+        // create event groups
+        $groupNames = [
+            'Die waghalsigen Waschbären',
+            'Die kuscheligen Koalas',
+            'Die originellen Opossums',
+            'Die peppigen Pinguine',
+            'Die risikofreudigen Rentiere',
+            'Die fluffigen Flamingos',
+            'Die kreisförmigen Karpfen',
+            'Die dramatischen Dackel',
+            'Die oszillierten Ozelots',
+            'Die zappelnden Zitterale',
+            'Die schnellen Schildkröten',
+            'Die schicken Spinnen',
+            'Die netten Nasenbären',
+            'Die putzigen Pandas',
+            'Die tapferen Tucans',
+            'Die klugen Krokodile',
+            'Die wundervollen Wallabys',
+            'Die kantigen Kaninchen',
+            'Die allwissenden Aale',
+            'Die erfahrenen Enten',
+        ];
+        foreach ($groupNames as $groupName) {
+            $group = new Group;
+            $group->name = $groupName;
+            $group->event_id = $event->id;
+            $group->save();
+        }
+
+        // get all courses
+        $courses = Course::all();
+
+        // map courses by abbreviation
+        $coursesByAbbreviation = [];
+        foreach ($courses as $course) {
+            $coursesByAbbreviation[$course->abbreviation] = $course;
+        }
+
+        // allowed courses
+        $allowedCourses = [
+            'INF',
+            'ET',
+            'DIB',
+            'MCD',
+            'WI',
+            'SBE',
+            'ISE-Master',
+            'ET-Master',
+            'INF-Master',
+            // only 'IS-Master' is excluded here
+        ];
+
+        // save courses
+        foreach ($allowedCourses as $courseAbbreviation) {
+            $course = $coursesByAbbreviation[$courseAbbreviation];
+            $course_event = new CourseEvent;
+            $course_event->course_id = $course->id;
+            $course_event->event_id = $event->id;
+            $course_event->save();
+        }
+    }
+
+    /**
+     * Run the "Gruppenphase" event seeds.
+     */
+    public function runGruppenphaseISMaster(): void
+    {
+        // check if event with name "Gruppenphase" exists
+        $event = Event::where('name', 'Gruppenphase')->where('description', 'like', '%'.'<strong>M.Sc. Information Systems</strong>'.'%')->first();
+        if ($event) {
+            return;
+        }
+
+        // create a new event
+        $event = new Event;
+        $event->name = 'Gruppenphase';
+        $event->description = '<p>Während der Gruppenphase erhältst du von deinen Tutoren und Tutorinnen wichtige Informationen rund um das Studium. Außerdem ist die Gruppenphase dazu da, um direkt die anderen Erstis kennenzulernen und erste Freundschaften zu schließen.</p>
+        <p>Diese Gruppenphase ist speziell für Studierende des Studiengangs <strong>M.Sc. Information Systems</strong>, da dort einige Besonderheiten erklärt werden.</p>';
+        $event->type = 'group_phase';
+        $event->registration_from = new DateTime('2026-09-28 8:00:00');
+        $event->registration_to = new DateTime('2026-09-28 12:30:00');
+        $event->has_requirements = false;
+        $event->consider_alcohol = false;
+        $event->sort_order = 101;
+
+        // save the event
+        $event->save();
+
+        // create event groups
+        $groupNames = [
+            'Die masterhaften Mammuts',
+        ];
+        foreach ($groupNames as $groupName) {
+            $group = new Group;
+            $group->name = $groupName;
+            $group->event_id = $event->id;
+            $group->save();
+        }
+
+        // get all courses
+        $courses = Course::all();
+
+        // map courses by abbreviation
+        $coursesByAbbreviation = [];
+        foreach ($courses as $course) {
+            $coursesByAbbreviation[$course->abbreviation] = $course;
+        }
+
+        // allowed courses
+        $allowedCourses = [
+            'IS-Master',
+        ];
+
+        // save courses
+        foreach ($allowedCourses as $courseAbbreviation) {
+            $course = $coursesByAbbreviation[$courseAbbreviation];
+            $course_event = new CourseEvent;
+            $course_event->course_id = $course->id;
+            $course_event->event_id = $event->id;
+            $course_event->save();
+        }
+    }
+
+    /**
+     * Run the "Cocktail und Mocktail Abend" event seeds.
+     */
+    public function runMocktail(): void
+    {
+        // check if event with name "Cocktail und Mocktail Abend" exists
+        $event = Event::where('name', 'Cocktail und Mocktail Abend')->first();
+        if ($event) {
+            return;
+        }
+
+        // create a new event
+        $event = new Event;
+        $event->name = 'Cocktail und Mocktail Abend';
+        $event->description = '<p>Geselliges Beisammensein mit Mocktails und einem kleinen Programm.</p>';
+        $event->type = 'event_registration';
+        $event->registration_from = new DateTime('2026-09-28 8:00:00');
+        $event->registration_to = new DateTime('2026-09-28 16:00:00');
+        $event->has_requirements = false;
+        $event->consider_alcohol = false;
+        $event->sort_order = 105;
+
+        // save the event
+        $event->save();
+    }
+
+    /**
+     * Run the "Stadtrallye" event seeds.
+     */
+    public function runStadtrallye(array $telegram_links): void
+    {
+        // check if event with name "Stadtrallye" exists
+        $event = Event::where('name', 'Stadtrallye')->first();
+        if ($event) {
+            return;
+        }
+
+        // create a new event
+        $event = new Event;
+        $event->name = 'Stadtrallye';
+        $event->description = '<p>Die Stadtrallye ist ein Event, bei dem du in Gruppen die Stadt erkundest. Dabei gibt es verschiedene Aufgaben, die ihr lösen müsst. Dabei könnt ihr euch gegenseitig unterstützen und euch so besser kennenlernen.</p><p><strong>Treffpunkt: </strong> 9:00 Uhr Campus Eupener Straße</p>';
+        $event->type = 'group_phase';
+        $event->registration_from = new DateTime('2026-09-28 8:00:00');
+        $event->registration_to = new DateTime('2026-09-29 09:45:00');
+        $event->has_requirements = false;
+        $event->consider_alcohol = true;
+        $event->sort_order = 110;
+
+        // save the event
+        $event->save();
+
+        // create event groups
+        $groups = [];
+
+        for ($i = 1; $i <= 14; $i++) {
+            $groups[] = [
+                'name' => "Gruppe $i",
+                'telegram_group_link' => $telegram_links[$event->name]["Gruppe $i"] ?? null,
+            ];
+        }
+
+        // save groups
+        foreach ($groups as $groupData) {
+            $group = new Group;
+            $group->name = $groupData['name'];
+            $group->event_id = $event->id;
+            $group->telegram_group_link = array_key_exists('telegram_group_link', $groupData) ? $groupData['telegram_group_link'] : null;
+            $group->save();
+        }
+    }
+
+    /**
+     * Run the "Hausführung" event seeds.
+     */
+    public function runHausfuehrung(): void
+    {
+        // check if event with name "Hausführung" exists
+        $event = Event::where('name', 'Hausführung')->first();
+        if ($event) {
+            return;
+        }
+
+        // create a new event
+        $event = new Event;
+        $event->name = 'Hausführung';
+        $event->description = '<p>Nachdem ihr nun die Stadt erkundet habt, ist es Zeit auch mal eure Hochschule von innen zu sehen. In der Hausführung erwarten euch sowohl Informationen über wichtige Stationen am Campus, die ihr während eurer Studienzeit sicherlich das ein oder andere Mal aufsuchen werdet, als auch die Möglichkeit, einige eurer Professoren und ein paar ihrer Projekte kennenzulernen. Durch die Aufteilung nach Studiengang ist es auch eine gute Möglichkeit, schonmal Bekanntschaft mit euren Sitznachbarn in den Vorlesungen zu machen.</p>';
+        $event->type = 'group_phase';
+        $event->registration_from = new DateTime('2026-09-28 8:00:00');
+        $event->registration_to = new DateTime('2026-09-30 9:30:00');
+        $event->has_requirements = false;
+        $event->consider_alcohol = false;
+        $event->sort_order = 120;
+
+        // save the event
+        $event->save();
+
+        // get all courses
+        $courses = Course::all();
+
+        // map courses by abbreviation
+        $coursesByAbbreviation = [];
+        foreach ($courses as $course) {
+            $coursesByAbbreviation[$course->abbreviation] = $course;
+        }
+
+        // create event groups
+        $groups = [];
+
+        for ($i = 1; $i <= 10; $i++) {
+            $groups[] = [
+                'name' => "INF Hausführung $i",
+                'course_ids' => [
+                    $coursesByAbbreviation['INF']->id,
+                    $coursesByAbbreviation['ISE-Master']->id,
+                    $coursesByAbbreviation['SBE']->id,
+                ],
+            ];
+        }
+        for ($i = 1; $i <= 4; $i++) {
+            $groups[] = [
+                'name' => "ET Hausführung $i",
+                'course_ids' => [
+                    $coursesByAbbreviation['ET']->id,
+                    $coursesByAbbreviation['ET-Master']->id,
+                ],
+            ];
+        }
+        for ($i = 1; $i <= 3; $i++) {
+            $groups[] = [
+                'name' => "DIB Hausführung $i",
+                'course_ids' => [
+                    $coursesByAbbreviation['DIB']->id,
+                    $coursesByAbbreviation['MCD']->id,
+                ],
+            ];
+        }
+        for ($i = 1; $i <= 3; $i++) {
+            $groups[] = [
+                'name' => "WI Hausführung $i",
+                'course_ids' => [
+                    $coursesByAbbreviation['WI']->id,
+                ],
+            ];
+        }
+
+        for ($i = 1; $i <= 1; $i++) {
+            $groups[] = [
+                'name' => "IS-Master Hausführung $i",
+                'course_ids' => [
+                    $coursesByAbbreviation['IS-Master']->id,
+                ],
+            ];
+        }
+
+        for ($i = 1; $i <= 1; $i++) {
+            $groups[] = [
+                'name' => "INF-Master Hausführung $i",
+                'course_ids' => [
+                    $coursesByAbbreviation['INF-Master']->id,
+                ],
+            ];
+        }
+
+        // save groups
+        foreach ($groups as $groupData) {
+            $group = new Group;
+            $group->name = $groupData['name'];
+            $group->event_id = $event->id;
+            $group->save();
+
+            // save course_group collections
+            foreach ($groupData['course_ids'] as $course_id) {
+                $course_group = new CourseGroup;
+                $course_group->course_id = $course_id;
+                $course_group->group_id = $group->id;
+                $course_group->save();
+            }
+        }
+    }
+
+    /**
+     * Run the "Kneipentour" event seeds.
+     */
+    public function runKneipentour(array $telegram_links): void
+    {
+        // check if event with name "Kneipentour" exists
+        $event = Event::where('name', 'Kneipentour')->first();
+        if ($event) {
+            return;
+        }
+
+        // create a new event
+        $event = new Event;
+        $event->name = 'Kneipentour';
+        $event->description = '<p>Sei Teil unserer Kneipentour, um die besten Bars zu entdecken, unterhaltsame Spiele zu genießen und deine Kommilitonen kennenzulernen. Wer nicht trinkt ist trotzdem herzlich eingeladen!</p>';
+        $event->type = 'group_phase';
+        $event->registration_from = new DateTime('2026-09-28 8:00:00');
+        $event->registration_to = new DateTime('2026-09-30 17:00:00');
+        $event->has_requirements = false;
+        $event->consider_alcohol = true;
+        $event->sort_order = 130;
+
+        // save the event
+        $event->save();
+
+        // create event groups
+        $groups = [];
+
+        for ($i = 1; $i <= 24; $i++) {
+            $groups[] = [
+                'name' => "Gruppe $i",
+                'telegram_group_link' => $telegram_links[$event->name]["Gruppe $i"] ?? null,
+            ];
+        }
+
+        // save groups
+        foreach ($groups as $groupData) {
+            $group = new Group;
+            $group->name = $groupData['name'];
+            $group->event_id = $event->id;
+            $group->telegram_group_link = array_key_exists('telegram_group_link', $groupData) ? $groupData['telegram_group_link'] : null;
+            $group->save();
+        }
+    }
+
+    /**
+     * Run the "Katerbrunch" event seeds.
+     */
+    public function runKaterbrunch(): void
+    {
+        // check if event with name "Katerbrunch" exists
+        $event = Event::where('name', 'Ersti-Brunch')->first();
+        if ($event) {
+            return;
+        }
+
+        // create a new event
+        $event = new Event;
+        $event->name = 'Ersti-Brunch';
+        $event->description = '<p>Nachdem wir alle nach der Kneipentour am Mittwoch Abend etwas müde sind, gibt es doch nichts besseres als ein etwas späteres gemeinsames Fr&uuml;hst&uuml;ck 😊 <br />
+        <p><strong>Wann:</strong> 01.10. ab 12:30 Uhr <br /><strong>Wo:</strong> FH, am D Geb&auml;ude <br /><strong>Was mitbringen:</strong> Tasse/ Becher und Teller ggf, Picknickdecke bei gutem Wetter.</p>
+        <p>Im Anschluss findet noch ein spannender Spieleabend mit Brettspielen und Switch statt.</p> <br/>
+        <p>Wir freuen uns auf euch</p>';
+        $event->type = 'event_registration';
+        $event->registration_from = new DateTime('2026-09-28 8:00:00');
+        $event->registration_to = new DateTime('2026-10-01 12:30:00');
+        $event->has_requirements = true;
+        $event->consider_alcohol = false;
+        $event->sort_order = 140;
+        $event->form = '[
+            {
+                "$formkit": "select",
+                "name": "eating_habit",
+                "label": "Essgewohnheit",
+                "options": {
+                    "vegetarian": "Ich esse vegetarisch",
+                    "vegan": "Ich esse vegan",
+                    "all": "Ich esse alles"
+                },
+                "placeholder": "Bitte auswählen",
+                "validation": "required"
+            }
+        ]';
+
+        // save the event
+        $event->save();
+    }
+
+    /**
+     * Run the "Sport" event seeds.
+     */
+    public function runSport(): void
+    {
+        // create a new event
+        $event = new Event;
+        $event->name = 'Sport';
+        $event->description = self::sportDescription();
+        $event->type = 'slot_booking';
+        $event->registration_from = new DateTime('2026-09-28 08:00:00');
+        $event->registration_to = new DateTime('2026-09-30 23:59:00');
+        $event->has_requirements = false;
+        $event->consider_alcohol = false;
+        $event->sort_order = 150;
+
+        // save the event
+        $event->save();
+
+        // create event slots
+        $slots = [
+            [
+                'name' => 'Hochschulsport (Fußball, Volleyball, Basketball)',
+                'has_requirements' => false,
+                'maximum_participants' => 50,
+            ],
+            [
+                'name' => 'Bouldern',
+                'has_requirements' => true,
+                'maximum_participants' => 25,
+            ],
+            [
+                'name' => 'Trinkyoga',
+                'has_requirements' => false,
+                'maximum_participants' => 30,
+            ],
+            [
+                'name' => 'Lasertag',
+                'has_requirements' => true,
+                'maximum_participants' => 37,
+            ],
+        ];
+
+        foreach ($slots as $slotData) {
+            $slot = new Slot;
+            $slot->name = $slotData['name'];
+            $slot->event_id = $event->id;
+            $slot->has_requirements = $slotData['has_requirements'];
+            $slot->maximum_participants = $slotData['maximum_participants'];
+
+            $slot->save();
+        }
+    }
+
+    /**
+     * Run the "Kultur" event seeds.
+     */
+    public function runKultur(): void
+    {
+        // check if event with name "Kultur" exists
+        $event = Event::where('name', 'Kultur')->first();
+        if ($event) {
+            return;
+        }
+
+        // create a new event
+        $event = new Event;
+        $event->name = 'Kultur';
+        $event->description = self::kulturDescription();
+        $event->type = 'slot_booking';
+        $event->registration_from = new DateTime('2026-09-28 08:00:00');
+        $event->registration_to = new DateTime('2026-09-30 23:59:00');
+        $event->has_requirements = false;
+        $event->consider_alcohol = false;
+        $event->sort_order = 151;
+        // save the event
+        $event->save();
+
+        // create event slots
+        $slots = [
+            [
+                'name' => 'Tivoli-Tour',
+                'has_requirements' => false,
+                'maximum_participants' => 15,
+            ],
+            [
+                'name' => 'Foodtour',
+                'has_requirements' => false,
+                'maximum_participants' => 75,
+            ],
+        ];
+
+        foreach ($slots as $slotData) {
+            $slot = new Slot;
+            $slot->name = $slotData['name'];
+            $slot->event_id = $event->id;
+            $slot->has_requirements = $slotData['has_requirements'];
+            $slot->maximum_participants = $slotData['maximum_participants'];
+
+            $slot->save();
+        }
+    }
+
+    /**
+     * Get the description of the "Sport" event.
+     */
+    public static function sportDescription(): string
+    {
+        return '<p>Auch sportliche Aktivitäten kommen bei uns nicht zu kurz. Ihr könnt euch am Freitag richtig auspowern.</p>
+            <p>Bitte beachtet auch die folgenden Hinweise zu den einzelnen Programmpunkten:</p>
+            <p><strong>Hochschulport:</strong> Hattet Ihr schon genug Saufsport diese Woche und wollt mal wieder richtigen Sport machen? Dann kommt mit uns zum Sportzentrum Königshügel! Egal ob Ihr Lust auf Fußball, Volleyball oder Basketball habt, dort gibt es alles. Nebenbei lernt Ihr den zentralen Ort für den Aachener Hochschulsport kennen und könnt euch über weitere Angebote und Events informieren.</p>
+            <p>Bitte denk an genügend zu trinken. Das Event findet outdoor und indoor statt, also nimm feste Schuhe und entsprechende Kleidung mit.</p>
+            <p><strong>Wichtig:</strong> Fußball wird auf dem Rasen gespielt und Beachvolleyball im Sand. Basketball gibt es Indoor und ist <strong>nur mit Hallenschuhen</strong> spielbar.</p>
+            <p><strong>Telegram:</strong> <a href="https://t.me/+h1lXLiz8iJhhMjIy" target="_blank">https://t.me/+h1lXLiz8iJhhMjIy</a></p>
+            <p><strong>Treffpunkt:</strong> <a href="https://maps.app.goo.gl/h7rqJ9gYjBbXRu1f6" target="_blank">Königshügel, Sporthalle Eckertweg</a> 11:45 Uhr vor Ort.</p><br>
+            <p><strong>Yoga:</strong> Trinken oder nicht trinken, das ist hier nicht die Frage. Stelle deine Yogafähigkeiten beim herabschauenden Hund oder beim Krieger 2 unter Beweis. Mit oder ohne Spaßgetränk, hier kannst du zeigen, dass in dir mehr Beweglichkeit steckt, als in deinem Bürostuhl.</p>
+            <p>Hierfür brauchst du Sportsachen und gegebenenfalls ein Getränk und eine Unterlage.</p>
+            <p><strong>Telegram:</strong> <a href="https://t.me/+__cr8FlspiNjNTFi" target="_blank">https://t.me/+__cr8FlspiNjNTFi</a></p>
+            <p><strong>Treffpunkt:</strong> <a href="https://maps.app.goo.gl/chzwUuMm2SWWdoYb8" target="_blank">FH Gut Bodenhof</a> / Bei schlechtem Wetter D001 16 Uhr vor Ort.</p><br>
+            <p><strong>Bouldern:</strong> Einfach losklettern! Bouldern ist Klettern in Absprunghöhe - keine Vorkenntnisse nötig, nur Neugier und ein bisschen Abenteuerlust. Gemeinsam tüfteln, Routen ausprobieren und Erfolge feiern macht dabei besonders viel Spaß. Perfekt, um dich auszupowern, Neues auszuprobieren und vielleicht deine neue Lieblingssportart zu entdecken.</p>
+            <p>Was du brauchst: Sportklamotten, Getränk, Bussticket, Studierendennachweis, Hallenschuhe oder Boulderschuhe, ggf. Bargeld.
+            Boulderschuhe können auch vor Ort auf eigene Kosten ausgeliehen werden. Allerdings sind nicht genügend Leihschuhe für alle da, also bringt wenn möglich eigene mit.</p>
+            <p><strong>Wichtig: </strong>Wer teilnehmen möchte, muss die <a href="https://www.campusboulderhalle.de/info/agb-bouldern/" target="_blank">AGB</a> unterschreiben. Das Formular dafür holt ihr euch im FSR ab.</p>
+            <p><strong>Telegram:</strong> <a href="https://t.me/+b6AKT0MsF3QzZDEy" target="_blank">https://t.me/+b6AKT0MsF3QzZDEy</a></p>
+            <p><strong>Treffpunkt:</strong> <a href="https://maps.app.goo.gl/JYsg51y9m2ENQ47o6" target="_blank">CAMPUS Boulderhalle</a> 11:45 Uhr vor Ort.</p><br>
+            <p><strong>Lasertag: </strong>Beim Lasertag kannst du dein Aim unter Beweis stellen und den anderen zeigen das du nicht nur Online zielen kannst.</p>
+            <p><strong>Anmeldegebühr: </strong>5€</p>
+            <p><strong>Telegram:</strong> <a href="https://t.me/+xcVtkbICXHVjNWUy" target="_blank">https://t.me/+xcVtkbICXHVjNWUy</a></p>
+            <p><strong>Treffpunkt:</strong> <a href="https://maps.app.goo.gl/aBD7EDYU734Eqkuz6" target="_blank">LaserZone Würselen</a> 11:30 Uhr vor Ort.</p><br>
+            <p><strong>Allgemein:</strong> Anmeldegebühren zahlt ihr bitte am Montag zwischen 12:30 und 14:00 Uhr oder am Mittwoch zwischen 10:00 und 14:00 Uhr im FSR. Solltet ihr bis Mittwoch nicht gezahlt haben, werden eure reservierten Plätze wieder freigegeben.</p>
+            <p>Wer bei Trinkyoga mitmacht, kann sich auch zur Foodtour unter "Kultur" anmelden. <strong>Andere Kombinationen sind zeitlich leider nicht möglich.</strong></p>
+            <p>Die Treffpunkte und Zeiten werden auch nochmal im Telegram Info Channel gepostet.</p>
+            <p>Wir freuen uns auf euch!</p>';
+    }
+
+    /**
+     * Get the description of the "Kultur" event.
+     */
+    public static function kulturDescription(): string
+    {
+        return '<p>Den Tivoli erkunden oder sich einfach den Bauch richtig voll schlagen?
+            Auch das ist am Freitag in der Erstiwoche möglich.</p>
+            <p>Bitte beachtet die folgenden Hinweise zu den einzelnen Programmpunkten:</p>
+            <p><strong>Tivoli-Tour:</strong> Bei der Stadiontour durch das Alemannia Aachen Stadion hast du exklusiv die Möglichkeit, einen Blick hinter die Kulissen zu werfen. Du erlebst hautnah Bereiche, die sonst nur Spielern oder Sponsoren vorbehalten sind - und das sogar kostenlos! Am Ende der Tour erwartet alle Teilnehmer*innen noch eine Überraschung. Also, worauf wartest du noch?</p>
+            <p><strong>Telegram:</strong> <a href="https://t.me/+bbd5jIap5b1mZDNi" target="_blank">https://t.me/+bbd5jIap5b1mZDNi</a></p>
+            <p><strong>Dieser Programmpunkt muss aufgrund des Veranstalters leider ausfallen. Tretet trotzdem bitte der Telegram-Gruppe bei, um Updates und Informationen zu einem Alternativtermin zu erhalten.</strong></p><br>
+            <p><strong>Foodtour:</strong> Bist du neu in Aachen und willst wissen wo man nach den Vorlesungen etwas Leckeres zu Essen findet? Oder hast du einfach Lust dich durch die verschiedenen Restaurants und Buden Aachens zu probieren? Dann ist die Foodtour genau das Richtige für dich! Zieh mit uns los und lerne Aachener Spezialitäten und andere leckere und besondere Speisen kennen.</p>
+            <p>Das Essen wird selber bezahlt, denke also an Bargeld.</p>
+            <p><strong>Telegram:</strong> <a href="https://t.me/+-MgJhEQP_g82Yjk6" target="_blank">https://t.me/+-MgJhEQP_g82Yjk6</a></p>
+            <p><strong>Treffpunkt:</strong> <a href="https://maps.app.goo.gl/V9jqdMJuUt3sCCPb9" target="_blank">Haupteingang E Gebäude</a> 11:45 Uhr vor Ort.</p><br>
+            <p><strong>Allgemein:</strong> Wer bei der Foodtour mitmacht, kann sich auch zum Trinkyoga unter "Sport" anmelden. Andere Kombinationen sind zeitlich leider nicht möglich.</p>
+            <p>Die genauen Treffpunkte und Zeiten posten wir rechtzeitig im Telegram Info Channel.</p>
+            <p>Wir freuen uns auf euch!</p>';
+    }
+}

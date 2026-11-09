@@ -1,0 +1,98 @@
+- name: clone repository
+  ansible.builtin.git:
+    repo: "{{ portals_repo_url }}"
+    dest: "{{ portals_local_path }}"
+    version: "{{ portals_branch_or_tag }}"
+    force: yes
+    update: yes
+- name: create .env
+  ansible.builtin.template:
+    src: .env.j2
+    dest: "{{ portals_local_path }}/.env"
+    owner: www-data
+    group: www-data
+    mode: "0644"
+- name: install php dependencies
+  ansible.builtin.shell:
+    cmd: composer install --no-dev --optimize-autoloader
+    chdir: "{{ portals_local_path }}"
+  environment:
+    COMPOSER_ALLOW_SUPERUSER: "1"
+- name: install node dependencies
+  ansible.builtin.shell:
+    cmd: npm install
+    chdir: "{{ portals_local_path }}"
+- name: build frontend
+  ansible.builtin.shell:
+    cmd: npm run build
+    chdir: "{{ portals_local_path }}"
+- name: migrate database
+  ansible.builtin.shell:
+    cmd: php artisan migrate --force
+    chdir: "{{ portals_local_path }}"
+- name: create tutors.csv
+  ansible.builtin.copy:
+    dest: "{{ portals_local_path }}/database/seeders/tutors.csv"
+    src: "../../../{{ portals_tutors_csv | default('tutors.csv') }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: portals_seed_database | default(false) or portals_seed_tutors | default(false) or portals_seed_class is defined
+- name: create students.csv
+  ansible.builtin.copy:
+    dest: "{{ portals_local_path }}/database/seeders/students.csv"
+    src: ../../../students.csv
+    owner: root
+    group: root
+    mode: "0644"
+  # the students can also register themselves instead (registration module), then there is no students.csv
+  when: (portals_seed_database | default(false) or portals_seed_students | default(false)) and (playbook_dir + '/students.csv') is file
+- name: create telegram.csv
+  ansible.builtin.copy:
+    dest: "{{ portals_local_path }}/database/seeders/telegram.csv"
+    src: ../../../telegram.csv
+    owner: root
+    group: root
+    mode: "0644"
+  when: (portals_seed_database | default(false) or portals_seed_telegram | default(false)) and (playbook_dir + '/telegram.csv') is file
+- name: create avatars
+  ansible.builtin.copy:
+    dest: "{{ portals_local_path }}/database/seeders/images"
+    src: ../../../avatars/
+    owner: root
+    group: root
+    mode: "0644"
+  when: portals_seed_database | default(false) or portals_seed_avatars | default(false)
+- name: seed custom seeder class
+  ansible.builtin.shell:
+    cmd: php artisan db:seed --class={{ portals_seed_class }} --force
+    chdir: "{{ portals_local_path }}"
+  when: portals_seed_class is defined and not (portals_seed_database | default(false))
+- name: seed tutors only
+  ansible.builtin.shell:
+    cmd: php artisan db:seed --class=TutorSeeder --force
+    chdir: "{{ portals_local_path }}"
+  when: portals_seed_tutors | default(false) and not (portals_seed_database | default(false))
+- name: seed students only
+  ansible.builtin.shell:
+    cmd: php artisan db:seed --class=StudentSeeder --force
+    chdir: "{{ portals_local_path }}"
+  when: portals_seed_students | default(false) and not (portals_seed_database | default(false))
+- name: seed database
+  ansible.builtin.shell:
+    cmd: php artisan db:seed --force
+    chdir: "{{ portals_local_path }}"
+  when: portals_seed_database | default(false)
+- name: create systemd unit
+  ansible.builtin.template:
+    src: octane.service.j2
+    dest: /etc/systemd/system/octane.service
+    mode: "0644"
+- name: reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: yes
+- name: enable and restart octane service
+  ansible.builtin.systemd:
+    name: octane.service
+    enabled: yes
+    state: restarted

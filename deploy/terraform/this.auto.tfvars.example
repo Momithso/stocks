@@ -1,0 +1,12 @@
+hcloud_token           = ""
+cloudflare_token       = ""
+s3_access_key          = ""
+s3_secret_key          = ""
+grafana_admin_password = ""
+ssh_keys = [
+  {
+    name             = "your-name"
+    public_key       = "ssh-ed25519 your-key"
+    upload_to_hcloud = true
+  }
+]

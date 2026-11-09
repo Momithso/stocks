@@ -1,0 +1,76 @@
+{
+  "name": "fsr5-fhaachen/portals",
+  "type": "project",
+  "description": "Group allocation tool for the first week of the Department of Electrical Engineering and Information Technology at the FH Aachen - University of Applied Sciences.",
+  "keywords": [],
+  "license": "MIT",
+  "require": {
+    "php": "^8.4",
+    "aws/aws-sdk-php": "^3.283",
+    "bacon/bacon-qr-code": "^3.1",
+    "barryvdh/laravel-dompdf": "^3.1",
+    "inertiajs/inertia-laravel": "^3.3",
+    "laravel/framework": "^13.0",
+    "laravel/octane": "^2.3",
+    "laravel/tinker": "^3.0",
+    "league/flysystem-aws-s3-v3": "^3.16",
+    "namoshek/laravel-redis-sentinel": "^1.1",
+    "owen-it/laravel-auditing": "^14.0",
+    "spatie/laravel-permission": "^8.0",
+    "spiral/roadrunner": "^2025.1",
+    "spiral/roadrunner-cli": "^2.5.0",
+    "spiral/roadrunner-http": "^3.0.1"
+  },
+  "require-dev": {
+    "fakerphp/faker": "^1.23",
+    "laravel/boost": "^2.5",
+    "laravel/pint": "^1.13",
+    "laravel/sail": "^1.26",
+    "laravel/telescope": "^5.23",
+    "mockery/mockery": "^1.6",
+    "nunomaduro/collision": "^8.0",
+    "phpunit/phpunit": "^12.0",
+    "scrumble-nl/laravel-model-ts-type": "^10.4"
+  },
+  "autoload": {
+    "psr-4": {
+      "App\\": "app/",
+      "Database\\Factories\\": "database/factories/",
+      "Database\\Seeders\\": "database/seeders/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Tests\\": "tests/"
+    }
+  },
+  "scripts": {
+    "post-autoload-dump": [
+      "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
+      "@php artisan package:discover --ansi"
+    ],
+    "post-update-cmd": [
+      "@php artisan vendor:publish --tag=laravel-assets --ansi"
+    ],
+    "post-root-package-install": [
+      "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
+    ],
+    "post-create-project-cmd": [
+      "@php artisan key:generate --ansi"
+    ]
+  },
+  "extra": {
+    "laravel": {
+      "dont-discover": [
+        "laravel/telescope"
+      ]
+    }
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "preferred-install": "dist",
+    "sort-packages": true
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}

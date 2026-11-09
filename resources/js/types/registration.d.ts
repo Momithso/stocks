@@ -1,0 +1,23 @@
+declare namespace App.Models {
+  type Registration = {
+    id: number;
+    created_at: string /* Date */ | null;
+    updated_at: string /* Date */ | null;
+    event_id: number;
+    user_id: number;
+    slot_id: number | null;
+    group_id: number | null;
+    drinks_alcohol: boolean | null;
+    fulfils_requirements: boolean | null;
+    is_present: boolean;
+    form_responses: any[];
+    queue_position: number | null;
+    event?: Event | null;
+    user?: User | null;
+    slot?: Slot | null;
+    group?: Group | null;
+    workshop_priorities?: WorkshopPriority[] | null;
+    workshop_assignments?: WorkshopAssignment[] | null;
+    use_factory?: any | null;
+  };
+}

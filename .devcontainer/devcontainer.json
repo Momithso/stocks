@@ -1,0 +1,42 @@
+// https://aka.ms/devcontainer.json
+{
+  "name": "Laravel Sail",
+  "dockerComposeFile": ["../docker-compose.sail.yaml"],
+  "service": "laravel.test",
+  "workspaceFolder": "/var/www/html",
+  "features": {
+    "ghcr.io/robbert229/devcontainer-features/opentofu:1": {
+      "version": "1.10.5"
+    },
+    "ghcr.io/devcontainers-extra/features/ansible:2": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "bmewburn.vscode-intelephense-client",
+        "bradlc.vscode-tailwindcss",
+        "christian-kohler.path-intellisense",
+        "esbenp.prettier-vscode",
+        "gruntfuggly.todo-tree",
+        "junstyle.php-cs-fixer",
+        "MehediDracula.php-namespace-resolver",
+        "mike-co.import-sorter",
+        "mikestead.dotenv",
+        "ms-azuretools.vscode-docker",
+        "neilbrayfield.php-docblocker",
+        "steoates.autoimport",
+        "Vue.volar",
+        "xdebug.php-debug",
+        "github.copilot",
+        "opentofu.vscode-opentofu",
+        "redhat.ansible"
+      ],
+      "settings": {}
+    }
+  },
+  "remoteUser": "sail",
+  "postCreateCommand": "chown -R 1000:1000 /var/www/html"
+  // "forwardPorts": [],
+  // "runServices": [],
+  // "shutdownAction": "none",
+}

@@ -1,0 +1,310 @@
+<template>
+  <LayoutDashboardContent>
+    <template #title>{{ event.name }}</template>
+
+    <CardContainer>
+      <CardBase>
+        <UiDl>
+          <UiDt>Event</UiDt>
+          <UiDd>
+            {{ event.name }}
+          </UiDd>
+
+          <template v-if="event.registration_from">
+            <UiDt>Anmeldung ab</UiDt>
+            <UiDd>
+              <UiDateTimeString
+                :value="event.registration_from"
+                :withClockSuffix="true"
+              />
+            </UiDd>
+          </template>
+
+          <template v-if="event.registration_to">
+            <UiDt>Anmeldung bis</UiDt>
+            <UiDd>
+              <UiDateTimeString
+                :value="event.registration_to"
+                :withClockSuffix="true"
+              />
+            </UiDd>
+          </template>
+
+          <template v-if="slotData">
+            <UiDt>Slot</UiDt>
+            <UiDd>{{ slotData.name }}</UiDd>
+
+            <template v-if="slotData.maximum_participants">
+              <UiDt>Maximale Teilnehmerzahl</UiDt>
+              <UiDd>{{ slotData.maximum_participants }}</UiDd>
+            </template>
+          </template>
+        </UiDl>
+      </CardBase>
+
+      <template v-if="userRegistration">
+        <template v-if="event.type == 'group_phase'">
+          <template v-if="userRegistration.group_id && userRegistration.group">
+            <UiMessage
+              v-if="
+                !event.has_requirements ||
+                (event.has_requirements &&
+                  userRegistration.fulfils_requirements)
+              "
+              type="success"
+            >
+              <template #message>
+                <template v-if="userRegistration.group.name">
+                  Die Einteilung ist erfolgt. Du bist in der Gruppe
+                  <strong>{{ userRegistration.group.name }}</strong
+                  >.
+                  <div v-if="userRegistration.group.telegram_group_link">
+                    Link zur Telegram-Gruppe:<br />
+                    <AppLink
+                      :href="userRegistration.group.telegram_group_link"
+                      rootClass="inline"
+                      >{{ userRegistration.group.telegram_group_link }}</AppLink
+                    >
+                  </div>
+                </template>
+                <template v-else>
+                  Die Einteilung ist erfolgt. Du bist in
+                  <strong>Gruppe {{ userRegistration.group.id }}</strong
+                  >.
+                  <div v-if="userRegistration.group.telegram_group_link">
+                    Link zur Telegram-Gruppe:<br />
+                    <AppLink
+                      :href="userRegistration.group.telegram_group_link"
+                      rootClass="inline"
+                      >{{ userRegistration.group.telegram_group_link }}</AppLink
+                    >
+                  </div>
+                </template>
+              </template>
+            </UiMessage>
+            <UiMessage
+              v-else
+              type="warning"
+              :message="
+                'Die Einteilung ist erfolgt. Du bist für ' +
+                (userRegistration.group.name
+                  ? 'der Gruppe <strong>' +
+                    userRegistration.group.name +
+                    '</strong>'
+                  : '<strong>Gruppe ' +
+                    userRegistration.group.id +
+                    '</strong>') +
+                ' <strong>vorgemerkt</strong>. Folge den mitgeteilten Anweisungen, um die Anmeldung abzuschließen.'
+              "
+            />
+          </template>
+          <UiMessage
+            v-else
+            message="Die Zuteilung in deine Gruppe folgt bald."
+          />
+        </template>
+
+        <template v-else-if="event.type == 'slot_booking'">
+          <UiMessage
+            v-if="userRegistration.queue_position == -1"
+            message="Die Zuteilung in deinen Slot folgt bald."
+          />
+          <template v-else-if="!userRegistration.queue_position && slotData">
+            <UiMessage
+              v-if="
+                (!event.has_requirements && !slotData.has_requirements) ||
+                ((event.has_requirements || slotData.has_requirements) &&
+                  userRegistration.fulfils_requirements)
+              "
+              type="success"
+            >
+              <template #message>
+                Die Einteilung ist erfolgt. Du bist im Slot
+                <strong>{{ slotData.name }}</strong
+                >.
+                <div v-if="slotData.telegram_group_link">
+                  Link zur Telegram-Gruppe:<br />
+                  <AppLink
+                    :href="slotData.telegram_group_link"
+                    rootClass="inline"
+                    >{{ slotData.telegram_group_link }}</AppLink
+                  >
+                </div>
+              </template>
+            </UiMessage>
+            <UiMessage
+              v-else
+              type="warning"
+              :message="
+                'Die Einteilung ist erfolgt. Du bist für den Slot <strong>' +
+                slotData.name +
+                ' vorgemerkt</strong>. Folge den mitgeteilten Anweisungen, um die Anmeldung abzuschließen.'
+              "
+            />
+          </template>
+        </template>
+
+        <template v-else-if="event.type == 'event_registration'">
+          <UiMessage
+            v-if="
+              (event.has_requirements &&
+                userRegistration.fulfils_requirements) ||
+              !event.has_requirements
+            "
+            type="success"
+            :message="'Die Einteilung ist erfolgt. Du nimmst erfolgreich teil.'"
+          />
+          <UiMessage
+            v-else-if="
+              event.has_requirements && !userRegistration.fulfils_requirements
+            "
+            type="warning"
+            :message="'Die Einteilung ist erfolgt. Du bist für das Event vorgemerkt. Folge den mitgeteilten Anweisungen, um die Anmeldung abzuschließen.'"
+          />
+        </template>
+
+        <template v-else-if="event.type == 'workshop_booking'">
+          <CardBase v-if="registration.workshop_assignments">
+            <FormContainer>
+              <UiH2>Deine Workshops</UiH2>
+              <UiDl>
+                <template
+                  v-for="block in event.workshop_blocks"
+                  :key="block.id"
+                >
+                  <UiDt>
+                    {{ block.name }},
+                    <UiDateTimeString
+                      :value="block.starts_at"
+                      :withClockSuffix="true"
+                    />
+                  </UiDt>
+                  <UiDd>
+                    <template v-if="sessionsByBlock[block.id]">
+                      <strong>{{
+                        sessionsByBlock[block.id].workshop?.name
+                      }}</strong>
+                      <template v-if="sessionsByBlock[block.id].location">
+                        ({{ sessionsByBlock[block.id].location }})
+                      </template>
+                    </template>
+                    <template v-else>
+                      In diesem Block konnten wir dich leider nicht einteilen.
+                    </template>
+                  </UiDd>
+                </template>
+              </UiDl>
+            </FormContainer>
+          </CardBase>
+          <template v-else>
+            <UiMessage
+              message="Die Einteilung in deine Workshops folgt bald."
+            />
+            <CardBase v-if="registration.workshop_priorities?.length">
+              <FormContainer>
+                <UiH2>Deine Wünsche</UiH2>
+                <ol
+                  class="list-inside list-decimal text-gray-900 dark:text-gray-100"
+                >
+                  <li
+                    v-for="priority in registration.workshop_priorities"
+                    :key="priority.id"
+                  >
+                    {{ priority.workshop?.name }}
+                  </li>
+                </ol>
+              </FormContainer>
+            </CardBase>
+          </template>
+        </template>
+
+        <UiMessage
+          v-if="
+            userRegistration.queue_position &&
+            userRegistration.queue_position > 0
+          "
+          type="warning"
+          :message="
+            'Die Einteilung ist erfolgt. Du bist in der Warteschlange an <strong>Position ' +
+            userRegistration.queue_position +
+            '</strong> als nachrückende Person eingetragen.'
+          "
+        />
+      </template>
+
+      <CardBase v-if="event.description">
+        <div
+          class="prose !max-w-full dark:prose-invert"
+          v-html="event.description"
+        ></div>
+      </CardBase>
+    </CardContainer>
+  </LayoutDashboardContent>
+</template>
+
+<script lang="ts">
+import DashboardCardLayout from "@/layouts/DashboardCardLayout.vue";
+
+export default {
+  layout: DashboardCardLayout,
+};
+</script>
+
+<script setup lang="ts">
+import { computed, ref, PropType } from "vue";
+
+const { event, registration } = defineProps({
+  event: {
+    type: Object as PropType<App.Models.Event>,
+    required: true,
+  },
+  registration: {
+    type: Object as PropType<App.Models.Registration>,
+    required: true,
+  },
+});
+
+const slotData = computed(() => {
+  if (event.slots && registration && registration.slot_id) {
+    return event.slots.find((s) => s.id === registration.slot_id);
+  }
+
+  return null;
+});
+
+// the assigned sessions are only loaded after the workshops were published
+const sessionsByBlock = computed(() =>
+  Object.fromEntries(
+    (registration?.workshop_assignments ?? []).map((assignment) => [
+      assignment.workshop_block_id,
+      assignment.session,
+    ]),
+  ),
+);
+
+const userRegistration = ref(registration);
+const isFetchingRegistration = ref(false);
+const fetchRegistration = async () => {
+  if (isFetchingRegistration.value) {
+    return;
+  }
+
+  isFetchingRegistration.value = true;
+
+  const response = await fetch("/api/registrations/" + registration.id, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (response.ok) {
+    const data = await response.json();
+    userRegistration.value = data;
+  }
+
+  isFetchingRegistration.value = false;
+};
+usePolling(fetchRegistration, 5000);
+</script>

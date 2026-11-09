@@ -1,0 +1,26 @@
+<?php
+
+namespace App\Http\Middleware;
+
+use App\Models\Module;
+use Closure;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+class ActiveModule
+{
+    /**
+     * Handle an incoming request.
+     *
+     * @param  Closure(Request): (\Illuminate\Http\Response|RedirectResponse)  $next
+     */
+    public function handle(Request $request, Closure $next, string $module): Response
+    {
+        if ($module && ! Module::where('key', $module)->first()?->active) {
+            return redirect()->route('app.index');
+        }
+
+        return $next($request);
+    }
+}
