@@ -22,7 +22,7 @@ Anmelden mit `admin@example.com` und dem Passwort `correct horse battery`.
 ## Dokumentation
 
 | Datei                                                            | Inhalt                                                             |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------ |
+|------------------------------------------------------------------|--------------------------------------------------------------------|
 | [documentation/CORE.md](documentation/CORE.md)                   | Aufbau, Anmeldung, Rollen und Rechte, Kiosk, Oberfläche, Datenbank |
 | [documentation/MODULES.md](documentation/MODULES.md)             | Module bauen, Erweiterungspunkte                                   |
 | [documentation/SETUP.md](documentation/SETUP.md)                 | Instanz aufsetzen und aktualisieren                                |

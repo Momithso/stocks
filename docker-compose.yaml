@@ -52,6 +52,8 @@ services:
       - stocks
   mariadb:
     image: mariadb
+    ports:
+      - "3306:3306"
     restart: unless-stopped
     environment:
       MARIADB_DATABASE: stocks
