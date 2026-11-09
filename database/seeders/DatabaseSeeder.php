@@ -2,57 +2,35 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Actions\Setup\InstallStocks;
+use App\Models\User;
+use Database\Factories\UserFactory;
 use Illuminate\Database\Seeder;
 
+/**
+ * Demo data for local development: an installed instance with one account per start role.
+ * All accounts have the password of UserFactory::PASSWORD and the pin UserFactory::PIN.
+ */
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
     /**
-     * Run the database seeders.
+     * Seed the application's database.
      */
-    public function run(): void
+    public function run(InstallStocks $installStocks): void
     {
-        $seeders = [
-            RoleSeeder::class,
-            ModuleSeeder::class,
-            // only the faculties take part in gerolstein, not the single study programmes
-            config('app.event_type') == 'gerolstein' ? CourseFacultySeeder::class : CourseSeeder::class,
-            TutorSeeder::class,
-        ];
+        $installStocks->handle(
+            settings: ['organization.name' => 'Demo-Fachschaft', 'organization.short_name' => 'Demo'],
+            admin: ['firstname' => 'Ada', 'lastname' => 'Admin', 'email' => 'admin@example.com', 'password' => UserFactory::PASSWORD],
+            activeModules: ['example'],
+        );
+        User::where('email', 'admin@example.com')->update(['pin' => bcrypt(UserFactory::PIN)]);
 
-        // add seder by event
-        if (config('app.event_type') == 'demo') {
-            $seeders = [
-                ...$seeders,
-                UserDemoSeeder::class,
-                ArticleSeeder::class,
-                ModuleDemoSeeder::class,
-                EventsDemoSeeder::class,
-                PageDemoSeeder::class,
-                ScoringDemoSeeder::class,
-            ];
-        } elseif (config('app.event_type') == 'erstiwoche') {
-            $seeders = [
-                ...$seeders,
-                ArticleSeeder::class,
-                ModuleErstiwocheSeeder::class,
-                EventsErstiwocheSeeder::class,
-                PageErstiwocheSeeder::class,
-            ];
-        } elseif (config('app.event_type') == 'gerolstein') {
-            $seeders = [
-                ...$seeders,
-                StudentSeeder::class,
-                ArticleGerolsteinSeeder::class,
-                ModuleGerolsteinSeeder::class,
-                EventsGerolsteinSeeder::class,
-                PageGerolsteinSeeder::class,
-            ];
+        foreach (array_keys(config('stocks.start_roles')) as $index => $role) {
+            User::factory()->withPin()->create([
+                'firstname' => $role,
+                'lastname' => 'Demo',
+                'email' => 'demo'.($index + 1).'@example.com',
+            ])->assignRole($role);
         }
-
-        // call seeders
-        $this->call($seeders);
     }
 }

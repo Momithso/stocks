@@ -31,7 +31,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       laravel({
-        input: ["resources/js/app.js"],
+        input: ["resources/js/app.ts"],
         refresh: true,
       }),
       vue({
@@ -56,7 +56,7 @@ export default defineConfig(({ mode }) => {
     define: {
       __PACKAGE_NAME__: JSON.stringify(process.env.npm_package_name),
       __PACKAGE_REPOSITORY_URL__: JSON.stringify(
-        "https://github.com/fsr5-fhaachen/portals/",
+        "https://github.com/Momithso/stocks",
       ),
     },
   };

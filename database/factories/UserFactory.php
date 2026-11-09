@@ -2,10 +2,8 @@
 
 namespace Database\Factories;
 
-use App\Models\Course;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Support\Facades\Hash;
 
 /**
  * @extends Factory<User>
@@ -13,40 +11,54 @@ use Illuminate\Support\Facades\Hash;
 class UserFactory extends Factory
 {
     /**
-     * The pin of all created users.
+     * Password of all factory accounts.
      *
      * @var string
      */
-    public const PIN = '4711';
+    public const PASSWORD = 'correct horse battery';
 
     /**
-     * The hashed pin, hashing it for every user would slow down the seeders and tests.
+     * Kiosk pin of factory accounts with pin.
+     *
+     * @var string
      */
-    protected static ?string $hashedPin = null;
+    public const PIN = '482915';
 
     /**
-     * Define the model's default state. Expects that the courses table is already pre-populated.
+     * The password hash is computed once, hashing for every account slows down the tests.
+     */
+    private static ?string $passwordHash = null;
+
+    /**
+     * Define the model's default state.
      *
      * @return array<string, mixed>
      */
     public function definition(): array
     {
         return [
-            'firstname' => $this->faker->firstName(),
-            'lastname' => $this->faker->lastName(),
-            'email' => $this->faker->unique()->safeEmail(),
-            'course_id' => Course::all(['id'])->random(),
-            'pin' => static::$hashedPin ??= Hash::make(self::PIN),
+            'firstname' => fake()->firstName(),
+            'lastname' => fake()->lastName(),
+            'email' => fake()->unique()->safeEmail(),
+            'password' => self::$passwordHash ??= bcrypt(self::PASSWORD),
+            'pin' => null,
+            'is_disabled' => false,
         ];
     }
 
     /**
-     * Indicate that the user has not set a pin yet.
+     * Account with the kiosk pin self::PIN.
      */
-    public function withoutPin(): static
+    public function withPin(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'pin' => null,
-        ]);
+        return $this->state(fn () => ['pin' => self::PIN]);
+    }
+
+    /**
+     * Disabled account.
+     */
+    public function disabled(): static
+    {
+        return $this->state(fn () => ['is_disabled' => true]);
     }
 }

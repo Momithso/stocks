@@ -11,7 +11,7 @@ These are only recommendations and not mandatory.
 - [Visual Studio Code](https://code.visualstudio.com/) (for configuration see [`settings.json`](./.vscode/settings.json) and [`extensions.json`](./.vscode/extensions.json))
 - PostgreSQL, MariaDB or other DB that works with Laravel
 - PHP
-- Webserver (Apache, Nginx, Roadrunner, ...)
+- Webserver (Apache, Nginx, Swoole über Octane, ...)
 - Composer
 - Node.js
 - TypeScript

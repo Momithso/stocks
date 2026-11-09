@@ -1,18 +1,8 @@
-# app files
-tutors.csv
-students.csv
-telegram.csv
-database/seeders/images/
-
-# deployment
-deployOwn/
-
 # build files
 public/build/*
 
 # dev files
 laravel.sql
-.php-cs-fixer.cache
 
 # Created by https://www.toptal.com/developers/gitignore/api/node,phpunit,laravel,visualstudiocode,jetbrains+all,windows,macos,linux,git
 # Edit at https://www.toptal.com/developers/gitignore?templates=node,phpunit,laravel,visualstudiocode,jetbrains+all,windows,macos,linux,git
@@ -397,9 +387,5 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/node,phpunit,laravel,visualstudiocode,jetbrains+all,windows,macos,linux,gitrr
-.rr.yaml
-rr
 
 */caddy
-frankenphp
-frankenphp-worker.php

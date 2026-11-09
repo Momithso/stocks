@@ -1,19 +1,51 @@
 export {};
+
 declare global {
   const __PACKAGE_NAME__: string;
   const __PACKAGE_REPOSITORY_URL__: string;
 
-  export interface NavbarLink {
-    title: string;
-    href: string;
-    // also active on sub pages (e.g. /dashboard/admin/scoring/1)
-    matchPrefix?: boolean;
+  /**
+   * Props every page gets, see app/Http/Middleware/HandleInertiaRequests.php.
+   */
+  interface SharedProps {
+    auth: {
+      user: {
+        id: number;
+        firstname: string;
+        lastname: string;
+        email: string;
+        name: string;
+      };
+      permissions: string[];
+    } | null;
+    navigation: NavigationSection[];
+    organization: {
+      name: string;
+      short_name: string;
+      accent_color: string;
+      imprint_url: string | null;
+      privacy_url: string | null;
+    };
+    flash: Record<"success" | "error" | "warning" | "info", string | null>;
+    errors: Record<string, string>;
+    serverTime: number;
   }
 
-  export interface NavbarGroup {
+  interface NavigationSection {
+    key: string;
     title: string;
-    // admin groups are highlighted in red
-    isAdmin?: boolean;
-    links: NavbarLink[];
+    entries: NavigationEntry[];
+  }
+
+  interface NavigationEntry {
+    title: string;
+    href: string;
+    icon: string;
+    mobile: boolean;
+  }
+
+  interface Option {
+    value: string | number;
+    label: string;
   }
 }

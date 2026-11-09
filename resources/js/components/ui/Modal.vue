@@ -11,9 +11,7 @@
           leave-from="opacity-100"
           leave-to="opacity-0"
         >
-          <div
-            class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-          />
+          <div class="fixed inset-0 bg-gray-900/60 transition-opacity" />
         </TransitionChild>
 
         <div class="fixed inset-0 z-10 w-screen overflow-y-auto">
@@ -31,19 +29,19 @@
             >
               <DialogPanel
                 :class="size === 'lg' ? 'sm:max-w-lg' : 'sm:max-w-sm'"
-                class="relative w-full transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all dark:bg-gray-900 sm:my-8 sm:w-full sm:p-6"
+                class="relative w-full transform overflow-hidden rounded-lg bg-surface px-4 pb-4 pt-5 text-left text-ink shadow-xl transition-all sm:my-8 sm:w-full sm:p-6"
               >
                 <div class="mb-6 flex items-start justify-between gap-4">
                   <DialogTitle as="div">
-                    <UiH2>{{ title }}</UiH2>
+                    <h2 class="text-lg font-semibold">{{ title }}</h2>
                   </DialogTitle>
                   <button
                     type="button"
-                    class="rounded-md p-1 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-fhac-mint dark:hover:text-gray-200"
+                    class="rounded-md p-1 text-ink-muted hover:text-ink focus:outline-none focus:ring-2 focus:ring-accent"
                     @click="close"
                   >
                     <span class="sr-only">Schließen</span>
-                    <FontAwesomeIcon class="h-4 w-4" :icon="['fas', 'x']" />
+                    <FontAwesomeIcon class="h-4 w-4" :icon="['fas', 'xmark']" />
                   </button>
                 </div>
 

@@ -110,10 +110,7 @@ return [
     'empty_values' => false,
     'allowed_empty_values' => [
         'retrieved',
-        'tutorLogin',
-        'adminLogin',
-        'tutorLoginFailed',
-        'adminLoginFailed',
+        'pinReset',
     ],
 
     /*

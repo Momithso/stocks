@@ -1,60 +1,43 @@
 <template>
-  <UiModal :title="title" @close="close">
+  <UiModal :title="title" @close="emit('close')">
     <div class="space-y-6">
-      <UiMessage type="warning">
-        <template #message>{{ message }}</template>
-      </UiMessage>
-
+      <UiAlert type="warning" :message="message" />
       <div class="flex flex-col gap-3 sm:flex-row-reverse">
-        <AppButton
-          :theme="theme"
+        <UiButton
+          :variant="variant"
           :disabled="processing"
-          class="flex-1 text-center"
-          @click="confirm"
+          class="flex-1"
+          @click="emit('confirm')"
         >
           {{ confirmLabel }}
-        </AppButton>
-        <AppButton theme="gray" class="flex-1 text-center" @click="close">
+        </UiButton>
+        <UiButton variant="secondary" class="flex-1" @click="emit('close')">
           Abbrechen
-        </AppButton>
+        </UiButton>
       </div>
     </div>
   </UiModal>
 </template>
 
 <script setup lang="ts">
+import type { PropType } from "vue";
+
+/**
+ * Asks before a destructive action.
+ */
 defineProps({
-  title: {
-    type: String,
-    required: true,
-  },
-  message: {
-    type: String,
-    required: true,
-  },
-  confirmLabel: {
-    type: String,
-    default: "Löschen",
-  },
-  theme: {
-    type: String,
+  title: { type: String, required: true },
+  message: { type: String, required: true },
+  confirmLabel: { type: String, default: "Löschen" },
+  variant: {
+    type: String as PropType<"primary" | "danger">,
     default: "danger",
   },
-  processing: {
-    type: Boolean,
-    default: false,
-  },
+  processing: { type: Boolean, default: false },
 });
 
-const emits = defineEmits<{
+const emit = defineEmits<{
   close: [];
   confirm: [];
 }>();
-
-const close = () => {
-  emits("close");
-};
-const confirm = () => {
-  emits("confirm");
-};
 </script>

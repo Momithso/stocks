@@ -1,7 +1,35 @@
+@import "@fontsource-variable/inter";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-#app {
-  @apply h-screen;
+/*
+ * Colour tokens as rgb channels, used by tailwind.config.cjs. The accent is overwritten by the
+ * accent colour of the settings in resources/views/app.blade.php.
+ */
+@layer base {
+  :root {
+    --color-page: 243 244 246; /* gray-100 */
+    --color-surface: 255 255 255;
+    --color-surface-muted: 249 250 251; /* gray-50 */
+    --color-line: 229 231 235; /* gray-200 */
+    --color-ink: 17 24 39; /* gray-900 */
+    --color-ink-muted: 107 114 128; /* gray-500 */
+    --color-accent: 34 148 140; /* #22948c, mint of Portals */
+    --color-accent-hover: 0 181 173; /* #00b5ad */
+  }
+
+  .dark {
+    --color-page: 3 7 18; /* gray-950 */
+    --color-surface: 17 24 39; /* gray-900 */
+    --color-surface-muted: 31 41 55; /* gray-800 */
+    --color-line: 55 65 81; /* gray-700 */
+    --color-ink: 243 244 246; /* gray-100 */
+    --color-ink-muted: 156 163 175; /* gray-400 */
+  }
+
+  body {
+    @apply bg-page text-ink antialiased;
+  }
 }

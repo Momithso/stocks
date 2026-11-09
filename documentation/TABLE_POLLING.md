@@ -1,6 +1,6 @@
 # Tabellen: seitenweises Laden, Server-Suche, Server-Sortierung und Live-Update
 
-Alle Tabellen in Portals laden ihre Daten seitenweise beim Scrollen (Infinite Scroll). Suche und Sortierung laufen auf dem Server, und offene Tabellen aktualisieren sich live, indem sie regelmäßig nur die **Änderungen** abfragen. Ziel ist, die Ladezeiten und die übertragene Datenmenge zu minimieren.
+Alle Tabellen in Stocks laden ihre Daten seitenweise beim Scrollen (Infinite Scroll). Suche und Sortierung laufen auf dem Server, und offene Tabellen aktualisieren sich live, indem sie regelmäßig nur die **Änderungen** abfragen. Ziel ist, die Ladezeiten und die übertragene Datenmenge zu minimieren.
 
 Diese Dokumentation beschreibt, wie das System aufgebaut ist, wie das Polling funktioniert und wie man neue Tabellen hinzufügt.
 
@@ -10,14 +10,9 @@ Diese Dokumentation beschreibt, wie das System aufgebaut ist, wie das Polling fu
 - [Request-Parameter](#request-parameter)
 - [Backend: die Klasse `Table`](#backend-die-klasse-table)
 - [Live-Update (Polling)](#live-update-polling)
-- [Frontend: `AppTable`](#frontend-apptable)
-- [`usePolling` für eigene Abfragen](#usepolling-für-eigene-abfragen)
-- [Anleitung: eine neue Tabelle hinzufügen](#anleitung-eine-neue-tabelle-hinzufügen)
-- [Sortier-Hilfen](#sortier-hilfen)
-- [Eigene Aktionen in der Tabelle](#eigene-aktionen-in-der-tabelle)
+- [Frontend: `UiTable`](#frontend-uitable)
 - [Fallstricke](#fallstricke)
 - [Vorhandene Tabellen](#vorhandene-tabellen)
-- [Tests](#tests)
 
 ## Überblick
 
@@ -41,10 +36,9 @@ Bausteine:
 
 | Teil | Datei | Aufgabe |
 |---|---|---|
-| Basisklasse | [`app/Helpers/Table/Table.php`](../app/Helpers/Table/Table.php) | Suche, Sortierung, Seiten, Live-Update |
-| Tabellen-Klassen | `app/Helpers/Table/*Table.php` | Beschreiben je eine Tabelle: Abfrage, Zeilen, Suchfelder, Sortierschlüssel |
-| Event-Seiten | [`app/Helpers/Table/EventPageTable.php`](../app/Helpers/Table/EventPageTable.php) | Wählt je nach Event-Typ die Gruppen-, Slot- oder Anmeldungstabelle |
-| Tabellenkomponente | [`resources/js/components/app/Table.vue`](../resources/js/components/app/Table.vue) (`AppTable`) | Darstellung, Infinite Scroll, Sortierung, Suche, Live-Update |
+| Basisklasse | [`app/Support/Table/Table.php`](../app/Support/Table/Table.php) | Suche, Sortierung, Seiten, Live-Update |
+| Tabellen-Klassen | `app/Support/Table/*Table.php` | Beschreiben je eine Tabelle: Abfrage, Zeilen, Suchfelder, Sortierschlüssel |
+| Tabellenkomponente | [`resources/js/components/ui/Table.vue`](../resources/js/components/ui/Table.vue) (`UiTable`) | Darstellung, Infinite Scroll, Sortierung, Suche, Live-Update |
 | Spalten / Sortierwerte | `resources/js/types/table-column.ts`, `table-sort-value.ts` | Spaltendefinition mit `sortKey` |
 | Polling | [`resources/js/composables/usePolling.ts`](../resources/js/composables/usePolling.ts) | Periodische Abfragen, pausiert bei unsichtbarem Tab |
 | Startzeit | `serverTime` in [`HandleInertiaRequests`](../app/Http/Middleware/HandleInertiaRequests.php) | Startpunkt des Live-Updates |
@@ -64,7 +58,7 @@ Alle Parameter stehen in der URL der Seite. Dadurch übernimmt Inertia sie beim 
 | `changes_since` | Unix-Zeitstempel. Ist der Parameter gesetzt, liefert der Controller das Live-Update als JSON statt der Seite |
 | `loaded_ids` | Kommagetrennte IDs der geladenen Zeilen (für das Live-Update) |
 
-Weitere tabellenspezifische Filter sind möglich (z. B. `course` und `role` am Kiosk, siehe `applyFilters()`).
+Weitere tabellenspezifische Filter sind möglich, siehe `applyFilters()`.
 
 ## Backend: die Klasse `Table`
 
@@ -72,7 +66,7 @@ Eine Tabelle ist eine Klasse, die von `App\Helpers\Table\Table` erbt. Pflicht si
 
 | Methode | Pflicht | Zweck |
 |---|---|---|
-| `query(): Builder` | ja | Basis-Abfrage mit dem Bereich der Tabelle (z. B. „Anmeldungen von Event X“) inklusive `with()` / `withCount()` |
+| `query(): Builder` | ja | Basis-Abfrage mit dem Bereich der Tabelle (z. B. „Konten mit Rollen“) inklusive `with()` / `withCount()` |
 | `row(Model $model): array` | ja | Welche Felder einer Zeile an das Frontend gehen. Nur das Nötige ausliefern! |
 | `searchColumns(): array` | nein | Suchfelder, z. B. `['firstname', 'email']`, Relationen als `'user.firstname'` |
 | `sorts(): array` | nein | Sortierschlüssel → Spalte (String) oder Closure |
@@ -133,35 +127,34 @@ public function scroll(): ScrollProp
 Der gleiche Controller liefert die Seite, die nachgeladenen Seiten und das Live-Update. So gelten automatisch dieselbe Middleware und dieselben Berechtigungen wie für die Seite:
 
 ```php
-public function users(IlluminateRequest $request): Response|JsonResponse
+public function index(Request $request): Response|JsonResponse
 {
     $usersTable = new UsersTable($request);
     if ($usersTable->wantsChanges()) {
         return $usersTable->changesResponse();
     }
 
-    return Inertia::render('Dashboard/Admin/Users', [
-        'roles' => Role::where('name', '!=', 'super admin')->get(),
-        'courses' => Course::all(),
+    return Inertia::render('Admin/Users/Index', [
+        'roles' => fn () => Role::all(),
         'users' => $usersTable->scroll(),
     ]);
 }
 ```
 
-Beim Nachladen schickt Inertia einen Teil-Request (nur die Prop `users`). Andere Props sollten deshalb als Closure übergeben werden, wenn sie teuer sind, z. B. `'courses' => fn () => Course::all()`. Dann werden sie beim Nachladen nicht berechnet.
+Beim Nachladen schickt Inertia einen Teil-Request (nur die Prop `users`). Andere Props sollten deshalb als Closure übergeben werden, wenn sie teuer sind, z. B. `'roles' => fn () => Role::all()`. Dann werden sie beim Nachladen nicht berechnet.
 
 ## Live-Update (Polling)
 
 ### Ablauf
 
 1. Beim Laden der Seite liefert der Server die geteilte Prop **`serverTime`** (Unix-Zeitstempel). Das ist der Startpunkt.
-2. `AppTable` fragt alle **2,5 Sekunden** (`liveInterval`) die URL der Seite mit `changes_since` und `loaded_ids` ab. Ist der Browser-Tab ausgeblendet, pausiert das Polling und läuft beim Zurückkehren sofort einmal.
+2. `UiTable` fragt alle **2,5 Sekunden** (`liveInterval`) die URL der Seite mit `changes_since` und `loaded_ids` ab. Ist der Browser-Tab ausgeblendet, pausiert das Polling und läuft beim Zurückkehren sofort einmal.
 3. Der Server antwortet mit `time`. Das wird der Startpunkt für die nächste Abfrage.
 
 Beispiel einer Abfrage:
 
 ```
-GET /dashboard/tutor/event/4?sort=lastname&changes_since=1791749634&loaded_ids=2401,2402,2403
+GET /admin/users?sort=lastname&changes_since=1791749634&loaded_ids=2401,2402,2403
 Accept: application/json
 ```
 
@@ -229,7 +222,7 @@ Warum Löschungen über `loaded_ids` erkannt werden und nicht über das Audit-Lo
 Standard ist `updated_at >= changes_since`. Hängt eine Zeile von anderen Tabellen ab, muss `whereChangedSince()` erweitert werden. Beispiel Anmeldungen: Der Name kommt vom User. Ändert sich der User, soll die Anmeldung trotzdem aktualisiert werden:
 
 ```php
-// RegistrationsTable
+// Beispiel: Zeile hängt von einer anderen Tabelle ab
 protected function whereChangedSince(Builder $query, Carbon $since): void
 {
     $query->where('registrations.updated_at', '>=', $since)
@@ -249,10 +242,10 @@ $user->touch();
 
 ### Zählwerte: `refreshesAllRows()`
 
-Kleine Tabellen mit berechneten Werten (z. B. Teilnehmerzahl per `withCount('registrations')`) ändern sich, ohne dass sich die Zeile selbst ändert. Für sie liefert das Live-Update immer alle geladenen Zeilen. Das lohnt sich nur bei kleinen Tabellen (Events, Gruppen, Slots, Artikel):
+Kleine Tabellen mit berechneten Werten (z. B. eine Anzahl per `withCount()`) ändern sich, ohne dass sich die Zeile selbst ändert. Für sie liefert das Live-Update immer alle geladenen Zeilen. Das lohnt sich nur bei kleinen Tabellen:
 
 ```php
-// GroupsTable
+// Beispiel einer kleinen Tabelle mit Zählwerten
 protected function refreshesAllRows(): bool
 {
     return true;
@@ -266,7 +259,7 @@ Eine Zeile kann mehrfach im Browser ankommen: über eine Seite, ein Live-Update,
 Bei abhängigen Daten nimmt man das Maximum:
 
 ```php
-// RegistrationsTable
+// Beispiel: Zeile hängt von einer anderen Tabelle ab
 protected function rowVersion(Model $model): int
 {
     return max((int) $model->updated_at?->timestamp, (int) $model->user?->updated_at?->timestamp);
@@ -281,428 +274,56 @@ Zeitstempel haben Sekundengenauigkeit. Damit keine Änderung verloren geht, die 
 
 Pro Abfrage laufen höchstens drei schlanke Datenbankabfragen über die geladenen IDs bzw. die neuen Zeilen. Übertragen werden nur geänderte Zeilen. Ohne Änderungen sind das ca. 60 Bytes statt der kompletten Tabelle. Beispiel User-Verwaltung: vorher ca. 410 KB alle 2,5 Sekunden.
 
-## Frontend: `AppTable`
+## Frontend: `UiTable`
 
-`AppTable` ist die einzige Tabellenkomponente. Spalten, Buttons und Zeilenfarben werden wie bisher pro Tabelle definiert. Die Daten liest sie selbst aus der Inertia-Prop, deren Name in `data` steht.
-
-### Props
+`UiTable` ist die einzige Tabellenkomponente. Sie liest die Zeilen selbst aus der Inertia-Prop, deren Name in `data` steht.
 
 | Prop | Typ | Standard | Bedeutung |
 |---|---|---|---|
-| `data` | `string` | – (Pflicht) | Name der Scroll-Prop der Seite, z. B. `"users"` |
-| `columns` | `TableColumn[]` | – (Pflicht) | Spalten |
+| `data` | `string` | Pflicht | Name der Scroll-Prop der Seite, z. B. `"users"` |
+| `columns` | `TableColumn[]` | Pflicht | Spalten: `name`, `header`, optional `value(row)` und `sortKey` |
 | `idFunction` | `Function` | `(row) => row.id` | ID einer Zeile |
-| `functions` | `TableFunction[]` | `[]` | Buttons und Links pro Zeile (`TableButton`, `TableStateButton`, `TableLink`) |
-| `sortValues` | `TableSortValue[]` | `[]` | Zusätzliche Sortierungen ohne eigene Spalte („Sortieren nach: …“) |
 | `rowClass` | `Function` | `() => ({})` | CSS-Klassen pro Zeile |
-| `searchable` | `boolean` | `false` | Zeigt das Suchfeld („Filter“ / „Suche“) |
+| `searchable` | `boolean` | `false` | Suchfeld anzeigen |
 | `live` | `boolean` | `true` | Live-Update ein/aus |
 | `liveInterval` | `number` | `2500` | Intervall des Live-Updates in Millisekunden |
 
-### Über `ref` erreichbare Methoden
-
-| Methode | Zweck |
-|---|---|
-| `patchRow(id, fields)` | Felder einer geladenen Zeile sofort ändern (nach einer eigenen Aktion) |
-| `removeRow(id)` | Geladene Zeile sofort entfernen |
-| `refresh()` | Live-Update sofort ausführen |
-| `reload(changes?)` | Tabelle ab Seite 1 neu laden, optional mit geänderten Parametern |
-| `rows` | Die aktuell angezeigten Zeilen |
-
-### Spalten mit Sortierung
-
-Eine Spalte ist sortierbar, wenn sie einen `sortKey` hat. Der Schlüssel muss in `sorts()` der Tabellen-Klasse existieren. Spalten ohne `sortKey` zeigen kein Sortiersymbol.
-
-```ts
-new TableColumn({
-  name: "lastName",
-  text: "Nachname",
-  valueFunction: (registration) => registration.user.lastname,
-  sortKey: "lastname", // RegistrationsTable::sorts()['lastname']
-});
-
-new TableSortValue({
-  name: "presence",
-  text: "Anwesenheit",
-  sortKey: "is_present",
-});
-```
-
-Ein Klick auf den Spaltenkopf wechselt zwischen aufsteigend, absteigend und unsortiert. Die Tabelle lädt dann ab Seite 1 neu:
-
-```ts
-router.get(window.location.pathname, query, {
-  only: [props.data],   // nur die Tabellen-Prop
-  reset: [props.data],  // ersetzen statt anhängen
-  preserveState: true,
-  preserveScroll: true,
-  replace: true,
-});
-```
-
-Die Suche funktioniert genauso, nach 300 ms ohne weitere Eingabe.
-
-### Infinite Scroll
+Zellen zeigen `value(row)` als Text. Alles andere (Badges, Links, Datum) kommt über den Slot `cell-<name>`, Buttons pro Zeile über den Slot `actions`. Anders als in Portals wird nichts per `v-html` gerendert, Benutzereingaben müssen deshalb nicht von Hand maskiert werden.
 
 ```vue
-<InfiniteScroll :data="data" :items-element="`#${tbodyId}`" preserve-url only-next>
-  <table>
-    <thead>…</thead>
-    <tbody :id="tbodyId"> <tr v-for="element in rows">…</tr> </tbody>
-  </table>
-  <template #loading>Lade weitere Einträge …</template>
-</InfiniteScroll>
+<UiTable ref="table" data="users" :columns="columns" searchable>
+  <template #cell-roles="{ row }">
+    <UiBadge v-for="role in row.roles" :key="role.id">{{ role.name }}</UiBadge>
+  </template>
+  <template #actions="{ row }">
+    <UiButton size="sm" @click="edit(row)">Bearbeiten</UiButton>
+  </template>
+</UiTable>
 ```
 
-- `items-element` zeigt auf das `<tbody>`. Inertia markiert die Zeilen mit ihrer Seite.
-- `preserve-url`: `?page=` wird nicht in die URL geschrieben, nach einem Neuladen beginnt die Liste oben.
-- `only-next`: Es wird nur nach unten nachgeladen.
+Über `ref` erreichbar: `patchRow(id, fields)`, `removeRow(id)`, `refresh()` (Live-Update sofort), `reload(changes?)` und `rows`.
 
-## `usePolling` für eigene Abfragen
-
-Alle periodischen Abfragen (außer den Beamer-Anzeigen) nutzen das Composable `usePolling`. Es wird über `unplugin-auto-import` automatisch importiert.
-
-```ts
-usePolling(fetchCourses, 2500);
-```
-
-Verhalten:
-
-- Führt die Funktion alle `intervalMs` Millisekunden aus.
-- **Pausiert, solange der Browser-Tab ausgeblendet ist** (`document.hidden`), und führt die Funktion beim Zurückkehren sofort aus.
-- Überspringt eine Ausführung, wenn die vorherige noch läuft. Langsame Antworten stauen sich so nicht.
-- Fängt Fehler ab (Konsole) und stoppt automatisch, wenn die Komponente entfernt wird.
-- Gibt `{ run, stop }` zurück. `run()` führt die Abfrage sofort aus.
-
-Die Beamer-Anzeigen (Countdown, Zufallsgenerator, Punktesystem) nutzen bewusst weiter `setInterval`. Sie laufen oft als Browserquelle (z. B. in OBS), wo ein als „unsichtbar“ gemeldeter Tab die Anzeige sonst einfrieren würde.
-
-## Anleitung: eine neue Tabelle hinzufügen
-
-Beispiel: eine Tabelle der Stationen (`stations`) eines Events mit Suche, Sortierung und Live-Update.
-
-### 1. Tabellen-Klasse anlegen
-
-`app/Helpers/Table/StationsTable.php`:
+Im Controller liefert dieselbe Route die Seite, das Nachladen und das Live-Update:
 
 ```php
-<?php
-
-namespace App\Helpers\Table;
-
-use App\Models\Station;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Http\Request;
-
-/**
- * Stations of an event.
- */
-class StationsTable extends Table
-{
-    public function __construct(Request $request, protected int $eventId)
-    {
-        parent::__construct($request);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    protected function query(): Builder
-    {
-        return Station::query()
-            ->where('stations.event_id', $this->eventId)
-            ->withCount('tutors');
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * @param  Station  $model
-     */
-    protected function row(Model $model): array
-    {
-        // nur die Felder, die die Tabelle anzeigt
-        return [
-            'id' => $model->id,
-            'name' => $model->name,
-            'tutors_count' => $model->tutors_count,
-        ];
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    protected function searchColumns(): array
-    {
-        return ['name'];
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    protected function sorts(): array
-    {
-        return [
-            'name' => 'stations.name',
-            'tutors_count' => 'tutors_count',
-        ];
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    protected function applyDefaultSort(Builder $query): void
-    {
-        $query->orderBy('stations.name');
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    protected function refreshesAllRows(): bool
-    {
-        // die Anzahl der Tutoren ändert sich, ohne dass sich die Station ändert
-        return true;
-    }
-}
-```
-
-Hinweise:
-
-- Spalten immer mit Tabellennamen angeben (`stations.name`). Bei Joins und Unterabfragen sind sie sonst mehrdeutig.
-- In `row()` nur ausliefern, was die Tabelle anzeigt oder die Buttons brauchen. Das ist der größte Hebel für kleine Datenmengen.
-- `refreshesAllRows()` nur bei kleinen Tabellen mit Zählwerten verwenden.
-
-### 2. Im Controller einbinden
-
-Es wird **keine neue Route** benötigt. Die Seite, das Nachladen und das Live-Update laufen über dieselbe Route:
-
-```php
-public function stations(Request $request, Event $event): Response|JsonResponse
-{
-    $stationsTable = new StationsTable($request, $event->id);
-    if ($stationsTable->wantsChanges()) {
-        return $stationsTable->changesResponse();
-    }
-
-    return Inertia::render('Dashboard/Admin/Stations', [
-        'event' => $event,
-        'stations' => $stationsTable->scroll(),
-    ]);
-}
-```
-
-### 3. Tabellen-Komponente anlegen
-
-`resources/js/components/station/Table.vue` (wird automatisch als `StationTable` registriert):
-
-```vue
-<template>
-  <AppTable
-    data="stations"
-    searchable
-    :columns="getColumns()"
-    :functions="getLinks()"
-  />
-</template>
-
-<script setup lang="ts">
-import { TableColumn } from "../../types/table-column";
-import { TableLink } from "../../types/table-link";
-
-function getColumns(): Array<TableColumn> {
-  return [
-    new TableColumn({
-      name: "name",
-      text: "Name",
-      valueFunction: (station) => station.name,
-      sortKey: "name",
-    }),
-    new TableColumn({
-      name: "tutors",
-      text: "Tutor*innen",
-      valueFunction: (station) => (station.tutors_count ?? 0).toString(),
-      sortKey: "tutors_count",
-    }),
-  ];
+$table = new UsersTable($request);
+if ($table->wantsChanges()) {
+    return $table->changesResponse();
 }
 
-function getLinks(): Array<TableLink> {
-  return [
-    new TableLink({
-      name: "show",
-      text: "Anzeigen",
-      linkFunction: (station) => "/dashboard/admin/station/" + station.id,
-    }),
-  ];
-}
-</script>
-```
-
-`valueFunction` darf HTML zurückgeben (wird per `v-html` gerendert). Werte aus Benutzereingaben deshalb escapen, wie in der Artikel-Tabelle (`escapeHtml`).
-
-### 4. Auf der Seite verwenden
-
-```vue
-<template>
-  <LayoutDashboardContent>
-    <template #title>Stationen</template>
-    <CardContainer>
-      <StationTable />
-    </CardContainer>
-  </LayoutDashboardContent>
-</template>
-```
-
-Die Seite selbst muss die Prop `stations` nicht deklarieren. `AppTable` liest sie direkt über `usePage()`.
-
-### 5. Test schreiben
-
-```php
-public function test_stations_are_loaded_page_by_page(): void
-{
-    // ... 60 Stationen anlegen
-
-    $this->actingAsAdmin()
-        ->get(route('dashboard.admin.stations', ['event' => $event->id]))
-        ->assertInertia(fn (Assert $page) => $page->has('stations.data', 50));
-
-    $this->actingAsAdmin()
-        ->get(route('dashboard.admin.stations', ['event' => $event->id, 'sort' => 'name', 'direction' => 'desc']))
-        ->assertOk();
-
-    $changes = $this->actingAsAdmin()
-        ->getJson(route('dashboard.admin.stations', ['event' => $event->id, 'changes_since' => 0, 'loaded_ids' => '1,2']))
-        ->json();
-}
-```
-
-Vorlagen für alle Fälle stehen in [`tests/Feature/TableTest.php`](../tests/Feature/TableTest.php).
-
-## Sortier-Hilfen
-
-Die Basisklasse bietet Hilfen für Sortierungen, die auf MySQL/MariaDB, PostgreSQL und SQLite gleich funktionieren.
-
-**Spalte einer anderen Tabelle (Unterabfrage statt Join):**
-
-```php
-'firstname' => fn (Builder $query, string $direction) => $query->orderBy(
-    User::select('firstname')->whereColumn('users.id', 'registrations.user_id'),
-    $direction,
-),
-```
-
-Unterabfragen vermeiden doppelte Zeilen und mehrdeutige Spalten, die bei Joins entstehen können.
-
-**Boolean-Spalten** (`NULL` zählt als `false`):
-
-```php
-// aufsteigend: false vor true
-'drinks_alcohol' => fn (Builder $query, string $direction) => $this->orderByBoolean($query, 'drinks_alcohol', $direction),
-
-// aufsteigend: true zuerst (z. B. "anwesend zuerst")
-'is_present' => fn (Builder $query, string $direction) => $this->orderByBoolean($query, 'is_present', $direction, true),
-```
-
-**Mehrere verknüpfte Werte** (z. B. alle Rollen eines Users, alphabetisch aneinandergehängt). Zeilen ohne Werte stehen aufsteigend vorne:
-
-```php
-'roles' => fn (Builder $query, string $direction) => $this->orderByConcatenatedValues(
-    $query,
-    DB::table('roles')
-        ->join('model_has_roles', 'model_has_roles.role_id', '=', 'roles.id')
-        ->whereColumn('model_has_roles.model_id', 'users.id')
-        ->where('model_has_roles.model_type', User::class),
-    'roles.name',
-    $direction,
-),
-```
-
-Intern wird je nach Datenbank `GROUP_CONCAT` (MySQL/MariaDB) bzw. `STRING_AGG` (PostgreSQL) verwendet. Auf SQLite (nur Tests) ist die Reihenfolge innerhalb einer Zeile nicht garantiert.
-
-**`NULL` zuerst, dann Werte** (z. B. Warteschlangenposition):
-
-```php
-'queue_position' => fn (Builder $query, string $direction) => $query
-    ->orderByRaw('CASE WHEN '.$this->wrap('registrations.queue_position')." IS NULL THEN 0 ELSE 1 END {$direction}")
-    ->orderBy('registrations.queue_position', $direction),
-```
-
-Mit `$this->wrap()` werden Spaltennamen in rohem SQL korrekt maskiert. Werte dürfen nie direkt in `orderByRaw()` eingesetzt werden. `$direction` ist sicher, weil es immer `asc` oder `desc` ist.
-
-## Eigene Aktionen in der Tabelle
-
-Nach einer eigenen Aktion soll die Zeile sofort aktualisiert werden und nicht erst beim nächsten Polling.
-
-**Aktion per API (`fetch`)** – Zeile direkt ändern oder entfernen:
-
-```ts
-const table = ref<{ patchRow: Function; removeRow: Function } | null>(null);
-
-const toggleIsPresent = async (registrationId: number) => {
-  const response = await fetch(`/api/registrations/${registrationId}/toggle-is-present`);
-  if (response.ok) {
-    const data = await response.json();
-    table.value?.patchRow(registrationId, { is_present: data.is_present });
-  }
-};
-```
-
-```vue
-<AppTable ref="table" data="registrations" … />
-```
-
-**Aktion per Inertia mit Weiterleitung** – nur die Meldung neu laden und danach das Live-Update auslösen. So bleibt die Scrollposition erhalten, und die Tabelle springt nicht an den Anfang:
-
-```ts
-router.post(`/dashboard/admin/user/${user.id}`, data, {
-  only: ["message"],
-  preserveState: true,
-  preserveScroll: true,
-  onSuccess: () => emits("saved"), // → table.value?.refresh()
-});
-```
-
-**Kleine Tabellen** dürfen nach einer Aktion auch komplett neu geladen werden (`reset`):
-
-```ts
-router.post(url, form, { preserveScroll: true, preserveState: true, reset: ["articles"] });
+return Inertia::render('Admin/Users/Index', ['users' => $table->scroll()]);
 ```
 
 ## Fallstricke
 
-- **Kein Flex-Container um den horizontalen Scroll-Bereich.** Inertia sucht für das Nachladen den nächsten scrollbaren Vorfahren. Ein `overflow-x-auto`-Element, dessen Elternelement `flex flex-col` ist, wird fälschlich als vertikaler Scroll-Bereich erkannt. Dann lädt die Tabelle sofort alle Seiten. In `AppTable` ist das Elternelement deshalb ein einfaches `<div>`.
-- **Teure Props als Closure übergeben.** Beim Nachladen werden nur die angefragten Props berechnet, aber nur, wenn die anderen lazy sind. Die geteilten Props in `HandleInertiaRequests` (`user`, `modules`, `pages`) sind deshalb Closures.
-- **Inertia merged nur bei Teil-Requests.** Ein normaler Seitenaufruf (z. B. eine Weiterleitung nach `router.post` ohne `only`) ersetzt die Tabellen-Prop durch Seite 1. Die Tabelle verwirft dabei doppelte Zeilen und behält die neueste Version.
-- **Eine Tabelle pro Seite.** Die Parameter (`page`, `sort`, `search`) sind nicht pro Tabelle getrennt. Für mehrere Tabellen auf einer Seite müssten `pageName` (`simplePaginate(pageName: …)`) und die Parameternamen pro Tabelle konfigurierbar gemacht werden.
-- **`updated_at` muss sich ändern.** Massen-Updates über den Query-Builder (`DB::table()->update()`) oder Pivot-Änderungen setzen `updated_at` nicht. Danach `touch()` aufrufen oder `whereChangedSince()` erweitern.
-- **Reservierte Parameternamen.** `page`, `search`, `sort`, `direction`, `changes_since` und `loaded_ids` nicht für andere Zwecke auf Seiten mit Tabellen verwenden.
-- **Maximal 2000 geladene IDs** werden beim Live-Update geprüft (`MAX_LOADED_IDS`), damit die URL nicht zu lang wird. Bei mehr geladenen Zeilen werden Löschungen weiter hinten erst nach einem Neuladen erkannt.
-- **Gleiche Zeile, neue Position.** Ändert sich durch ein Live-Update der Sortierwert einer Zeile (z. B. der Nachname), bleibt sie an ihrer Position. Sie springt erst nach einem Neuladen an die richtige Stelle, damit beim Lesen nichts verspringt.
+- **Kein Flex-Container um den horizontalen Scroll-Bereich.** Inertia sucht für das Nachladen den nächsten scrollbaren Vorfahren; ein `overflow-x-auto`-Element in einem `flex flex-col` wird fälschlich als vertikaler Scroll-Bereich erkannt und lädt sofort alle Seiten.
+- **Teure Props als Closure übergeben**, sonst werden sie bei jedem Nachladen berechnet.
+- **`updated_at` muss sich ändern.** Pivot-Änderungen (z. B. `syncRoles()`) ändern die Zeile nicht; danach `touch()` aufrufen.
+- **Eine Tabelle pro Seite.** Die Parameter `page`, `search`, `sort` und `direction` sind nicht pro Tabelle getrennt.
+- **Maximal 2000 geladene IDs** werden beim Live-Update geprüft.
 
 ## Vorhandene Tabellen
 
-| Klasse | Seite(n) | Prop | Suche | Live-Update |
+| Klasse | Seite | Prop | Suche | Live-Update |
 |---|---|---|---|---|
-| `UsersTable` | Admin → User-Verwaltung | `users` | Vorname, Nachname, E-Mail | geänderte Zeilen |
-| `RegistrationsTable` | Admin Anmeldungen, Admin/Tutor Event (Typ `event_registration`), Tutor Slot, Tutor Gruppe | `registrations` | Vorname, Nachname, E-Mail des Users | geänderte Zeilen (inkl. User-Änderungen) |
-| `EventsTable` | Tutor-Übersicht | `events` | – | alle Zeilen (Teilnehmerzahl) |
-| `GroupsTable` | Admin/Tutor Event (Typ `group_phase`) | `groups` | – | alle Zeilen (Teilnehmerzahl) |
-| `SlotsTable` | Admin/Tutor Event (Typ `slot_booking`) | `slots` | – | alle Zeilen (Teilnehmerzahl) |
-| `ArticlesTable` | Admin → Strichliste | `articles` | – | alle Zeilen (Buchungsanzahl) |
-| `StrichlistensystemBillingTable` | Admin → Strichliste → Abrechnung | `balances` | Vorname, Nachname, E-Mail | geänderte Zeilen (inkl. neuer Buchungen, Stornos, Preisübernahmen und Zahlungen über `whereChangedSince()`) |
-| `KioskPersonsTable` | Strichliste Kiosk (Kartenansicht, nicht `AppTable`) | `persons` | Vorname, Nachname | – (48 pro Seite, Filter `course` und `role`) |
-
-## Tests
-
-```bash
-php artisan test --compact tests/Feature/TableTest.php
-```
-
-[`tests/Feature/TableTest.php`](../tests/Feature/TableTest.php) prüft unter anderem:
-
-- **Laden:** Seiten ohne Überschneidung, stabile Reihenfolge über Seitengrenzen hinweg, ungültige Sortierschlüssel werden ignoriert.
-- **Suche und Sortierung:** Suche mit mehreren Wörtern, jeder Sortierschlüssel in beide Richtungen.
-- **Live-Update:** geänderte, gelöschte und neue Zeilen; Löschungen per Cascade; Rollenwechsel; Beachtung der Suche.
-- **Rechte und Bereich:** Berechtigungen, Bereich der Tutor-Slot- und Gruppen-Seiten.
-- **Performance:** Beim Nachladen werden die geteilten Props nicht berechnet.
+| `UsersTable` | Verwaltung → Konten | `users` | Vorname, Nachname, E-Mail | geänderte Zeilen |

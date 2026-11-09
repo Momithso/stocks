@@ -1,0 +1,11 @@
+{
+  "key": "example",
+  "name": "Beispiel",
+  "description": "Zeigt, wie ein Modul aufgebaut ist. Vorlage für neue Module, im Betrieb abgeschaltet lassen.",
+  "version": "0.1.0",
+  "provider": "Modules\\Example\\ExampleServiceProvider",
+  "requires": [],
+  "permissions": {
+    "example.view": "Beispielseite sehen"
+  }
+}

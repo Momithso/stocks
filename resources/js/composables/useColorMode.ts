@@ -1,51 +1,28 @@
 import { ref } from "vue";
 
+type ColorMode = "light" | "dark";
+
+// shared by all components; the mode is set before the first paint in resources/views/app.blade.php
+const colorMode = ref<ColorMode>(
+  document.documentElement.classList.contains("dark") ? "dark" : "light",
+);
+
+/**
+ * Light and dark mode. The choice is stored in the browser; without a choice the system setting is used.
+ */
 export default () => {
-  type ColorMode = "light" | "dark";
-
-  const currentColorMode = ref<ColorMode>(localStorage.theme || "light");
-
-  const setColorModeClass = (colorMode: ColorMode) => {
-    if (colorMode === "light") {
-      document.documentElement.classList.remove("dark");
-    } else {
-      document.documentElement.classList.add("dark");
+  const setColorMode = (mode: ColorMode) => {
+    colorMode.value = mode;
+    document.documentElement.classList.toggle("dark", mode === "dark");
+    try {
+      localStorage.theme = mode;
+    } catch {
+      // private mode: the choice is not stored
     }
   };
 
-  const setColorMode = (colorMode: ColorMode) => {
-    currentColorMode.value = colorMode;
-    setColorModeClass(colorMode);
-    localStorage.theme = colorMode;
-  };
+  const toggleColorMode = () =>
+    setColorMode(colorMode.value === "dark" ? "light" : "dark");
 
-  const getColorMode = () => {
-    return currentColorMode.value;
-  };
-
-  const initColorMode = () => {
-    if (
-      localStorage.theme === "dark" ||
-      (!("theme" in localStorage) &&
-        window.matchMedia("(prefers-color-scheme: dark)").matches)
-    ) {
-      setColorMode("dark");
-    } else {
-      setColorMode("light");
-    }
-  };
-
-  const toggleColorMode = () => {
-    if (getColorMode() === "dark") {
-      setColorMode("light");
-    } else {
-      setColorMode("dark");
-    }
-  };
-
-  return {
-    initColorMode,
-    getColorMode,
-    toggleColorMode,
-  };
+  return { colorMode, setColorMode, toggleColorMode };
 };

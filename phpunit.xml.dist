@@ -12,10 +12,14 @@
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
+        <testsuite name="Modules">
+            <directory>modules/*/tests</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>
             <directory>app</directory>
+            <directory>modules</directory>
         </include>
     </source>
     <php>
@@ -34,7 +38,6 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false" force="true"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
-        <env name="TUTOR_PASSWORD" value="tutor-secret" force="true"/>
-        <env name="ADMIN_PASSWORD" value="admin-secret" force="true"/>
+        <env name="SETUP_TOKEN" value="setup-secret" force="true"/>
     </php>
 </phpunit>

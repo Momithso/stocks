@@ -10,7 +10,8 @@ on:
 
 env:
   IMAGE_REGISTRY: ghcr.io
-  IMAGE_PATH: ${{ github.repository }}
+  # lower case, docker does not accept the upper case letters of the repository owner
+  IMAGE_PATH: momithso/stocks
   IMAGE_TAG: ${{ github.ref_name }}
 
 jobs:

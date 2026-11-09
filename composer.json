@@ -1,11 +1,11 @@
 {
-  "name": "fsr5-fhaachen/portals",
+  "name": "momithso/stocks",
   "type": "project",
-  "description": "Group allocation tool for the first week of the Department of Electrical Engineering and Information Technology at the FH Aachen - University of Applied Sciences.",
+  "description": "Inventory and lending software for student councils, based on the structure of Portals.",
   "keywords": [],
   "license": "MIT",
   "require": {
-    "php": "^8.4",
+    "php": "^8.5",
     "aws/aws-sdk-php": "^3.283",
     "bacon/bacon-qr-code": "^3.1",
     "barryvdh/laravel-dompdf": "^3.1",
@@ -16,10 +16,7 @@
     "league/flysystem-aws-s3-v3": "^3.16",
     "namoshek/laravel-redis-sentinel": "^1.1",
     "owen-it/laravel-auditing": "^14.0",
-    "spatie/laravel-permission": "^8.0",
-    "spiral/roadrunner": "^2025.1",
-    "spiral/roadrunner-cli": "^2.5.0",
-    "spiral/roadrunner-http": "^3.0.1"
+    "spatie/laravel-permission": "^8.0"
   },
   "require-dev": {
     "fakerphp/faker": "^1.23",
@@ -35,6 +32,7 @@
   "autoload": {
     "psr-4": {
       "App\\": "app/",
+      "Modules\\": "modules/",
       "Database\\Factories\\": "database/factories/",
       "Database\\Seeders\\": "database/seeders/"
     }

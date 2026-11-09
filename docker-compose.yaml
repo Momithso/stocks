@@ -1,71 +1,68 @@
-version: '3'
+# One Stocks instance. Every value that differs between instances comes from the .env file next
+# to this file, see documentation/SETUP.md.
 services:
   web:
-    image: ghcr.io/fsr5-fhaachen/portals:latest
-    container_name: portals-web
+    image: ghcr.io/momithso/stocks:latest
     restart: unless-stopped
     depends_on:
       - redis
       - mariadb
     environment:
-      APP_NAME: '${APP_NAME}'
-      APP_ENV: '${APP_ENV}' # set to local if you want to test without https
+      APP_NAME: Stocks
+      APP_ENV: '${APP_ENV:-production}'
       APP_KEY: '${APP_KEY}'
-      APP_DEBUG: '${APP_DEBUG}'
+      APP_DEBUG: '${APP_DEBUG:-false}'
       APP_URL: '${APP_URL}'
-      APP_FORCE_HTTPS: '${APP_FORCE_HTTPS}'
-      APP_EVENT_TYPE: '${APP_EVENT_TYPE}'
-      TUTOR_PASSWORD: '${TUTOR_PASSWORD}'
-      ADMIN_PASSWORD: '${ADMIN_PASSWORD}'
-      OCTANE_HTTPS: '${OCTANE_HTTPS}' # set to false if you want to test without https
-      OCTANE_WORKERS: 1
-      OCTANE_MAX_REQUESTS: '${OCTANE_MAX_REQUESTS}'
-      LOG_CHANNEL: '${LOG_CHANNEL}'
-      LOG_LEVEL: '${LOG_LEVEL}'
+      APP_FORCE_HTTPS: '${APP_FORCE_HTTPS:-true}'
+      APP_LOCALE: de
+      SETUP_TOKEN: '${SETUP_TOKEN}'
+      OCTANE_HTTPS: '${OCTANE_HTTPS:-true}'
+      OCTANE_WORKERS: '${OCTANE_WORKERS:-auto}'
+      OCTANE_MAX_REQUESTS: '${OCTANE_MAX_REQUESTS:-500}'
+      LOG_CHANNEL: stderr
+      LOG_LEVEL: '${LOG_LEVEL:-warning}'
       DB_CONNECTION: mysql
       DB_HOST: mariadb
       DB_PORT: 3306
-      DB_DATABASE: portals
-      DB_USERNAME: portals
-      DB_PASSWORD: password
-      BROADCAST_CONNECTION: '${BROADCAST_CONNECTION}'
-      CACHE_STORE: '${CACHE_STORE}'
-      FILESYSTEM_DRIVER: '${FILESYSTEM_DRIVER}'
-      QUEUE_CONNECTION: '${QUEUE_CONNECTION}'
-      SESSION_DRIVER: '${SESSION_DRIVER}'
-      SESSION_LIFETIME: '${SESSION_LIFETIME}'
+      DB_DATABASE: stocks
+      DB_USERNAME: stocks
+      DB_PASSWORD: '${DB_PASSWORD}'
+      CACHE_STORE: redis
+      SESSION_DRIVER: redis
+      QUEUE_CONNECTION: sync
       REDIS_HOST: redis
-      REDIS_PASSWORD: password
+      REDIS_PASSWORD: '${REDIS_PASSWORD}'
       REDIS_PORT: 6379
+      MAIL_MAILER: '${MAIL_MAILER:-smtp}'
+      MAIL_HOST: '${MAIL_HOST}'
+      MAIL_PORT: '${MAIL_PORT:-587}'
+      MAIL_USERNAME: '${MAIL_USERNAME}'
+      MAIL_PASSWORD: '${MAIL_PASSWORD}'
+      MAIL_FROM_ADDRESS: '${MAIL_FROM_ADDRESS}'
+      MAIL_FROM_NAME: '${MAIL_FROM_NAME:-Stocks}'
     ports:
-      - "8000:8000"
+      - '${WEB_PORT:-8000}:8000'
     networks:
-      - portals
+      - stocks
   redis:
     image: redis
-    container_name: portals-redis
     restart: unless-stopped
-    command: redis-server --requirepass password
-#    ports:
-#      - "6379:6379"
+    command: redis-server --requirepass '${REDIS_PASSWORD}'
     networks:
-      - portals
+      - stocks
   mariadb:
     image: mariadb
-    container_name: portals-mariadb
     restart: unless-stopped
-    ports:
-      - "3306:3306"
     environment:
-      MARIADB_DATABASE: portals
-      MARIADB_ROOT_PASSWORD: secret-root-password
-      MARIADB_USER: portals
-      MARIADB_PASSWORD: password
+      MARIADB_DATABASE: stocks
+      MARIADB_RANDOM_ROOT_PASSWORD: 'yes'
+      MARIADB_USER: stocks
+      MARIADB_PASSWORD: '${DB_PASSWORD}'
     volumes:
-      - portals_mariadb:/var/lib/mysql/
+      - mariadb:/var/lib/mysql/
     networks:
-      - portals
+      - stocks
 networks:
-  portals:
+  stocks:
 volumes:
-  portals_mariadb:
+  mariadb:

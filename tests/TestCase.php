@@ -2,17 +2,20 @@
 
 namespace Tests;
 
+use App\Actions\Setup\InstallStocks;
 use App\Models\Module;
+use App\Models\Role;
 use App\Models\User;
-use Database\Seeders\CourseSeeder;
-use Database\Seeders\ModuleSeeder;
-use Database\Seeders\RoleSeeder;
+use App\Support\Modules\ModuleRegistry;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 
 abstract class TestCase extends BaseTestCase
 {
+    use RefreshDatabase;
+
     /**
-     * Set up the test environment.
+     * Set up the test environment: an installed instance with the start roles.
      *
      * Inertia sends every page to the ssr server of a running vite dev server (public/hot). Tests must not
      * depend on it, an unreachable dev server delays every page by the connection timeout.
@@ -23,48 +26,44 @@ abstract class TestCase extends BaseTestCase
 
         $this->withoutVite();
         config(['inertia.ssr.enabled' => false]);
+
+        app(InstallStocks::class)->handle([], null);
     }
 
     /**
-     * Seed roles, permissions, modules and courses.
+     * Create an account with the given roles.
      */
-    protected function seedBasics(): void
+    protected function userWithRoles(string ...$roles): User
     {
-        $this->seed([
-            RoleSeeder::class,
-            ModuleSeeder::class,
-            CourseSeeder::class,
-        ]);
+        return User::factory()->create()->assignRole($roles);
     }
 
     /**
-     * Activate the module with the given key.
+     * Create an account with the admin role.
+     */
+    protected function admin(): User
+    {
+        return $this->userWithRoles(Role::admin());
+    }
+
+    /**
+     * Create an account with a role that has exactly the given permissions.
+     */
+    protected function userWithPermissions(string ...$permissions): User
+    {
+        $role = Role::create(['name' => 'Test '.implode(', ', $permissions).' '.uniqid(), 'guard_name' => 'web']);
+        $role->syncPermissions($permissions);
+
+        return User::factory()->create()->assignRole($role);
+    }
+
+    /**
+     * Switch a module on.
      */
     protected function activateModule(string $key): void
     {
         Module::where('key', $key)->update(['active' => true]);
-    }
-
-    /**
-     * Create a user with the given roles.
-     */
-    protected function createUserWithRoles(string ...$roles): User
-    {
-        $user = User::factory()->create();
-
-        if ($roles) {
-            $user->assignRole($roles);
-        }
-
-        return $user;
-    }
-
-    /**
-     * Act as the given user with an active tutor session.
-     */
-    protected function actingAsTutor(User $user): static
-    {
-        return $this->actingAs($user)->withSession(['tutor' => true]);
+        app(ModuleRegistry::class)->flush();
     }
 
     /**

@@ -1,0 +1,104 @@
+# Module
+
+Ein Modul ist ein Ordner unter `modules/` mit einer `module.json` und einem Service Provider. Der Kern findet es selbst; für ein neues Modul muss außerhalb seines Ordners nichts geändert werden. Das Beispielmodul `modules/Example` ist die Kopiervorlage.
+
+## Inhalt
+
+- [Aufbau](#aufbau)
+- [module.json](#modulejson)
+- [Ein- und Ausschalten](#ein--und-ausschalten)
+- [Erweiterungspunkte](#erweiterungspunkte)
+- [Frontend](#frontend)
+- [Neues Modul anlegen](#neues-modul-anlegen)
+
+## Aufbau
+
+```text
+modules/Example/
+├─ module.json                  Beschreibung, Rechte, Abhängigkeiten
+├─ ExampleServiceProvider.php   verbindet das Modul mit dem Kern
+├─ Http/                        Controller (später auch Actions/, Models/)
+├─ database/migrations/
+├─ routes/web.php
+├─ resources/js/pages/          Seiten, im Controller "Example::Index"
+├─ resources/js/components/     Komponenten, z. B. Dashboard-Kacheln
+├─ resources/js/icons.ts        genutzte Font-Awesome-Icons
+└─ tests/
+```
+
+PHP-Klassen liegen im Namensraum `Modules\<Modul>` (`composer.json`: `"Modules\\": "modules/"`).
+
+## module.json
+
+```json
+{
+  "key": "example",
+  "name": "Beispiel",
+  "description": "Zeigt, wie ein Modul aufgebaut ist.",
+  "version": "0.1.0",
+  "provider": "Modules\\Example\\ExampleServiceProvider",
+  "requires": [],
+  "permissions": {
+    "example.view": "Beispielseite sehen"
+  }
+}
+```
+
+| Feld | Bedeutung |
+|---|---|
+| `key` | Schlüssel des Moduls, auch Präfix seiner Rechte |
+| `requires` | Schlüssel von Modulen, die aktiv sein müssen |
+| `permissions` | Rechte mit Beschreibung; erscheinen in der Rollenverwaltung unter dem Modulnamen |
+
+`php artisan stocks:sync` (läuft beim Start des Containers und bei `stocks:install`) legt für neue Module einen ausgeschalteten Schalter an, trägt die Rechte ein und gibt sie der Admin-Rolle.
+
+## Ein- und Ausschalten
+
+- Unter Verwaltung → Module. Einschalten geht nur, wenn alle Module aus `requires` an sind; ausschalten nur, wenn kein aktives Modul es braucht (`ToggleModule`).
+- Die Provider aller Module sind immer registriert und ihre Migrationen laufen immer. Ein ausgeschaltetes Modul verliert also keine Daten.
+- Routen stehen hinter der Middleware `module:<key>` und antworten mit 404, solange das Modul aus ist. Menüeinträge, Kacheln und Kiosk-Kacheln mit dem Modulschlüssel werden dann nicht ausgeliefert.
+- Warum Routen nicht weggelassen werden: Octane hält die Routenliste eines Workers bis zum Neustart. Ein ausgeschaltetes Modul wäre sonst bis zum Neustart erreichbar, ein eingeschaltetes nicht.
+- Der Status liegt im Cache und wird beim Umschalten geleert.
+
+## Erweiterungspunkte
+
+Im `boot()` des Service Providers:
+
+```php
+public function boot(Navigation $navigation, DashboardTiles $dashboardTiles): void
+{
+    $this->loadMigrationsFrom(__DIR__.'/database/migrations');
+
+    Route::middleware(['web', 'auth', 'module:'.self::KEY])->group(__DIR__.'/routes/web.php');
+
+    $navigation->add('overview', 'Beispiel', 'example.index', 'flask', 'example.view', self::KEY);
+    $navigation->addKioskTile('Beispiel', 'example.kiosk', 'flask', 'example.view', self::KEY);
+    $dashboardTiles->add('Example::DashboardTile', 'example.view', self::KEY);
+}
+```
+
+| Punkt | Klasse | Wirkung |
+|---|---|---|
+| Menü | `Navigation::add()` | Eintrag in Bereich `overview`, `inventory`, `loans` oder `admin`; `mobile: true` für die untere Leiste am Handy |
+| Kiosk | `Navigation::addKioskTile()` | Kachel auf der Kiosk-Startseite; die Route braucht `kiosk.device` und `kiosk` |
+| Dashboard | `DashboardTiles::add()` | Vue-Komponente `<Modul>::<Komponente>` aus `resources/js/components` |
+| Protokoll | `AuditSubjects::register()` | Modelle mit dem Interface `AuditSubject` erscheinen lesbar im Protokoll |
+| Ereignisse | Laravel-Events | Listener im Provider registrieren |
+
+Ein Erweiterungspunkt für eigene Einstellungsseiten folgt, sobald ein Modul ihn braucht.
+
+## Frontend
+
+- Seiten heißen im Controller `<Modul>::<Seite>` und liegen in `modules/<Modul>/resources/js/pages`. Seiten mit `Kiosk` im Namen bekommen das Kiosk-Layout.
+- Modulseiten nutzen die Komponenten des Kerns (`UiButton`, `UiCard` …) ohne Import.
+- Icons, die das Modul nutzt, stehen in `resources/js/icons.ts` des Moduls.
+- In Tests prüft `assertInertia()` nur Seiten des Kerns auf Existenz; für Modulseiten `component('Example::Index', false)` verwenden.
+
+## Neues Modul anlegen
+
+1. `modules/Example` kopieren und umbenennen, z. B. nach `modules/Loans`.
+2. In `module.json` Schlüssel, Name, Beschreibung, Provider und Rechte anpassen.
+3. Namensraum und Klassennamen von `Example` auf den neuen Namen ändern.
+4. `composer dump-autoload` und `php artisan migrate && php artisan stocks:sync` ausführen.
+5. Unter Verwaltung → Module einschalten und einer Rolle die Rechte geben.
+6. Die README des Moduls schreiben: Abläufe, Tabellen, Routen, Rechte.
