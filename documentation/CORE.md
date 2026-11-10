@@ -56,6 +56,7 @@ Der Code prüft nur Rechte, nie Rollennamen. Rechte heißen `bereich.tätigkeit`
 | `kiosk.devices.manage` | Kiosk-Geräte koppeln und sperren |
 | `kiosk.use` | Am Kiosk mit PIN anmelden |
 | `audit.view` | Änderungsprotokoll lesen |
+| `inventory.*`, `locations.manage`, `inventory.options.manage` | Inventar, siehe [INVENTORY.md](INVENTORY.md#rechte) |
 
 **Admin** ist eine Systemrolle: Sie hat immer alle Rechte, auch die später hinzugefügter Module (`stocks:sync`), und lässt sich weder ändern noch löschen. Die übrigen Startrollen (`config/stocks.php`) entstehen einmal bei der Einrichtung und sind danach frei änderbar.
 
@@ -76,9 +77,13 @@ Der Code prüft nur Rechte, nie Rollennamen. Rechte heißen `bereich.tätigkeit`
 |---|---|
 | `organization.name`, `organization.short_name` | Name in Menü, E-Mails, Titel |
 | `organization.accent_color` | Akzentfarbe, wird in `app.blade.php` als CSS-Variable gesetzt |
+| `organization.logo_path`, `organization.favicon_path` | Logo und Favicon auf S3, siehe unten |
 | `legal.imprint_url`, `legal.privacy_url`, `legal.contact_email` | Rechtliche Links |
 | `mail.from_name`, `mail.from_address` | Absender aller E-Mails; ohne Adresse gilt `MAIL_FROM_ADDRESS` |
 | `setup.completed_at` | Zeitpunkt der Einrichtung; ohne ihn leitet jede Seite auf `/setup` |
+| `inventory.number_prefix` | Präfix neuer Artikelnummern, siehe [INVENTORY.md](INVENTORY.md#artikelnummern) |
+
+**Logo und Favicon** lädt man unter Verwaltung › Einstellungen › Allgemein hoch (`settings.manage`). `App\Support\Branding` legt sie auf S3 unter `branding/` ab und merkt sich den Pfad in den Einstellungen; ein neues Bild ersetzt und löscht das alte. Ausgeliefert werden sie über `/branding/logo` und `/branding/favicon`, auch an Gäste (Anmeldeseite, Browser-Tab), mit einer Woche Browser-Cache; der Dateiname steckt in der Adresse, so erscheint ein neues Bild sofort. Ohne eigenes Favicon gilt `public/favicon.ico`, ohne Logo steht nur der Name. Das Logo steht oben links in der Seitenleiste als Quadrat von 64 Pixeln neben dem Kurznamen (`LayoutBrand size="nav"`), in der oberen Leiste am Handy und am Kiosk klein neben dem Namen und auf der Anmeldeseite mittig über dem Namen als Quadrat von 250 Pixeln (auf schmalen Bildschirmen 60 % der Breite). Am besten passt ein quadratisches Logo. Logo: PNG, JPG oder WebP bis 2 MB; Favicon: PNG oder ICO bis 512 KB; SVG ist verboten, weil es Skripte enthalten kann.
 
 ## Kiosk
 

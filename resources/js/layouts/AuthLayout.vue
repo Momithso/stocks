@@ -1,14 +1,20 @@
 <template>
   <div
-    class="flex min-h-screen flex-col items-center justify-center px-4 py-10"
+    class="relative flex min-h-screen flex-col items-center justify-center px-4 py-10"
   >
+    <UiColorModeButton class="absolute right-4 top-4" />
+    <!-- logo and name centered above the form -->
+    <!-- large logo: a square of 250 pixels on the pc, smaller on narrow screens -->
+    <img
+      v-if="organization.logo_url"
+      :src="organization.logo_url"
+      alt=""
+      class="mb-8 size-[min(250px,60vw)] object-contain"
+    />
     <div class="w-full max-w-md">
-      <div class="mb-6 flex items-center justify-between">
-        <p class="text-2xl font-bold tracking-tight">
-          {{ organization.name }}
-        </p>
-        <UiColorModeButton />
-      </div>
+      <p class="mb-6 text-center text-2xl font-bold tracking-tight">
+        {{ organization.name }}
+      </p>
       <div
         class="rounded-lg bg-surface px-4 py-8 shadow ring-1 ring-line/50 sm:px-8"
       >

@@ -79,7 +79,8 @@ public function boot(Navigation $navigation, DashboardTiles $dashboardTiles): vo
 
 | Punkt | Klasse | Wirkung |
 |---|---|---|
-| Menü | `Navigation::add()` | Eintrag in Bereich `overview`, `inventory`, `loans` oder `admin`; `mobile: true` für die untere Leiste am Handy |
+| Menü | `Navigation::add()` | Eintrag in Bereich `overview`, `inventory`, `loans` oder `admin`; `mobile: true` für die untere Leiste am Handy; `group: 'settings'` legt ihn in das aufklappbare Untermenü **Einstellungen** |
+| Untermenü | `Navigation::addGroup()` | aufklappbare Gruppe in einem Bereich, z. B. `settings` im Bereich `admin` für selten genutzte Seiten |
 | Kiosk | `Navigation::addKioskTile()` | Kachel auf der Kiosk-Startseite; die Route braucht `kiosk.device` und `kiosk` |
 | Dashboard | `DashboardTiles::add()` | Vue-Komponente `<Modul>::<Komponente>` aus `resources/js/components` |
 | Protokoll | `AuditSubjects::register()` | Modelle mit dem Interface `AuditSubject` erscheinen lesbar im Protokoll |

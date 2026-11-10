@@ -3,8 +3,8 @@
     <header
       class="flex h-16 items-center justify-between border-b border-line bg-surface px-6"
     >
-      <p class="text-xl font-bold tracking-tight">
-        {{ organization.short_name }} · Kiosk
+      <p class="min-w-0 text-xl font-bold tracking-tight">
+        <LayoutBrand :text="`${organization.short_name} · Kiosk`" />
       </p>
       <UiColorModeButton />
     </header>

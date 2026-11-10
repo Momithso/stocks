@@ -1,3 +1,7 @@
+# Stocks
+
+- Before changing or adding a user facing action, read `documentation/INTERFACES.md` and update it: it lists which surfaces (web, phone, kiosk, public page) have the action and which still miss it.
+
 <laravel-boost-guidelines>
 === foundation rules ===
 

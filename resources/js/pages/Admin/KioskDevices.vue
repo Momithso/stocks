@@ -32,9 +32,10 @@
         :key="device.id"
         class="flex flex-wrap gap-6 px-4 py-4 sm:px-6"
       >
-        <!-- qr code as svg from the server (bacon/bacon-qr-code), contains no user input -->
+        <!-- qr code as svg from the server (bacon/bacon-qr-code), contains no user input;
+             the svg has a fixed size of its own and is scaled to the box -->
         <div
-          class="h-32 w-32 shrink-0 rounded bg-white p-1"
+          class="h-32 w-32 shrink-0 overflow-hidden rounded bg-white p-1 [&>svg]:h-full [&>svg]:w-full"
           v-html="device.pairing_qr_code"
         />
         <div class="min-w-0 flex-1 space-y-2">

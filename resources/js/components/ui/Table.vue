@@ -5,7 +5,7 @@
         v-model="searchForm.search"
         label="Suche"
         type="search"
-        placeholder="Name oder E-Mail"
+        :placeholder="searchPlaceholder"
       />
     </div>
 
@@ -36,7 +36,12 @@
           only-next
         >
           <table class="min-w-full divide-y divide-line text-sm">
-            <thead class="bg-surface-muted">
+            <thead
+              :class="[
+                'bg-surface-muted',
+                stacked ? 'hidden sm:table-header-group' : '',
+              ]"
+            >
               <tr>
                 <th
                   v-for="column in columns"
@@ -68,12 +73,19 @@
               <tr
                 v-for="row in rows"
                 :key="idFunction(row)"
-                :class="rowClass(row)"
+                :class="[
+                  rowClass(row),
+                  stacked ? 'block px-4 py-3 sm:table-row sm:p-0' : '',
+                ]"
               >
                 <td
                   v-for="column in columns"
                   :key="column.name"
-                  class="whitespace-nowrap px-4 py-3 sm:px-6"
+                  :class="
+                    stacked
+                      ? 'block py-0.5 sm:table-cell sm:whitespace-nowrap sm:px-6 sm:py-3'
+                      : 'whitespace-nowrap px-4 py-3 sm:px-6'
+                  "
                 >
                   <slot :name="`cell-${column.name}`" :row="row">
                     {{ column.value?.(row) }}
@@ -81,9 +93,18 @@
                 </td>
                 <td
                   v-if="$slots.actions"
-                  class="whitespace-nowrap px-4 py-3 text-right sm:px-6"
+                  :class="
+                    stacked
+                      ? 'block pt-2 sm:table-cell sm:whitespace-nowrap sm:px-6 sm:py-3 sm:text-right'
+                      : 'whitespace-nowrap px-4 py-3 text-right sm:px-6'
+                  "
                 >
-                  <div class="flex justify-end gap-2">
+                  <div
+                    :class="[
+                      'flex gap-2',
+                      stacked ? 'sm:justify-end' : 'justify-end',
+                    ]"
+                  >
                     <slot name="actions" :row="row" />
                   </div>
                 </td>
@@ -149,6 +170,15 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  searchPlaceholder: {
+    type: String,
+    default: "Suchen …",
+  },
+  // on phones every row becomes a card with its cells below each other
+  stacked: {
+    type: Boolean,
+    default: false,
+  },
   // update the loaded rows periodically with the changes on the server
   live: {
     type: Boolean,
@@ -160,6 +190,11 @@ const props = defineProps({
     default: 2500,
   },
 });
+
+const emit = defineEmits<{
+  // the search was applied (debounced), e.g. to look the search up as code
+  search: [search: string];
+}>();
 
 const page = usePage();
 const tbodyId = `table-${useId()}`;
@@ -309,7 +344,10 @@ watch(
     if (searchTimeout) {
       clearTimeout(searchTimeout);
     }
-    searchTimeout = setTimeout(() => reload({ search: search ?? null }), 300);
+    searchTimeout = setTimeout(() => {
+      reload({ search: search ?? null });
+      emit("search", search ?? "");
+    }, 300);
   },
 );
 

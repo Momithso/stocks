@@ -24,6 +24,8 @@ Anmelden mit `admin@example.com` und dem Passwort `correct horse battery`.
 | Datei                                                            | Inhalt                                                             |
 |------------------------------------------------------------------|--------------------------------------------------------------------|
 | [documentation/CORE.md](documentation/CORE.md)                   | Aufbau, Anmeldung, Rollen und Rechte, Kiosk, Oberfläche, Datenbank |
+| [documentation/INVENTORY.md](documentation/INVENTORY.md)         | Standorte, Gegenstände, Boxen, Nummern, Umlagern, Fotos            |
+| [documentation/INTERFACES.md](documentation/INTERFACES.md)       | Welche Vorgänge auf welcher Oberfläche (PC, Handy, Kiosk) fehlen   |
 | [documentation/MODULES.md](documentation/MODULES.md)             | Module bauen, Erweiterungspunkte                                   |
 | [documentation/SETUP.md](documentation/SETUP.md)                 | Instanz aufsetzen und aktualisieren                                |
 | [documentation/TABLE_POLLING.md](documentation/TABLE_POLLING.md) | Tabellen mit seitenweisem Laden und Live-Update                    |

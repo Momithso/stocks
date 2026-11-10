@@ -7,13 +7,17 @@
         collapsed ? 'w-16' : 'w-64',
       ]"
     >
-      <div class="flex h-16 items-center justify-between gap-2 px-4">
+      <!-- room for a logo of 64 pixels; the space above it (pt-6) equals the space below it down
+           to "Übersicht" (pb-2 here plus pt-4 of the menu) -->
+      <div
+        class="flex min-h-[4rem] items-center justify-between gap-2 px-4 pb-2 pt-6"
+      >
         <InertiaLink
           v-if="!collapsed"
           href="/dashboard"
-          class="truncate text-lg font-bold tracking-tight"
+          class="min-w-0 text-lg font-bold tracking-tight"
         >
-          {{ organization.short_name }}
+          <LayoutBrand size="nav" />
         </InertiaLink>
         <button
           type="button"
@@ -39,21 +43,8 @@
             {{ section.title }}
           </p>
           <ul class="space-y-1">
-            <li v-for="entry in section.entries" :key="entry.href">
-              <InertiaLink
-                :href="entry.href"
-                :title="collapsed ? entry.title : undefined"
-                :aria-current="isActive(entry) ? 'page' : undefined"
-                :class="[
-                  'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium',
-                  isActive(entry)
-                    ? 'bg-accent/10 text-accent'
-                    : 'text-ink hover:bg-surface-muted',
-                ]"
-              >
-                <FontAwesomeIcon :icon="['fas', entry.icon]" class="w-4" />
-                <span v-if="!collapsed">{{ entry.title }}</span>
-              </InertiaLink>
+            <li v-for="entry in section.entries" :key="entry.title">
+              <LayoutMenuEntry :entry="entry" :collapsed="collapsed" />
             </li>
           </ul>
         </div>
@@ -112,8 +103,8 @@
     <header
       class="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-line bg-surface px-4 lg:hidden"
     >
-      <InertiaLink href="/dashboard" class="truncate font-bold tracking-tight">
-        {{ organization.short_name }}
+      <InertiaLink href="/dashboard" class="min-w-0 font-bold tracking-tight">
+        <LayoutBrand />
       </InertiaLink>
       <UiColorModeButton />
     </header>
@@ -166,15 +157,12 @@
             {{ section.title }}
           </p>
           <ul class="space-y-1">
-            <li v-for="entry in section.entries" :key="entry.href">
-              <InertiaLink
-                :href="entry.href"
-                class="flex min-h-[44px] items-center gap-3 rounded-md px-3 text-sm font-medium hover:bg-surface-muted"
-                @click="moreOpen = false"
-              >
-                <FontAwesomeIcon :icon="['fas', entry.icon]" class="w-4" />
-                {{ entry.title }}
-              </InertiaLink>
+            <li v-for="entry in section.entries" :key="entry.title">
+              <LayoutMenuEntry
+                :entry="entry"
+                large
+                @navigate="moreOpen = false"
+              />
             </li>
           </ul>
         </div>
@@ -219,6 +207,7 @@ const user = computed(() => page.props.auth!.user);
 const mobileEntries = computed(() =>
   navigation.value
     .flatMap((section) => section.entries)
+    .flatMap((entry) => entry.children ?? [entry])
     .filter((entry) => entry.mobile)
     .slice(0, 4),
 );

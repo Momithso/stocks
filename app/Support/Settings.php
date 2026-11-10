@@ -30,11 +30,16 @@ class Settings
         'organization.short_name' => 'Stocks',
         // accent colour of buttons and links, the mint of Portals
         'organization.accent_color' => '#22948c',
+        // paths of logo and favicon on S3, see App\Support\Branding
+        'organization.logo_path' => null,
+        'organization.favicon_path' => null,
         'legal.imprint_url' => null,
         'legal.privacy_url' => null,
         'legal.contact_email' => null,
         'mail.from_name' => null,
         'mail.from_address' => null,
+        // prefix of new item numbers, empty for the short name (see App\Support\Inventory\ItemNumbers)
+        'inventory.number_prefix' => null,
         'setup.completed_at' => null,
     ];
 
