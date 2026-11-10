@@ -9,7 +9,14 @@ declare module 'vue' {
   export interface GlobalComponents {
     AppLayout: typeof import('./../layouts/AppLayout.vue')['default']
     AuthLayout: typeof import('./../layouts/AuthLayout.vue')['default']
+    InventoryContentsTree: typeof import('./../components/inventory/ContentsTree.vue')['default']
+    InventoryDashboardTile: typeof import('./../components/inventory/DashboardTile.vue')['default']
+    InventoryLocationModal: typeof import('./../components/inventory/LocationModal.vue')['default']
+    InventoryPlaceInput: typeof import('./../components/inventory/PlaceInput.vue')['default']
+    InventoryPlaceLink: typeof import('./../components/inventory/PlaceLink.vue')['default']
     KioskLayout: typeof import('./../layouts/KioskLayout.vue')['default']
+    LayoutBrand: typeof import('./../components/layout/Brand.vue')['default']
+    LayoutMenuEntry: typeof import('./../components/layout/MenuEntry.vue')['default']
     UiAlert: typeof import('./../components/ui/Alert.vue')['default']
     UiAvatar: typeof import('./../components/ui/Avatar.vue')['default']
     UiBadge: typeof import('./../components/ui/Badge.vue')['default']
@@ -29,5 +36,6 @@ declare module 'vue' {
     UiPinPad: typeof import('./../components/ui/PinPad.vue')['default']
     UiSelect: typeof import('./../components/ui/Select.vue')['default']
     UiTable: typeof import('./../components/ui/Table.vue')['default']
+    UiTextarea: typeof import('./../components/ui/Textarea.vue')['default']
   }
 }

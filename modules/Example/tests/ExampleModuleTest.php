@@ -34,13 +34,13 @@ class ExampleModuleTest extends TestCase
         $hasEntry = fn ($navigation) => collect($navigation)->flatMap(fn ($section) => $section['entries'])->contains('href', '/example');
 
         $this->actingAs($admin)->get('/dashboard')->assertInertia(fn ($page) => $page
-            ->where('tiles', [])
+            ->where('tiles', fn ($tiles) => ! collect($tiles)->contains('Example::DashboardTile'))
             ->where('navigation', fn ($navigation) => ! $hasEntry($navigation)));
 
         $this->activateModule('example');
 
         $this->actingAs($admin)->get('/dashboard')->assertInertia(fn ($page) => $page
-            ->where('tiles', ['Example::DashboardTile'])
+            ->where('tiles', fn ($tiles) => collect($tiles)->contains('Example::DashboardTile'))
             ->where('navigation', fn ($navigation) => $hasEntry($navigation)));
     }
 

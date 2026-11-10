@@ -28,9 +28,16 @@ class Navigation
     ];
 
     /**
-     * @var list<array{section: string, title: string, route: string, icon: string, permission: string|null, module: string|null, mobile: bool, order: int}>
+     * @var list<array{section: string, title: string, route: string, icon: string, permission: string|null, module: string|null, mobile: bool, order: int, group: string|null}>
      */
     private array $entries = [];
+
+    /**
+     * Collapsible groups of entries by their key.
+     *
+     * @var array<string, array{section: string, title: string, icon: string, order: int}>
+     */
+    private array $groups = [];
 
     /**
      * @var list<array{title: string, route: string, icon: string, permission: string|null, module: string|null, order: int}>
@@ -48,7 +55,8 @@ class Navigation
      * @param  string|null  $permission  permission the user needs to see the entry
      * @param  string|null  $module  key of the module the entry belongs to, hidden while the module is off
      * @param  bool  $mobile  show the entry in the bar at the bottom of phones (at most four entries fit)
-     * @param  int  $order  position within the section, lower first
+     * @param  int  $order  position within the section (or the group), lower first
+     * @param  string|null  $group  key of a group (addGroup) the entry is shown in
      */
     public function add(
         string $section,
@@ -59,8 +67,19 @@ class Navigation
         ?string $module = null,
         bool $mobile = false,
         int $order = 100,
+        ?string $group = null,
     ): void {
-        $this->entries[] = compact('section', 'title', 'route', 'icon', 'permission', 'module', 'mobile', 'order');
+        $this->entries[] = compact('section', 'title', 'route', 'icon', 'permission', 'module', 'mobile', 'order', 'group');
+    }
+
+    /**
+     * Add a collapsible group to a section, e.g. "Einstellungen" with the small lists that are
+     * rarely changed. Entries join it with add(..., group: <key>). A group without visible entries
+     * is left out.
+     */
+    public function addGroup(string $section, string $key, string $title, string $icon, int $order = 100): void
+    {
+        $this->groups[$key] = compact('section', 'title', 'icon', 'order');
     }
 
     /**
@@ -72,20 +91,41 @@ class Navigation
     }
 
     /**
-     * Get the menu of a user: sections with their visible entries. Empty sections are left out.
+     * Get the menu of a user: sections with their visible entries. An entry of a group has
+     * "href" null and its entries in "children". Empty groups and sections are left out.
      *
-     * @return list<array{key: string, title: string, entries: list<array{title: string, href: string, icon: string, mobile: bool}>}>
+     * @return list<array{key: string, title: string, entries: list<array{title: string, href: string|null, icon: string, mobile: bool, children?: list<array<string, mixed>>}>}>
      */
     public function forUser(User $user): array
     {
-        $sections = [];
+        $children = [];
+        $entries = [];
         foreach ($this->visible($this->entries, $user) as $entry) {
-            $sections[$entry['section']][] = [
+            $item = [
                 'title' => $entry['title'],
                 'href' => route($entry['route'], absolute: false),
                 'icon' => $entry['icon'],
                 'mobile' => $entry['mobile'],
             ];
+            if ($entry['group'] !== null && isset($this->groups[$entry['group']])) {
+                $children[$entry['group']][] = $item;
+            } else {
+                $entries[] = ['section' => $entry['section'], 'order' => $entry['order'], 'item' => $item];
+            }
+        }
+
+        // groups take their place in the section like an entry
+        foreach ($children as $key => $groupEntries) {
+            $group = $this->groups[$key];
+            $entries[] = ['section' => $group['section'], 'order' => $group['order'], 'item' => [
+                'title' => $group['title'], 'href' => null, 'icon' => $group['icon'], 'mobile' => false, 'children' => $groupEntries,
+            ]];
+        }
+        usort($entries, fn (array $a, array $b) => $a['order'] <=> $b['order']);
+
+        $sections = [];
+        foreach ($entries as $entry) {
+            $sections[$entry['section']][] = $entry['item'];
         }
 
         $menu = [];

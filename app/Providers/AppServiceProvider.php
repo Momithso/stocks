@@ -2,8 +2,13 @@
 
 namespace App\Providers;
 
+use App\Models\Category;
 use App\Models\Invitation;
+use App\Models\Item;
+use App\Models\ItemCondition;
+use App\Models\ItemUnit;
 use App\Models\KioskDevice;
+use App\Models\Location;
 use App\Models\Module;
 use App\Models\Role;
 use App\Models\Setting;
@@ -49,7 +54,7 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Bootstrap any application services.
      */
-    public function boot(Navigation $navigation, AuditSubjects $auditSubjects): void
+    public function boot(Navigation $navigation, DashboardTiles $dashboardTiles, AuditSubjects $auditSubjects): void
     {
         if (config('app.force_https')) {
             URL::forceScheme('https');
@@ -59,7 +64,7 @@ class AppServiceProvider extends ServiceProvider
         // the check against leaked passwords asks an external service and is off by default
         Password::defaults(fn () => Password::min(12)->when(config('stocks.check_leaked_passwords'), fn (Password $rule) => $rule->uncompromised()));
 
-        foreach ([User::class, Role::class, Invitation::class, Module::class, Setting::class, KioskDevice::class] as $class) {
+        foreach ([User::class, Role::class, Invitation::class, Module::class, Setting::class, KioskDevice::class, Location::class, Category::class, Item::class, ItemCondition::class, ItemUnit::class] as $class) {
             $auditSubjects->register($class);
         }
 
@@ -72,6 +77,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->registerNavigation($navigation);
+        $dashboardTiles->add('inventory/DashboardTile', 'inventory.view', order: 10);
     }
 
     /**
@@ -81,12 +87,23 @@ class AppServiceProvider extends ServiceProvider
     {
         $navigation->add('overview', 'Dashboard', 'dashboard', 'house', mobile: true, order: 0);
 
+        $navigation->add('inventory', 'Gegenstände', 'inventory.items.index', 'boxes-stacked', 'inventory.view', mobile: true, order: 10);
+        $navigation->add('inventory', 'Umlagern', 'inventory.move', 'right-left', 'inventory.move', mobile: true, order: 20);
+        $navigation->add('inventory', 'Ohne Platz', 'inventory.items.misplaced', 'circle-question', 'inventory.view', order: 30);
+        $navigation->add('inventory', 'Standorte', 'inventory.locations.index', 'location-dot', 'inventory.view', order: 40);
+
         $navigation->add('admin', 'Konten', 'admin.users.index', 'users', 'users.view', order: 10);
         $navigation->add('admin', 'Rollen', 'admin.roles.index', 'user-shield', 'roles.manage', order: 20);
-        $navigation->add('admin', 'Module', 'admin.modules.index', 'puzzle-piece', 'modules.manage', order: 30);
-        $navigation->add('admin', 'Kiosk-Geräte', 'admin.kiosk-devices.index', 'tablet-screen-button', 'kiosk.devices.manage', order: 40);
-        $navigation->add('admin', 'Einstellungen', 'admin.settings.edit', 'gear', 'settings.manage', order: 50);
-        $navigation->add('admin', 'Protokoll', 'admin.audit-log', 'clock-rotate-left', 'audit.view', order: 60);
-        $navigation->add('admin', 'Styleguide', 'styleguide', 'palette', 'settings.manage', order: 70);
+        $navigation->add('admin', 'Protokoll', 'admin.audit-log', 'clock-rotate-left', 'audit.view', order: 30);
+
+        // things that are set up once and rarely changed, collapsed so the menu stays short
+        $navigation->addGroup('admin', 'settings', 'Einstellungen', 'gear', order: 40);
+        $navigation->add('admin', 'Allgemein', 'admin.settings.edit', 'sliders', 'settings.manage', order: 10, group: 'settings');
+        $navigation->add('admin', 'Kategorien', 'inventory.categories.index', 'tags', 'locations.manage', order: 20, group: 'settings');
+        $navigation->add('admin', 'Zustände', 'inventory.conditions.index', 'clipboard-check', 'inventory.options.manage', order: 30, group: 'settings');
+        $navigation->add('admin', 'Einheiten', 'inventory.units.index', 'ruler', 'inventory.options.manage', order: 40, group: 'settings');
+        $navigation->add('admin', 'Module', 'admin.modules.index', 'puzzle-piece', 'modules.manage', order: 50, group: 'settings');
+        $navigation->add('admin', 'Kiosk-Geräte', 'admin.kiosk-devices.index', 'tablet-screen-button', 'kiosk.devices.manage', order: 60, group: 'settings');
+        $navigation->add('admin', 'Styleguide', 'styleguide', 'palette', 'settings.manage', order: 70, group: 'settings');
     }
 }

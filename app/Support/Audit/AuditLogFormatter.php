@@ -29,6 +29,8 @@ class AuditLogFormatter
         'rolesUpdated' => 'Rollen geändert',
         'permissionsUpdated' => 'Rechte geändert',
         'pinReset' => 'PIN zurückgesetzt',
+        'conditionChanged' => 'Zustand geändert',
+        'historyEntryDeleted' => 'Verlaufseintrag gelöscht',
     ];
 
     /**

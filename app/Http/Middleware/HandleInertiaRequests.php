@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\Branding;
 use App\Support\Extensions\Navigation;
 use App\Support\Settings;
 use Illuminate\Http\Request;
@@ -40,6 +41,7 @@ class HandleInertiaRequests extends Middleware
                 'name' => $settings->get('organization.name'),
                 'short_name' => $settings->get('organization.short_name'),
                 'accent_color' => $settings->get('organization.accent_color'),
+                'logo_url' => app(Branding::class)->url('logo'),
                 'imprint_url' => $settings->get('legal.imprint_url'),
                 'privacy_url' => $settings->get('legal.privacy_url'),
             ],

@@ -7,6 +7,7 @@
 export {}
 declare global {
   const useColorMode: typeof import('../composables/useColorMode')['default']
+  const useImageCompression: typeof import('../composables/useImageCompression')['default']
   const useModuleComponent: typeof import('../composables/useModuleComponent')['default']
   const usePermissions: typeof import('../composables/usePermissions')['default']
   const usePolling: typeof import('../composables/usePolling')['default']

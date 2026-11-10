@@ -3,6 +3,7 @@
 namespace Tests;
 
 use App\Actions\Setup\InstallStocks;
+use App\Models\ItemCondition;
 use App\Models\Module;
 use App\Models\Role;
 use App\Models\User;
@@ -55,6 +56,14 @@ abstract class TestCase extends BaseTestCase
         $role->syncPermissions($permissions);
 
         return User::factory()->create()->assignRole($role);
+    }
+
+    /**
+     * Id of a condition of items by its name (the defaults are "neu", "gut", "gebraucht", "defekt").
+     */
+    protected function conditionId(string $name): int
+    {
+        return ItemCondition::where('name', $name)->value('id');
     }
 
     /**

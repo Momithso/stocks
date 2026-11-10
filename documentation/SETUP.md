@@ -17,6 +17,8 @@ Jede Organisation bekommt eine eigene Instanz mit eigener Datenbank. Alle Instan
    MAIL_USERNAME=...
    MAIL_PASSWORD=...
    MAIL_FROM_ADDRESS=stocks@example.org
+   AWS_ACCESS_KEY_ID=...         # Zugang zum mitgestarteten MinIO für Fotos
+   AWS_SECRET_ACCESS_KEY=...
    WEB_PORT=8000                 # je Instanz ein eigener Port hinter dem Reverse Proxy
    ```
 
@@ -45,6 +47,7 @@ Danach ist `/setup` gesperrt. Den `SETUP_TOKEN` kann man wieder entfernen.
 | `SETUP_TOKEN` | Schlüssel für den Einrichtungsassistenten; ohne ihn ist der Assistent aus |
 | `CHECK_LEAKED_PASSWORDS` | `true` lehnt Passwörter aus bekannten Datenlecks ab (Abfrage bei haveibeenpwned.com) |
 | `APP_FORCE_HTTPS` | Links immer mit https erzeugen (hinter einem Reverse Proxy) |
+| `AWS_*` | S3-Speicher für Fotos, standardmäßig das mitgestartete MinIO; siehe [INVENTORY.md](INVENTORY.md#fotos-auf-s3) |
 
 Alle anderen Variablen sind die von Laravel und Octane, siehe `.env.example`.
 
@@ -59,4 +62,6 @@ npm run dev
 php artisan serve
 ```
 
-Demo-Konten: `admin@example.com` (Admin), `demo1@example.com` (Vorstand), `demo2@example.com` (FSR-Mitglied), `demo3@example.com` (Freies Mitglied). Das Beispielmodul ist eingeschaltet.
+Demo-Konten: `admin@example.com` (Admin), `demo1@example.com` (Vorstand), `demo2@example.com` (FSR-Mitglied), `demo3@example.com` (Freies Mitglied). Das Beispielmodul ist eingeschaltet, dazu gibt es ein kleines Demo-Inventar.
+
+Fotos brauchen S3. Mit Sail startet MinIO mit (Konsole auf http://localhost:9001), die passenden Werte stehen in `.env.example`.

@@ -8,8 +8,8 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Seeder;
 
 /**
- * Demo data for local development: an installed instance with one account per start role.
- * All accounts have the password of UserFactory::PASSWORD and the pin UserFactory::PIN.
+ * Demo data for local development: an installed instance with one account per start role and a
+ * small inventory. All accounts have the password of UserFactory::PASSWORD and the pin UserFactory::PIN.
  */
 class DatabaseSeeder extends Seeder
 {
@@ -32,5 +32,7 @@ class DatabaseSeeder extends Seeder
                 'email' => 'demo'.($index + 1).'@example.com',
             ])->assignRole($role);
         }
+
+        $this->call(InventorySeeder::class);
     }
 }

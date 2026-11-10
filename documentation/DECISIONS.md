@@ -2,6 +2,40 @@
 
 Warum Stocks so gebaut ist, wie es gebaut ist. Neue Einträge oben; jeder Eintrag mit Datum, Entscheidung, Grund und verworfener Alternative.
 
+## 2026-11-10 · Phase 1
+
+**Inventar im Kern statt als Modul.** Der Gesamtplan zählt das Inventar zum Kern; Verleih, Kiosk und öffentliche Seite bauen darauf auf, ein Abschalten ergibt keinen Sinn. Der Detailplan nannte an zwei Stellen noch `modules/Inventory`. Verworfen: eigenes Modul.
+
+**Rechte für das Inventar über die Startrollen.** Die neuen Rechte stehen in `config/stocks.php` und in den Startrollen. Grund: Es gibt noch keine Instanz im Betrieb; eine lokale Entwicklungsdatenbank wird mit `migrate:fresh --seed` neu aufgebaut. Verworfen: eine Zuordnung beim ersten Einschalten (stand im Detailplan für ein Modul). Bestehende Instanzen müssten die Rechte in der Rollenverwaltung vergeben; Admin hat sie automatisch.
+
+**Kein Check-Constraint für „Standort oder Box“.** Die Actions setzen Ort und Stammplatz nur über `Item::setPlace()`/`setHome()`, die immer einen der beiden Werte leeren. Grund: Laravel legt Check-Constraints nicht an, und SQLite (Tests) kann sie nachträglich nicht hinzufügen. Verworfen: rohes SQL je Datenbank.
+
+**Kategorien direkt im Controller.** Wie bei Kiosk-Geräten: Anlegen, Ändern, Löschen mit je einer Regel, keine Actions.
+
+**Ein Endpunkt fürs Umlagern.** Scan-Seite und Dialog auf der Detailseite schicken beide Gegenstand und Ziel-Code an `POST /inventory/move`. Der Server löst den Code auf (`CodeLookup`), so funktionieren Handscanner, Tippen und Vorschläge gleich.
+
+**Mengenartikel als ganze Zahlen.** Meter oder Rollen werden gezählt, nicht gemessen. Verworfen: Dezimalzahlen, die beim Teilen Rundungsfragen aufwerfen.
+
+**Präfix nur in den Einstellungen.** Der Einrichtungsassistent fragt das Präfix nicht ab; leer gilt der Kurzname, den der Assistent schon abfragt. Grund: ein Feld weniger beim ersten Start.
+
+**MinIO wie in Portals.** `docker-compose.yaml` und `docker-compose.sail.yaml` starten MinIO (`ghcr.io/coollabsio/minio`) und legen den Bucket mit `minio-setup` an, übernommen aus dem Portals-Zweig `feat/missing-s3-service`. Abweichung: kein `container_name`, damit mehrere Instanzen auf einem Server laufen können.
+
+**Zustände als Tabelle, verwaltet von Admins.** Statt fester Werte im Code stehen die Zustände in `item_conditions`; nur Admin hat `inventory.options.manage`. Der Verlauf speichert Namen statt Verweise, damit Umbenennen und Löschen ihn nicht verändern. Ein Zustand mit Gegenständen lässt sich nicht löschen. Verworfen: beim Löschen alle Gegenstände auf einen Ersatz umstellen, weil das einen Zustandswechsel ohne Begründung wäre.
+
+**Verlaufseinträge löschbar, nur mit eigenem Recht.** Anlass: Zustandswechsel, deren Fotos S3 nie erreicht haben. Gelöscht wird nur der Eintrag; Ort und Zustand bleiben, damit Löschen nichts am Bestand verändert. Verworfen: Einträge nur ausblenden, weil kaputte Fotos dann weiter Fehler erzeugen.
+
+**Untermenü „Einstellungen“.** Selten genutzte Seiten (Allgemein, Kategorien, Zustände, Einheiten, Module, Kiosk-Geräte, Styleguide) liegen in einer aufklappbaren Gruppe unter Verwaltung, damit das Menü kurz bleibt. Neue Listen dieser Art kommen mit `group: 'settings'` dazu.
+
+**Einheiten als Liste, Gegenstände speichern den Namen.** Wie bei Zuständen pflegen Admins die Liste; anders als dort speichert der Gegenstand den Namen statt eines Verweises, damit Meldungen und Verlauf ohne Nachschlagen lesbar sind. Umbenennen zieht die Gegenstände mit.
+
+**Teilmengen ausbuchen ohne neuen Gegenstand.** „Verbraucht“ zieht Menge ab und schreibt eine Bewegung `retire` mit Menge. Verworfen: den verbrauchten Teil als eigenen ausgemusterten Gegenstand abteilen; das würde für jede Packung Kabelbinder eine Nummer verbrauchen.
+
+**Zustände und Einheiten mit einem Recht.** `inventory.options.manage` (hieß zwischendurch `conditions.manage`) deckt beide Listen ab.
+
+**Logo und Favicon auf S3, ausgeliefert durch Stocks.** Wie die Fotos liegen sie im privaten Bucket; Stocks liefert sie auch an Gäste aus. Grund: eine Instanz im Docker-Container hat kein beschreibbares `public/`. Verworfen: SVG als Logo, weil es Skripte enthalten kann.
+
+**Teilmengen mit Kopie der Fotos.** Ein abgeteilter Teil bekommt Kopien der Fotos des Ursprungs (eigene Dateien auf S3), damit Löschen bei einem die Fotos des anderen nicht berührt. Kann S3 eine Datei nicht kopieren, fehlt das Foto beim Teil; das Umlagern gilt trotzdem. Verworfen: dieselbe Datei für beide, weil dann jedes Löschen prüfen müsste, wer die Datei noch nutzt.
+
 ## 2026-11-10 · Phase 0
 
 **Validierung im Controller statt Form Requests.** Eingaben werden mit `$request->validate()` im Controller geprüft. Grund: In Phase 0 nutzt keine Validierung mehr als ein Controller; eine eigene Klasse je Formular wäre mehr Code ohne Gewinn. Verworfen: Form Requests für alles. Sobald eine Validierung zweimal gebraucht wird, wandert sie in einen Form Request.

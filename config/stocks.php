@@ -36,6 +36,13 @@ return [
         'kiosk.devices.manage' => 'Kiosk-Geräte koppeln und sperren',
         'kiosk.use' => 'Sich am Kiosk mit PIN anmelden',
         'audit.view' => 'Änderungsprotokoll lesen',
+        'inventory.view' => 'Inventar ansehen',
+        'inventory.move' => 'Gegenstände umlagern und ihren Zustand melden',
+        'inventory.edit' => 'Gegenstände anlegen und bearbeiten, Fotos hochladen',
+        'inventory.retire' => 'Gegenstände ausmustern und Fehleingaben löschen',
+        'inventory.history.delete' => 'Einträge aus dem Verlauf eines Gegenstands löschen',
+        'locations.manage' => 'Standorte und Kategorien verwalten',
+        'inventory.options.manage' => 'Zustände und Einheiten des Inventars verwalten',
     ],
 
     /*
@@ -54,15 +61,16 @@ return [
     'start_roles' => [
         'Vorstand' => [
             'description' => 'Leitet die Organisation.',
-            'permissions' => ['users.view', 'users.invite', 'users.manage', 'roles.manage', 'settings.manage', 'kiosk.use', 'audit.view'],
+            'permissions' => ['users.view', 'users.invite', 'users.manage', 'roles.manage', 'settings.manage', 'kiosk.use', 'audit.view',
+                'inventory.view', 'inventory.move', 'inventory.edit', 'inventory.retire', 'locations.manage'],
         ],
         'FSR-Mitglied' => [
             'description' => 'Gewähltes Mitglied.',
-            'permissions' => ['users.view', 'kiosk.use'],
+            'permissions' => ['users.view', 'kiosk.use', 'inventory.view', 'inventory.move', 'inventory.edit', 'locations.manage'],
         ],
         'Freies Mitglied' => [
             'description' => 'Hilft mit, ohne gewählt zu sein.',
-            'permissions' => [],
+            'permissions' => ['inventory.view', 'inventory.move'],
         ],
     ],
 

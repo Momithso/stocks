@@ -43,7 +43,13 @@
   </UiCard>
 
   <UiCard flush>
-    <UiTable ref="table" data="users" :columns="columns" searchable>
+    <UiTable
+      ref="table"
+      data="users"
+      :columns="columns"
+      searchable
+      search-placeholder="Name oder E-Mail"
+    >
       <template #cell-name="{ row }">
         <span class="font-medium">{{ row.firstname }} {{ row.lastname }}</span>
         <UiBadge v-if="row.is_disabled" variant="danger" class="ml-2"

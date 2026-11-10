@@ -23,6 +23,8 @@ declare global {
       name: string;
       short_name: string;
       accent_color: string;
+      // null while no logo was uploaded (Admin › Einstellungen › Allgemein)
+      logo_url: string | null;
       imprint_url: string | null;
       privacy_url: string | null;
     };
@@ -39,9 +41,11 @@ declare global {
 
   interface NavigationEntry {
     title: string;
-    href: string;
+    // null for a group, whose entries are in children
+    href: string | null;
     icon: string;
     mobile: boolean;
+    children?: NavigationEntry[];
   }
 
   interface Option {
