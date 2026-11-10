@@ -13,6 +13,22 @@
       Gegenstand hier anlegen
     </UiButton>
     <UiButton
+      v-if="can('labels.print')"
+      variant="secondary"
+      icon="tag"
+      :href="`/labels/print?locations=${location.id}`"
+    >
+      Etikett drucken
+    </UiButton>
+    <UiButton
+      v-if="can('labels.print') && children.length"
+      variant="secondary"
+      icon="layer-group"
+      :href="`/labels/print?below=${location.id}`"
+    >
+      Etiketten für alle Lagerplätze und Fächer darunter
+    </UiButton>
+    <UiButton
       v-if="can('locations.manage')"
       variant="secondary"
       icon="pen"

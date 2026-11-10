@@ -3,10 +3,10 @@
 
   <UiCard
     title="Logo und Symbol"
-    description="Das Logo steht oben links, auf der Anmeldeseite und am Kiosk. Das Symbol (Favicon) zeigt der Browser im Tab."
+    description="Das Logo steht oben links, auf der Anmeldeseite und am Kiosk. Das Symbol (Favicon) zeigt der Browser im Tab. Das Druck-Logo kommt auf Etiketten und die Inhaltsliste; ohne eigenes gilt das Logo."
     class="mb-6"
   >
-    <form class="grid gap-6 sm:grid-cols-2" @submit.prevent="saveBranding">
+    <form class="grid gap-6 sm:grid-cols-3" @submit.prevent="saveBranding">
       <div v-for="kind in brandingKinds" :key="kind.key" class="space-y-3">
         <p class="text-sm font-medium">{{ kind.label }}</p>
         <div
@@ -40,7 +40,7 @@
           Standard verwenden
         </UiButton>
       </div>
-      <div class="sm:col-span-2 flex justify-end">
+      <div class="flex justify-end sm:col-span-3">
         <UiButton
           type="submit"
           :disabled="brandingForm.processing || !brandingForm.isDirty"
@@ -72,6 +72,15 @@
           type="color"
           hint="Wird nach dem Neuladen der Seite sichtbar."
           :error="form.errors['organization.accent_color']"
+        />
+        <UiTextarea
+          v-model="form.organization.address"
+          label="Anschrift"
+          class="sm:col-span-3"
+          :rows="4"
+          placeholder="Fachschaftsrat …&#10;Straße 1&#10;52066 Aachen"
+          hint="Für den Briefkopf der Inhaltsliste einer Box, eine Zeile je Adresszeile."
+          :error="form.errors['organization.address']"
         />
       </div>
     </UiCard>
@@ -133,6 +142,20 @@
       </div>
     </UiCard>
 
+    <UiCard
+      title="Etiketten"
+      description="Der Code auf jedem Etikett ist ein Kurzlink, z. B. https://stocks.example/s/FSR5-004218. Ändert sich die Adresse später, öffnet die Handykamera alte Etiketten nicht mehr; der Scan in Stocks liest weiter die Nummer."
+    >
+      <UiInput
+        v-model="form.labels.base_url"
+        label="Adresse auf Etiketten"
+        type="url"
+        :placeholder="appUrl"
+        hint="Leer lassen für die Adresse der Instanz."
+        :error="form.errors['labels.base_url']"
+      />
+    </UiCard>
+
     <div class="flex justify-end">
       <UiButton type="submit" :disabled="form.processing">Speichern</UiButton>
     </div>
@@ -145,11 +168,16 @@ import { useForm } from "@inertiajs/vue3";
 
 const props = defineProps<{
   settings: Record<string, string | null>;
-  branding: { logo: string | null; favicon: string | null };
+  branding: {
+    logo: string | null;
+    favicon: string | null;
+    print_logo: string | null;
+  };
+  appUrl: string;
 }>();
 
 // logo and favicon have their own form, files can not be sent with PUT
-type BrandingKind = "logo" | "favicon";
+type BrandingKind = "logo" | "favicon" | "print_logo";
 const brandingKinds: {
   key: BrandingKind;
   label: string;
@@ -168,15 +196,23 @@ const brandingKinds: {
     accept: "image/png,image/x-icon,.ico",
     hint: "PNG oder ICO, quadratisch, höchstens 512 KB.",
   },
+  {
+    key: "print_logo",
+    label: "Druck-Logo",
+    accept: "image/png,image/jpeg,image/webp",
+    hint: "Für Papier und Etiketten: dunkel auf hellem Grund. Der Niimbot druckt nur Schwarz und Weiß.",
+  },
 ];
 const brandingForm = useForm({
   logo: null as File | null,
   favicon: null as File | null,
+  print_logo: null as File | null,
   remove: [] as BrandingKind[],
 });
 const previews = ref<Record<BrandingKind, string | null>>({
   logo: props.branding.logo,
   favicon: props.branding.favicon,
+  print_logo: props.branding.print_logo,
 });
 const choose = (kind: BrandingKind, event: Event) => {
   const file = (event.target as HTMLInputElement).files?.[0] ?? null;
@@ -206,6 +242,7 @@ const form = useForm({
     name: value("organization.name"),
     short_name: value("organization.short_name"),
     accent_color: value("organization.accent_color"),
+    address: value("organization.address"),
   },
   legal: {
     imprint_url: value("legal.imprint_url"),
@@ -218,6 +255,9 @@ const form = useForm({
   },
   inventory: {
     number_prefix: value("inventory.number_prefix"),
+  },
+  labels: {
+    base_url: value("labels.base_url"),
   },
 });
 
@@ -245,6 +285,7 @@ const submit = () =>
       inventory: {
         number_prefix: data.inventory.number_prefix.toUpperCase() || null,
       },
+      labels: nullIfEmpty(data.labels),
     }))
     .put("/admin/settings", { preserveScroll: true });
 </script>

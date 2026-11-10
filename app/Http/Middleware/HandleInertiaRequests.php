@@ -50,6 +50,8 @@ class HandleInertiaRequests extends Middleware
                 'error' => $request->session()->get('error'),
                 'warning' => $request->session()->get('warning'),
                 'info' => $request->session()->get('info'),
+                // item with a new number (e.g. split off part): offer to print its label
+                'label' => $request->session()->get('label'),
             ],
             // start time of the live update of tables, see App\Support\Table\Table
             'serverTime' => fn () => now()->timestamp,

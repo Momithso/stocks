@@ -1,5 +1,6 @@
 <template>
-  <div class="min-h-screen">
+  <!-- height of the bottom bar on phones, also used by pages that place things above it (Scan) -->
+  <div class="min-h-screen" style="--bottom-bar: 84px">
     <!-- sidebar (pc) -->
     <aside
       :class="[
@@ -31,6 +32,21 @@
         </button>
       </div>
 
+      <!-- scan button: a hand scanner works on the scan page without clicking a field -->
+      <div v-if="can('inventory.view')" class="px-2 pt-2">
+        <InertiaLink
+          href="/inventory/scan"
+          :class="[
+            'flex items-center justify-center gap-2 rounded-md bg-accent py-2 text-sm font-medium text-white hover:bg-accent-hover',
+            collapsed ? 'px-0' : 'px-3',
+          ]"
+          :aria-label="collapsed ? 'Scannen' : undefined"
+        >
+          <FontAwesomeIcon :icon="['fas', 'qrcode']" />
+          <span v-if="!collapsed">Scannen</span>
+        </InertiaLink>
+      </div>
+
       <nav
         class="flex-1 space-y-6 overflow-y-auto px-2 py-4"
         aria-label="Hauptmenü"
@@ -43,7 +59,7 @@
             {{ section.title }}
           </p>
           <ul class="space-y-1">
-            <li v-for="entry in section.entries" :key="entry.title">
+            <li v-for="entry in sidebarEntries(section)" :key="entry.title">
               <LayoutMenuEntry :entry="entry" :collapsed="collapsed" />
             </li>
           </ul>
@@ -109,7 +125,12 @@
       <UiColorModeButton />
     </header>
 
-    <main :class="['pb-24 lg:pb-0', collapsed ? 'lg:pl-16' : 'lg:pl-64']">
+    <main
+      :class="[
+        'pb-[calc(var(--bottom-bar)+1.5rem+env(safe-area-inset-bottom))] lg:pb-0',
+        collapsed ? 'lg:pl-16' : 'lg:pl-64',
+      ]"
+    >
       <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <UiFlash />
         <slot />
@@ -130,7 +151,7 @@
         :href="entry.href"
         :aria-current="isActive(entry) ? 'page' : undefined"
         :class="[
-          'flex min-h-[56px] flex-col items-center justify-center gap-1 text-xs',
+          'flex min-h-[var(--bottom-bar)] flex-col items-center justify-center gap-1 text-xs',
           isActive(entry) ? 'text-accent' : 'text-ink-muted',
         ]"
       >
@@ -139,7 +160,7 @@
       </InertiaLink>
       <button
         type="button"
-        class="flex min-h-[56px] flex-col items-center justify-center gap-1 text-xs text-ink-muted"
+        class="flex min-h-[var(--bottom-bar)] flex-col items-center justify-center gap-1 text-xs text-ink-muted"
         @click="moreOpen = true"
       >
         <FontAwesomeIcon :icon="['fas', 'bars']" class="h-5 w-5" />
@@ -198,6 +219,7 @@ import { Link as InertiaLink, usePage } from "@inertiajs/vue3";
  * a sidebar on the pc, a bar with the most used entries at the bottom of phones and tablets.
  */
 const page = usePage<SharedProps>();
+const { can } = usePermissions();
 
 const navigation = computed(() => page.props.navigation);
 const organization = computed(() => page.props.organization);
@@ -216,6 +238,10 @@ const isActive = (entry: NavigationEntry) => {
   const path = page.url.split("?")[0];
   return path === entry.href || path.startsWith(`${entry.href}/`);
 };
+
+// the sidebar has its own scan button on top
+const sidebarEntries = (section: NavigationSection) =>
+  section.entries.filter((entry) => entry.href !== "/inventory/scan");
 
 const moreOpen = ref(false);
 

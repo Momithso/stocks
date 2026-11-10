@@ -43,6 +43,8 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property Carbon|null $retired_at
  * @property RetireReason|null $retired_reason
  * @property string|null $retired_note
+ * @property string|null $label_hint short text for the label, e.g. "Achtung, zerbrechlich"
+ * @property Carbon|null $label_printed_at time of the last printed label
  */
 class Item extends Model implements Auditable, AuditSubject
 {
@@ -66,6 +68,7 @@ class Item extends Model implements Auditable, AuditSubject
         'is_container',
         'public_contents',
         'notes',
+        'label_hint',
     ];
 
     /**
@@ -76,6 +79,7 @@ class Item extends Model implements Auditable, AuditSubject
      */
     protected $auditExclude = [
         'condition_id',
+        'label_printed_at',
     ];
 
     /**
@@ -92,6 +96,7 @@ class Item extends Model implements Auditable, AuditSubject
             'public_contents' => 'boolean',
             'quantity' => 'integer',
             'retired_at' => 'datetime',
+            'label_printed_at' => 'datetime',
         ];
     }
 
@@ -354,6 +359,7 @@ class Item extends Model implements Auditable, AuditSubject
             'retired_at' => 'Ausgemustert am',
             'retired_reason' => 'Grund',
             'retired_note' => 'Notiz zum Ausmustern',
+            'label_hint' => 'Hinweis fürs Etikett',
             'history' => 'Verlaufseintrag',
         ];
     }

@@ -13,6 +13,22 @@
   </UiPageHeader>
 
   <UiCard flush>
+    <div
+      v-if="locations.length"
+      class="flex flex-wrap items-center gap-4 border-b border-line p-4 sm:px-6"
+    >
+      <UiCheckbox v-model="onlyUnlabeled" label="Noch ohne Etikett" />
+      <UiButton
+        v-if="can('labels.print') && onlyUnlabeled && unlabeled.length"
+        variant="secondary"
+        size="sm"
+        icon="tag"
+        class="ml-auto"
+        :href="`/labels/print?locations=${unlabeled.map((location) => location.id).join(',')}`"
+      >
+        {{ unlabeled.length }} Etiketten drucken
+      </UiButton>
+    </div>
     <UiEmptyState
       v-if="!locations.length"
       icon="location-dot"
@@ -103,6 +119,7 @@ type LocationRow = {
   full_code: string;
   description: string | null;
   items_count: number;
+  label_printed_at: string | null;
 };
 
 /**
@@ -144,8 +161,17 @@ const isHidden = (location: LocationRow): boolean => {
     : undefined;
   return !!parent && (collapsed.value.has(parent.id) || isHidden(parent));
 };
+// filter "noch ohne Etikett": addresses get no label, so they are left out
+const onlyUnlabeled = ref(false);
+const unlabeled = computed(() =>
+  props.locations.filter(
+    (location) => !location.label_printed_at && location.type !== "address",
+  ),
+);
 const visible = computed(() =>
-  props.locations.filter((location) => !isHidden(location)),
+  onlyUnlabeled.value
+    ? unlabeled.value
+    : props.locations.filter((location) => !isHidden(location)),
 );
 
 const editing = ref<{

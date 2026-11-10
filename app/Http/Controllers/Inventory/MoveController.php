@@ -57,8 +57,13 @@ class MoveController extends Controller
 
         $targetCode = Item::placeSummary($target)['code'];
 
-        return back()->with('success', $moved->is($item)
-            ? "{$item->number} liegt jetzt in {$targetCode}."
-            : "{$moved->quantity} {$moved->unit} von {$item->number} liegen jetzt als {$moved->number} in {$targetCode}.");
+        if ($moved->is($item)) {
+            return back()->with('success', "{$item->number} liegt jetzt in {$targetCode}.");
+        }
+
+        // the split off part has a new number and needs a label
+        return back()
+            ->with('success', "{$moved->quantity} {$moved->unit} von {$item->number} liegen jetzt als {$moved->number} in {$targetCode}.")
+            ->with('label', ['id' => $moved->id, 'number' => $moved->number]);
     }
 }

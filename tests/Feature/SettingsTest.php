@@ -56,4 +56,13 @@ class SettingsTest extends TestCase
 
         $this->assertDoesNotMatchRegularExpression('/<(link|script)[^>]+(href|src)="https?:\/\/(?!localhost)/', $content);
     }
+
+    public function test_the_postal_address_is_a_setting(): void
+    {
+        $this->actingAs($this->admin())->put('/admin/settings', [
+            'organization' => ['name' => 'FSR', 'short_name' => 'FSR', 'accent_color' => '#22948c', 'address' => "Eupener Straße 70\n52066 Aachen"],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame("Eupener Straße 70\n52066 Aachen", app(Settings::class)->get('organization.address'));
+    }
 }

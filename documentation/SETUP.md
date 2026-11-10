@@ -64,4 +64,24 @@ php artisan serve
 
 Demo-Konten: `admin@example.com` (Admin), `demo1@example.com` (Vorstand), `demo2@example.com` (FSR-Mitglied), `demo3@example.com` (Freies Mitglied). Das Beispielmodul ist eingeschaltet, dazu gibt es ein kleines Demo-Inventar.
 
+### HTTPS im Entwicklungsbetrieb (Handy im WLAN)
+
+Kamera, Bluetooth und USB gehen im Browser nur über HTTPS. Für Tests mit dem Handy im selben Netz gibt es einen HTTPS-Modus: Der Vite-Dev-Server antwortet mit HTTPS und reicht alles, was keine Datei der Oberfläche ist, an `php artisan serve` weiter. So läuft alles unter einer Adresse.
+
+```env
+DEV_HTTPS=true
+APP_URL=https://192.168.178.155:5173   # IP des Rechners im WLAN
+APP_FORCE_HTTPS=true
+```
+
+```bash
+php artisan config:clear
+php artisan serve            # Port 8000, nur lokal
+npm run dev                  # https://<IP>:5173
+```
+
+Beim ersten Start legt `vite.config.js` mit `openssl` ein selbst signiertes Zertifikat in `storage/dev-https/` an (gültig für `localhost` und alle IPv4-Adressen des Rechners; nach einem IP-Wechsel den Ordner löschen). Der Browser warnt einmal; nach „Trotzdem fortfahren“ funktionieren Kamera und Direktdruck. Ohne Warnung geht es mit einem Zertifikat von `mkcert`, dessen Stammzertifikat man auf dem Handy installiert: `DEV_HTTPS_CERT` und `DEV_HTTPS_KEY` zeigen auf die Dateien. Läuft Laravel woanders als auf `http://127.0.0.1:8000`, setzt man `DEV_HTTPS_TARGET`.
+
+Nur für die Entwicklung; eine Instanz im Betrieb steht hinter einem Reverse Proxy mit echtem Zertifikat.
+
 Fotos brauchen S3. Mit Sail startet MinIO mit (Konsole auf http://localhost:9001), die passenden Werte stehen in `.env.example`.

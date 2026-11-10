@@ -24,6 +24,14 @@
       Zustand ändern
     </UiButton>
     <UiButton
+      v-if="can('labels.print') && !item.retired_at"
+      variant="secondary"
+      icon="tag"
+      :href="`/labels/print?items=${item.id}`"
+    >
+      Etikett drucken
+    </UiButton>
+    <UiButton
       v-if="can('inventory.edit')"
       variant="secondary"
       icon="pen"
@@ -71,6 +79,19 @@
       >
         Zurück an den Stammplatz
       </button>
+    </UiAlert>
+    <!-- right after creating or splitting: a new number needs a label -->
+    <UiAlert
+      v-if="!item.label_printed_at && !item.retired_at && can('labels.print')"
+      type="info"
+    >
+      Für {{ item.number }} wurde noch kein Etikett gedruckt.
+      <InertiaLink
+        :href="`/labels/print?items=${item.id}`"
+        class="ml-1 font-bold underline"
+      >
+        Etikett drucken
+      </InertiaLink>
     </UiAlert>
     <UiAlert v-if="item.can_merge" type="info">
       Abgeteilt von <InventoryPlaceLink :place="item.split_from" />.
@@ -125,6 +146,21 @@
             <dt class="text-sm text-ink-muted">Inhalt öffentlich</dt>
             <dd>{{ item.public_contents ? "ja" : "nein" }}</dd>
           </div>
+          <div v-if="item.label_hint">
+            <dt class="text-sm text-ink-muted">Hinweis fürs Etikett</dt>
+            <dd>{{ item.label_hint }}</dd>
+          </div>
+          <div>
+            <dt class="text-sm text-ink-muted">Etikett zuletzt gedruckt</dt>
+            <dd>
+              <UiDateTime
+                v-if="item.label_printed_at"
+                :value="item.label_printed_at"
+                :with-time="false"
+              />
+              <template v-else>noch nie</template>
+            </dd>
+          </div>
           <div v-if="item.description" class="sm:col-span-2">
             <dt class="text-sm text-ink-muted">Beschreibung</dt>
             <dd class="whitespace-pre-line">{{ item.description }}</dd>
@@ -137,6 +173,25 @@
       </UiCard>
 
       <UiCard v-if="item.is_container" title="Inhalt" flush>
+        <template #actions>
+          <UiButton
+            v-if="can('labels.print') && item.contents.length"
+            variant="secondary"
+            size="sm"
+            icon="tag"
+            :href="`/labels/print?box=${item.id}`"
+          >
+            Etiketten für den Inhalt
+          </UiButton>
+          <UiButton
+            variant="secondary"
+            size="sm"
+            icon="file-pdf"
+            @click="pdfOpen = true"
+          >
+            Inhaltsliste (PDF)
+          </UiButton>
+        </template>
         <div class="px-4 sm:px-6">
           <InventoryContentsTree
             v-if="item.contents.length"
@@ -342,49 +397,13 @@
   </UiModal>
 
   <!-- condition -->
-  <UiModal
+  <InventoryConditionModal
     v-if="conditionOpen"
-    title="Zustand ändern"
+    :item="item"
+    :conditions="conditions"
     @close="conditionOpen = false"
-  >
-    <form class="space-y-5" @submit.prevent="changeCondition">
-      <UiSelect
-        v-model="conditionForm.condition_id"
-        label="Neuer Zustand"
-        :options="conditions"
-        :placeholder="null"
-      />
-      <UiTextarea
-        v-model="conditionForm.reason"
-        label="Warum?"
-        required
-        placeholder="z. B. Gehäuse beim Abbau gebrochen"
-        :error="
-          conditionForm.errors.reason ?? conditionForm.errors.condition_id
-        "
-      />
-      <label class="block text-sm font-medium">
-        Fotos (empfohlen)
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          multiple
-          class="mt-1 block w-full text-sm font-normal text-ink-muted file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-muted file:px-3 file:py-2 file:text-sm file:font-medium file:text-ink"
-          @change="setConditionPhotos"
-        />
-      </label>
-      <p v-if="photoErrorOf(conditionForm.errors)" class="text-sm text-red-600">
-        {{ photoErrorOf(conditionForm.errors) }}
-      </p>
-      <UiButton
-        type="submit"
-        class="w-full"
-        :disabled="conditionForm.processing"
-      >
-        Speichern
-      </UiButton>
-    </form>
-  </UiModal>
+    @done="conditionOpen = false"
+  />
 
   <!-- merge: book a split off part back to its origin -->
   <UiModal v-if="mergeOpen" title="Zurückbuchen" @close="mergeOpen = false">
@@ -405,27 +424,12 @@
   </UiModal>
 
   <!-- consume: quick action for consumables -->
-  <UiModal v-if="consumeOpen" title="Verbraucht" @close="consumeOpen = false">
-    <form class="space-y-5" @submit.prevent="consume">
-      <UiInput
-        v-model="consumeForm.quantity"
-        label="Wie viel wurde verbraucht?"
-        type="number"
-        inputmode="numeric"
-        required
-        :hint="`Noch da: ${item.quantity} ${item.unit ?? ''}`"
-        :error="consumeForm.errors.quantity"
-      />
-      <UiInput
-        v-model="consumeForm.note"
-        label="Wofür? (optional)"
-        :error="consumeForm.errors.note"
-      />
-      <UiButton type="submit" class="w-full" :disabled="consumeForm.processing">
-        Als verbraucht ausbuchen
-      </UiButton>
-    </form>
-  </UiModal>
+  <InventoryConsumeModal
+    v-if="consumeOpen"
+    :item="item"
+    @close="consumeOpen = false"
+    @done="consumeOpen = false"
+  />
 
   <!-- retire -->
   <UiModal v-if="retireOpen" title="Ausmustern" @close="retireOpen = false">
@@ -466,6 +470,41 @@
         {{ isPartialRetire ? "Menge ausbuchen" : "Ausmustern" }}
       </UiButton>
     </form>
+  </UiModal>
+
+  <!-- contents of a box as pdf, optionally as letter for a window envelope -->
+  <UiModal v-if="pdfOpen" title="Inhaltsliste (PDF)" @close="pdfOpen = false">
+    <div class="space-y-5">
+      <p class="text-sm text-ink-muted">
+        A4 mit Druck-Logo, QR-Code und allen Gegenständen zum Abhaken.
+      </p>
+      <UiCheckbox
+        v-model="pdfPhotos"
+        label="Vorschaubilder mitdrucken"
+        description="Das Vorschaubild der Box im Kopf der Liste und das jedes Gegenstands in seiner Zeile."
+      />
+      <UiCheckbox
+        v-model="pdfLetter"
+        label="Als Brief (DIN 5008)"
+        description="Erste Seite mit Anschriftfeld und Faltmarken für einen Fensterumschlag DIN lang."
+      />
+      <UiTextarea
+        v-if="pdfLetter"
+        v-model="pdfRecipient"
+        label="Anschrift des Empfängers"
+        :rows="4"
+        placeholder="Name&#10;Straße 1&#10;12345 Ort"
+        hint="Leer lassen: eure eigene Anschrift."
+      />
+      <a
+        :href="pdfUrl"
+        class="flex w-full items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover"
+        @click="pdfOpen = false"
+      >
+        <FontAwesomeIcon :icon="['fas', 'download']" />
+        Herunterladen
+      </a>
+    </div>
   </UiModal>
 
   <UiConfirmModal
@@ -521,6 +560,8 @@ type Props = {
     retired_at: string | null;
     retired_reason: string | null;
     retired_note: string | null;
+    label_hint: string | null;
+    label_printed_at: string | null;
     photos: Photo[];
     contents: ContentsItem[];
   };
@@ -586,28 +627,26 @@ const returnHome = () =>
 
 // condition
 const conditionOpen = ref(false);
-const conditionForm = useForm({
-  // preselect another condition than the current one
-  condition_id:
-    props.conditions.find((option) => option.value !== props.item.condition_id)
-      ?.value ?? null,
-  reason: "",
-  photos: [] as File[],
+
+// box contents as pdf
+const pdfOpen = ref(false);
+const pdfPhotos = ref(false);
+const pdfLetter = ref(false);
+const pdfRecipient = ref("");
+const pdfUrl = computed(() => {
+  const query = new URLSearchParams();
+  if (pdfPhotos.value) {
+    query.set("photos", "1");
+  }
+  if (pdfLetter.value) {
+    query.set("letter", "1");
+    if (pdfRecipient.value.trim()) {
+      query.set("recipient", pdfRecipient.value.trim());
+    }
+  }
+  const search = query.toString();
+  return `/inventory/items/${props.item.id}/contents.pdf${search ? `?${search}` : ""}`;
 });
-const setConditionPhotos = async (event: Event) => {
-  conditionForm.photos = await compressImages(
-    (event.target as HTMLInputElement).files,
-  );
-};
-const changeCondition = () =>
-  conditionForm.post(`/inventory/items/${props.item.id}/condition`, {
-    preserveScroll: true,
-    forceFormData: true,
-    onSuccess: () => {
-      conditionOpen.value = false;
-      conditionForm.reset();
-    },
-  });
 
 // photos
 const photoForm = useForm({ photos: [] as File[] });
@@ -637,15 +676,6 @@ const merge = () =>
 
 // consume a part of a consumable ("verbraucht")
 const consumeOpen = ref(false);
-const consumeForm = useForm({ quantity: 1 as number | null, note: "" });
-const consume = () =>
-  consumeForm.post(`/inventory/items/${props.item.id}/consume`, {
-    preserveScroll: true,
-    onSuccess: () => {
-      consumeOpen.value = false;
-      consumeForm.reset();
-    },
-  });
 
 // bulk items start with the whole quantity; less than all is a partial retire
 const retireForm = useForm({

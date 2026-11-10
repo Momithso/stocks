@@ -3,6 +3,8 @@ public/build/*
 
 # dev files
 laravel.sql
+# certificate of the https mode of development (vite.config.js)
+storage/dev-https/
 
 # Created by https://www.toptal.com/developers/gitignore/api/node,phpunit,laravel,visualstudiocode,jetbrains+all,windows,macos,linux,git
 # Edit at https://www.toptal.com/developers/gitignore?templates=node,phpunit,laravel,visualstudiocode,jetbrains+all,windows,macos,linux,git

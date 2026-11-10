@@ -11,6 +11,14 @@
   </UiPageHeader>
 
   <form class="space-y-6" @submit.prevent="submit">
+    <UiAlert v-if="reservedNumber" type="info">
+      Der Gegenstand bekommt die Nummer
+      <strong class="font-mono">{{ reservedNumber }}</strong> vom Etikett auf
+      Vorrat.
+    </UiAlert>
+    <UiAlert v-if="form.errors.reserved_number" type="error">
+      {{ form.errors.reserved_number }}
+    </UiAlert>
     <UiCard>
       <div class="grid gap-5 sm:grid-cols-2">
         <UiInput
@@ -78,6 +86,13 @@
           :rows="2"
           :error="form.errors.notes"
         />
+        <UiInput
+          v-model="form.label_hint"
+          label="Hinweis fürs Etikett"
+          placeholder="z. B. Achtung, zerbrechlich"
+          hint="Kurzer Text, den Vorlagen mit {hint} drucken. Leer: Das Element bleibt weg."
+          :error="form.errors.label_hint"
+        />
       </div>
     </UiCard>
 
@@ -105,19 +120,11 @@
       title="Fotos"
       :description="`Bis zu ${maxPhotos} Fotos, am Handy direkt mit der Kamera. Das erste wird das Vorschaubild.`"
     >
-      <input
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        multiple
-        class="block w-full text-sm text-ink-muted file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-accent file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
-        @change="setPhotos"
+      <UiPhotoPicker
+        v-model="form.photos"
+        :max="maxPhotos"
+        :error="photoError"
       />
-      <p v-if="form.photos.length" class="mt-2 text-sm text-ink-muted">
-        {{ form.photos.length }} ausgewählt
-      </p>
-      <p v-if="photoError" class="mt-1 text-sm text-red-600">
-        {{ photoError }}
-      </p>
     </UiCard>
 
     <UiCard title="Ort">
@@ -166,8 +173,11 @@ const props = defineProps<{
     is_container: boolean;
     public_contents: boolean;
     notes: string | null;
+    label_hint: string | null;
     home: Place | null;
   } | null;
+  // number of a scanned stock label the new item gets
+  reservedNumber?: string | null;
   // place of a new item, e.g. when created from the page of a location
   place: Place | null;
   categories: Option[];
@@ -188,6 +198,8 @@ const form = useForm({
   is_container: props.item?.is_container ?? false,
   public_contents: props.item?.public_contents ?? true,
   notes: props.item?.notes ?? "",
+  label_hint: props.item?.label_hint ?? "",
+  reserved_number: props.reservedNumber ?? null,
   // "gut" if it exists, otherwise the first condition
   condition_id:
     (
@@ -199,11 +211,7 @@ const form = useForm({
   photos: [] as File[],
 });
 
-// photos of a new item, scaled down in the browser; existing items get photos on their page
-const { compressImages } = useImageCompression();
-const setPhotos = async (event: Event) => {
-  form.photos = await compressImages((event.target as HTMLInputElement).files);
-};
+// photos of a new item (scaled down by UiPhotoPicker); existing items get photos on their page
 const photoError = computed(
   () =>
     Object.entries(form.errors).find(([key]) =>

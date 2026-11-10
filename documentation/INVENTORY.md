@@ -2,6 +2,8 @@
 
 Was besitzen wir, wo liegt es, wie geht es ihm. Das Inventar gehört zum Kern (`app/`), nicht zu einem Modul, weil Verleih, Kiosk und öffentliche Seite darauf aufbauen.
 
+Etiketten, Kurzlinks, Kamera-Scan und die Box-Inhaltsliste als PDF stehen in [LABELS.md](LABELS.md).
+
 ## Inhalt
 
 - [Begriffe](#begriffe)

@@ -11,6 +11,7 @@
       :required="required"
       :autocomplete="autocomplete"
       :inputmode="inputmode"
+      :step="step"
       :placeholder="placeholder"
       :aria-invalid="!!error"
       :aria-describedby="error || hint ? `${id}-help` : undefined"
@@ -46,6 +47,8 @@ defineProps({
   autocomplete: { type: String, default: null },
   inputmode: { type: String, default: null },
   placeholder: { type: String, default: null },
+  // number fields: "0.5" allows halves, "any" all decimals
+  step: { type: String, default: null },
 });
 
 const model = defineModel<string | number | null>();

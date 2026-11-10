@@ -2,6 +2,26 @@
 
 Warum Stocks so gebaut ist, wie es gebaut ist. Neue Einträge oben; jeder Eintrag mit Datum, Entscheidung, Grund und verworfener Alternative.
 
+## 2026-11-11 · Phase 2
+
+**Etiketten im Kern.** Wie im Gesamtplan („Kern inklusive Etiketten und Scan“). Verworfen: eigenes Modul.
+
+**Gezeichnet wird auf Canvas statt als SVG.** Eine Funktion (`resources/js/labels/render.ts`) zeichnet Vorschau, Druckbild und Bild-Export in der jeweiligen Auflösung; der Editor legt nur die Griffe darüber. Grund: Ein SVG lädt als Bild weder die mitgelieferte Schrift noch Bilder, die Umrechnung in Schwarz-Weiß braucht ohnehin Pixel, und so ist die Vorschau genau das Druckbild. Verworfen: SVG im Editor und eine zweite Umrechnung für den Druck (stand im Detailplan).
+
+**Warnung zur Druckbreite nur für Elemente außerhalb.** Der B1 druckt 48 mm in der Mitte eines 50 mm breiten Etiketts. Eine Warnung bei jedem breiteren Etikett hätte schon die mitgelieferten Vorlagen ständig angemahnt; gewarnt wird, wenn ein Element in den Rand reicht, und der Editor schraffiert den Rand. Verworfen: Warnung allein nach der Etikettenbreite (Detailplan).
+
+**PNG für die Niimbot-App in voller Etikettengröße, Direktdruck auf Druckkopfbreite zugeschnitten.** Die App erwartet das ganze Etikett (400 × 240 Punkte), NiimBlueLib die Breite des Druckkopfs (384 Punkte).
+
+**Kamera-Scan mit `barcode-detector`, WebAssembly im Build.** Das Paket lädt ZXing sonst von jsDelivr; mit der eigenen Datei gehen keine Daten an Dritte (wie bei der Schrift). Verworfen: `qr-scanner` (liest kein Data Matrix).
+
+**ZIP ohne Paket.** Mehrere PNG werden unkomprimiert gepackt (`resources/js/labels/zip.ts`, rund 60 Zeilen); PNG sind schon komprimiert. Verworfen: JSZip.
+
+**Fotos der öffentlichen Ansicht über signierte Links.** Eine Stunde gültig, damit niemand Fotos über fortlaufende Ids abruft. Verworfen: Fotos der öffentlichen Ansicht ohne Prüfung ausliefern.
+
+**Zeitpunkt des letzten Drucks ohne Audit.** Gespeichert als Abfrage, damit weder das Änderungsprotokoll noch `updated_at` sich ändern (Detailplan).
+
+**Neue Rechte über die Startrollen, Admin über `stocks:sync`.** Wie in Phase 1: `labels.print` für FSR-Mitglied und Vorstand, `labels.manage` nur Admin. Bestehende Entwicklungsdatenbanken: `stocks:sync` gibt Admin die Rechte, den anderen Rollen vergibt man sie in der Rollenverwaltung.
+
 ## 2026-11-10 · Phase 1
 
 **Inventar im Kern statt als Modul.** Der Gesamtplan zählt das Inventar zum Kern; Verleih, Kiosk und öffentliche Seite bauen darauf auf, ein Abschalten ergibt keinen Sinn. Der Detailplan nannte an zwei Stellen noch `modules/Inventory`. Verworfen: eigenes Modul.

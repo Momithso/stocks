@@ -86,4 +86,18 @@ class BrandingTest extends TestCase
             ->post('/admin/settings/branding', ['logo' => UploadedFile::fake()->image('logo.png')])
             ->assertForbidden();
     }
+
+    public function test_labels_use_the_print_logo_and_fall_back_to_the_logo(): void
+    {
+        $admin = $this->admin();
+        $this->actingAs($admin)->post('/admin/settings/branding', ['logo' => UploadedFile::fake()->image('logo.png')]);
+        $this->actingAs($admin)->get('/labels/print')->assertInertia(fn ($page) => $page->where('logoUrl', app(Branding::class)->url('logo')));
+
+        $this->actingAs($admin)->post('/admin/settings/branding', ['print_logo' => UploadedFile::fake()->image('dark.png')])->assertSessionHasNoErrors();
+
+        $url = app(Branding::class)->url('print_logo');
+        $this->assertStringContainsString('/branding/print_logo', $url);
+        $this->actingAs($admin)->get('/labels/print')->assertInertia(fn ($page) => $page->where('logoUrl', $url));
+        $this->get($url)->assertOk();
+    }
 }

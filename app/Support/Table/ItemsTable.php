@@ -10,7 +10,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
 /**
- * Items of the inventory. Filters: category (with its sub categories), condition, retired.
+ * Items of the inventory. Filters: category (with its sub categories), condition, retired, without
+ * printed label ("noch ohne Etikett").
  */
 class ItemsTable extends Table
 {
@@ -51,6 +52,10 @@ class ItemsTable extends Table
         if ($conditionId = $this->request->integer('condition')) {
             $query->where('condition_id', $conditionId);
         }
+
+        if ($this->request->boolean('unlabeled')) {
+            $query->whereNull('label_printed_at');
+        }
     }
 
     /**
@@ -75,6 +80,7 @@ class ItemsTable extends Table
             'away_from_home' => $model->isAwayFromHome(),
             'retired' => $model->isRetired(),
             'photo_url' => $model->photos->first()?->url(),
+            'label_printed_at' => $model->label_printed_at?->toIso8601String(),
         ];
     }
 

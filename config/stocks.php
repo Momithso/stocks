@@ -43,6 +43,8 @@ return [
         'inventory.history.delete' => 'Einträge aus dem Verlauf eines Gegenstands löschen',
         'locations.manage' => 'Standorte und Kategorien verwalten',
         'inventory.options.manage' => 'Zustände und Einheiten des Inventars verwalten',
+        'labels.print' => 'Etiketten drucken, auch mehrere und auf Vorrat',
+        'labels.manage' => 'Etikettenvorlagen und Drucker verwalten',
     ],
 
     /*
@@ -62,11 +64,11 @@ return [
         'Vorstand' => [
             'description' => 'Leitet die Organisation.',
             'permissions' => ['users.view', 'users.invite', 'users.manage', 'roles.manage', 'settings.manage', 'kiosk.use', 'audit.view',
-                'inventory.view', 'inventory.move', 'inventory.edit', 'inventory.retire', 'locations.manage'],
+                'inventory.view', 'inventory.move', 'inventory.edit', 'inventory.retire', 'locations.manage', 'labels.print'],
         ],
         'FSR-Mitglied' => [
             'description' => 'Gewähltes Mitglied.',
-            'permissions' => ['users.view', 'kiosk.use', 'inventory.view', 'inventory.move', 'inventory.edit', 'locations.manage'],
+            'permissions' => ['users.view', 'kiosk.use', 'inventory.view', 'inventory.move', 'inventory.edit', 'locations.manage', 'labels.print'],
         ],
         'Freies Mitglied' => [
             'description' => 'Hilft mit, ohne gewählt zu sein.',

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 use OwenIt\Auditing\Contracts\Auditable;
 
 /**
@@ -24,6 +25,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string|null $name
  * @property string|null $description
  * @property string $full_code
+ * @property Carbon|null $label_printed_at time of the last printed label
  */
 class Location extends Model implements Auditable, AuditSubject
 {
@@ -47,6 +49,15 @@ class Location extends Model implements Auditable, AuditSubject
     ];
 
     /**
+     * Attributes to exclude from the audit: a printed label is no change of the location.
+     *
+     * @var list<string>
+     */
+    protected $auditExclude = [
+        'label_printed_at',
+    ];
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -55,6 +66,7 @@ class Location extends Model implements Auditable, AuditSubject
     {
         return [
             'type' => LocationType::class,
+            'label_printed_at' => 'datetime',
         ];
     }
 

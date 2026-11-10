@@ -26,14 +26,15 @@ class NavigationTest extends TestCase
                 ->where('navigation.2.entries.3.title', 'Einstellungen')
                 ->where('navigation.2.entries.3.href', null)
                 ->where('navigation.2.entries.3.children.0.href', '/admin/settings')
-                ->has('navigation.2.entries.3.children', 7));
+                ->has('navigation.2.entries.3.children', 10));
 
         // a group only shows the entries the user may use
         $this->actingAs($this->userWithRoles('FSR-Mitglied'))->get('/dashboard')
             ->assertInertia(fn ($page) => $page
                 ->where('navigation.2.entries.1.title', 'Einstellungen')
-                ->has('navigation.2.entries.1.children', 1)
-                ->where('navigation.2.entries.1.children.0.href', '/inventory/categories'));
+                ->has('navigation.2.entries.1.children', 2)
+                ->where('navigation.2.entries.1.children.0.href', '/inventory/categories')
+                ->where('navigation.2.entries.1.children.1.href', '/labels/reserved'));
     }
 
     public function test_the_styleguide_needs_the_settings_permission(): void

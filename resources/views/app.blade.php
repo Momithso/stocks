@@ -13,6 +13,14 @@
 
     <link rel="icon" href="{{ app(\App\Support\Branding::class)->url('favicon') }}">
 
+    {{-- web app: added to the home screen it runs in full screen (App\Http\Controllers\WebAppController) --}}
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="/web-app/icon-180.png?v={{ pathinfo((string) app(\App\Support\Branding::class)->path('logo'), PATHINFO_FILENAME) ?: 'default' }}">
+    <meta name="theme-color" content="{{ app(\App\Support\Settings::class)->get('organization.accent_color') }}">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
     <title inertia>{{ app(\App\Support\Settings::class)->get('organization.name') }} · Stocks</title>
 
     <style>

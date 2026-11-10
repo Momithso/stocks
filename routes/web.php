@@ -13,15 +13,24 @@ use App\Http\Controllers\BrandingController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Inventory\CategoryController;
 use App\Http\Controllers\Inventory\ConditionController;
+use App\Http\Controllers\Inventory\ContentsPdfController;
 use App\Http\Controllers\Inventory\ItemController;
 use App\Http\Controllers\Inventory\ItemHistoryController;
 use App\Http\Controllers\Inventory\ItemPhotoController;
 use App\Http\Controllers\Inventory\LocationController;
 use App\Http\Controllers\Inventory\MoveController;
+use App\Http\Controllers\Inventory\ScanController;
 use App\Http\Controllers\Inventory\UnitController;
 use App\Http\Controllers\KioskController;
+use App\Http\Controllers\Labels\PrintController;
+use App\Http\Controllers\Labels\PrinterController;
+use App\Http\Controllers\Labels\PrinterModelController;
+use App\Http\Controllers\Labels\ReservedNumberController;
+use App\Http\Controllers\Labels\TemplateController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SetupController;
+use App\Http\Controllers\ShortLinkController;
+use App\Http\Controllers\WebAppController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -38,8 +47,17 @@ use Inertia\Inertia;
 Route::get('/setup', [SetupController::class, 'show'])->name('setup.show');
 
 // logo and favicon, also for guests (login page, browser tab)
-Route::get('/branding/{kind}', [BrandingController::class, 'show'])->whereIn('kind', ['logo', 'favicon'])->name('branding.show');
+Route::get('/branding/{kind}', [BrandingController::class, 'show'])->whereIn('kind', ['logo', 'favicon', 'print_logo'])->name('branding.show');
 Route::post('/setup', [SetupController::class, 'store'])->middleware('throttle:10,1')->name('setup.store');
+
+// web app: manifest and icons from the logo, also for guests (added to the home screen before login)
+Route::get('/manifest.webmanifest', [WebAppController::class, 'manifest'])->name('web-app.manifest');
+Route::get('/web-app/icon-{size}.png', [WebAppController::class, 'icon'])->whereNumber('size')->name('web-app.icon');
+
+// short links in the codes of labels: the full page when logged in, otherwise a public view
+// (documentation/LABELS.md); limited, so nobody tries out the inventory
+Route::get('/s/{code}', [ShortLinkController::class, 'show'])->where('code', '[^/]+')->middleware('throttle:short-links')->name('short-link');
+Route::get('/s-photos/{photo}', [ShortLinkController::class, 'photo'])->middleware('signed:relative')->name('short-link.photo');
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'show'])->name('login');
@@ -73,6 +91,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/places', [ItemController::class, 'places'])->name('places');
         Route::get('/stats', [ItemController::class, 'stats'])->name('stats');
         Route::get('/photos/{photo}', [ItemPhotoController::class, 'show'])->name('photos.show');
+        Route::get('/scan', [ScanController::class, 'show'])->name('scan');
+        Route::get('/items/{item}/contents.pdf', [ContentsPdfController::class, 'show'])->name('items.contents-pdf');
 
         Route::middleware('can:inventory.edit')->group(function () {
             Route::get('/items/create', [ItemController::class, 'create'])->name('items.create');
@@ -129,6 +149,38 @@ Route::middleware('auth')->group(function () {
             Route::post('/units', [UnitController::class, 'store'])->name('units.store');
             Route::put('/units/{unit}', [UnitController::class, 'update'])->name('units.update');
             Route::delete('/units/{unit}', [UnitController::class, 'destroy'])->name('units.destroy');
+        });
+    });
+
+    // labels, see documentation/LABELS.md
+    Route::prefix('labels')->name('labels.')->group(function () {
+        Route::middleware('can:labels.print')->group(function () {
+            Route::get('/print', [PrintController::class, 'create'])->name('print');
+            Route::post('/printed', [PrintController::class, 'printed'])->name('printed');
+            Route::post('/confirm-address', [PrintController::class, 'confirmAddress'])->name('confirm-address');
+            Route::get('/images/{name}', [TemplateController::class, 'showImage'])->where('name', '[A-Za-z0-9._-]+')->name('images.show');
+
+            Route::get('/reserved', [ReservedNumberController::class, 'index'])->name('reserved.index');
+            Route::post('/reserved', [ReservedNumberController::class, 'store'])->name('reserved.store');
+            Route::post('/reserved/release', [ReservedNumberController::class, 'release'])->name('reserved.release');
+        });
+
+        Route::middleware('can:labels.manage')->group(function () {
+            Route::get('/templates', [TemplateController::class, 'index'])->name('templates.index');
+            Route::post('/templates', [TemplateController::class, 'store'])->name('templates.store');
+            Route::get('/templates/{template}/edit', [TemplateController::class, 'edit'])->name('templates.edit');
+            Route::put('/templates/{template}', [TemplateController::class, 'update'])->name('templates.update');
+            Route::post('/templates/{template}/duplicate', [TemplateController::class, 'duplicate'])->name('templates.duplicate');
+            Route::delete('/templates/{template}', [TemplateController::class, 'destroy'])->name('templates.destroy');
+            Route::post('/images', [TemplateController::class, 'storeImage'])->name('images.store');
+
+            Route::get('/printers', [PrinterController::class, 'index'])->name('printers.index');
+            Route::post('/printers', [PrinterController::class, 'store'])->name('printers.store');
+            Route::put('/printers/{printer}', [PrinterController::class, 'update'])->name('printers.update');
+            Route::delete('/printers/{printer}', [PrinterController::class, 'destroy'])->name('printers.destroy');
+            Route::post('/printer-models', [PrinterModelController::class, 'store'])->name('printer-models.store');
+            Route::put('/printer-models/{printerModel}', [PrinterModelController::class, 'update'])->name('printer-models.update');
+            Route::delete('/printer-models/{printerModel}', [PrinterModelController::class, 'destroy'])->name('printer-models.destroy');
         });
     });
 

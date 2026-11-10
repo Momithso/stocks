@@ -21,8 +21,9 @@ use App\Models\ItemMovement;
 use App\Models\ItemPhoto;
 use App\Models\ItemUnit;
 use App\Models\Location;
+use App\Models\ReservedNumber;
 use App\Support\Inventory\CodeLookup;
-use App\Support\Inventory\ItemNumbers;
+use App\Support\Labels\ShortLink;
 use App\Support\Table\ItemsTable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -56,11 +57,11 @@ class ItemController extends Controller
     }
 
     /**
-     * Display the form for a new item.
+     * Display the form for a new item. With "number", the item gets the number of a stock label.
      */
     public function create(Request $request): Response
     {
-        return $this->form(null, $request->query('place'));
+        return $this->form(null, $request->query('place'), ReservedNumber::findOpen((string) $request->query('number')));
     }
 
     /**
@@ -74,7 +75,14 @@ class ItemController extends Controller
             'place_code' => ['nullable', 'string', 'max:50'],
             'photos' => ['array', 'max:'.ItemPhoto::MAX_PER_ITEM],
             'photos.*' => ItemPhotoController::fileRules(),
+            'reserved_number' => ['nullable', 'string', 'max:30'],
         ]);
+
+        $reserved = null;
+        if (! empty($validated['reserved_number'])) {
+            $reserved = ReservedNumber::findOpen($validated['reserved_number'])
+                ?? throw ValidationException::withMessages(['reserved_number' => "Die Nummer {$validated['reserved_number']} ist nicht reserviert."]);
+        }
 
         $item = $createItem->handle(
             $request->user(),
@@ -83,6 +91,7 @@ class ItemController extends Controller
             $this->placeOf($validated['place_code'] ?? null, 'place_code'),
             $this->placeOf($validated['home_code'] ?? null, 'home_code'),
             $request->file('photos', []),
+            $reserved,
         );
 
         return to_route('inventory.items.show', $item)->with('success', "{$item->number} wurde angelegt.");
@@ -97,7 +106,8 @@ class ItemController extends Controller
 
         return Inertia::render('Inventory/Items/Show', [
             'item' => [
-                ...$item->only(['id', 'number', 'name', 'description', 'quantity', 'unit', 'is_container', 'public_contents', 'notes', 'retired_note']),
+                ...$item->only(['id', 'number', 'name', 'description', 'quantity', 'unit', 'is_container', 'public_contents', 'notes', 'retired_note', 'label_hint']),
+                'label_printed_at' => $item->label_printed_at?->toIso8601String(),
                 'kind' => $item->kind->value,
                 'kind_label' => $item->kind->label(),
                 'condition_id' => $item->condition_id,
@@ -241,24 +251,52 @@ class ItemController extends Controller
      */
     public function lookup(Request $request): JsonResponse
     {
-        $found = $this->codes->find((string) $request->query('code'));
+        $code = (string) $request->query('code');
+        $found = $this->codes->find($code);
 
-        return match (true) {
-            $found instanceof Item => response()->json([
+        if ($found instanceof Item) {
+            $found->load(['condition', 'location', 'container', 'photos', 'splitFrom']);
+
+            return response()->json([
                 'type' => 'item',
-                ...$found->only(['id', 'number', 'name', 'quantity', 'unit', 'is_container']),
+                ...$found->only(['id', 'number', 'name', 'quantity', 'unit', 'is_container', 'split_from_id']),
                 'kind' => $found->kind->value,
                 'retired' => $found->isRetired(),
                 'place' => Item::placeSummary($found->place()),
+                'condition_id' => $found->condition_id,
+                'condition' => $found->condition->name,
+                'condition_is_defect' => $found->condition->is_defect,
+                'photo_url' => ($photo = $found->photos->first()) ? route('inventory.photos.show', $photo, absolute: false) : null,
+                'contents_count' => $found->is_container ? $found->contents()->active()->count() : 0,
+                'consumable' => $found->kind === ItemKind::Bulk && ItemUnit::isConsumable($found->unit),
+                'can_merge' => $found->splitFrom !== null && ! $found->splitFrom->isRetired() && ! $found->isRetired(),
+                'split_from' => Item::placeSummary($found->splitFrom),
                 'href' => route('inventory.items.show', $found, absolute: false),
-            ]),
-            $found instanceof Location => response()->json([
-                'type' => 'location',
+            ]);
+        }
+
+        if ($found instanceof Location) {
+            return response()->json([
                 ...$found->summary(),
+                // the type of the location is "location_type", "type" tells item from location
+                'type' => 'location',
+                'location_type' => $found->type->value,
+                'items_count' => $found->items()->active()->count(),
                 'href' => route('inventory.locations.show', $found, absolute: false),
-            ]),
-            default => response()->json(['message' => $this->notFoundMessage((string) $request->query('code'))], 404),
-        };
+            ]);
+        }
+
+        // number of a stock label without item yet
+        if ($reserved = ReservedNumber::findOpen(ShortLink::codeOf($code))) {
+            return response()->json([
+                'type' => 'reserved',
+                'number' => $reserved->number,
+                'message' => "{$reserved->number} ist für ein Etikett auf Vorrat reserviert, es gibt noch keinen Gegenstand dazu.",
+                'href' => route('inventory.items.create', ['number' => $reserved->number], absolute: false),
+            ]);
+        }
+
+        return response()->json(['message' => $this->codes->notFoundMessage($code)], 404);
     }
 
     /**
@@ -311,24 +349,25 @@ class ItemController extends Controller
             'misplaced' => $onlyMisplaced,
             'categories' => Category::options(),
             'conditions' => ItemCondition::options(),
-            'filters' => $request->only(['category', 'condition', 'retired']),
+            'filters' => $request->only(['category', 'condition', 'retired', 'unlabeled']),
         ]);
     }
 
     /**
      * Form for a new item (with an optional place code) or an existing one.
      */
-    private function form(?Item $item, ?string $placeCode): Response
+    private function form(?Item $item, ?string $placeCode, ?ReservedNumber $reserved = null): Response
     {
         $item?->load(['homeLocation', 'homeContainer']);
 
         return Inertia::render('Inventory/Items/Form', [
             'item' => $item ? [
-                ...$item->only(['id', 'number', 'name', 'description', 'category_id', 'quantity', 'unit', 'is_container', 'public_contents', 'notes']),
+                ...$item->only(['id', 'number', 'name', 'description', 'category_id', 'quantity', 'unit', 'is_container', 'public_contents', 'notes', 'label_hint']),
                 'kind' => $item->kind->value,
                 'home' => Item::placeSummary($item->home()),
             ] : null,
             'place' => $placeCode ? Item::placeSummary($this->codes->findPlace($placeCode)) : null,
+            'reservedNumber' => $reserved?->number,
             'categories' => Category::options(),
             'kinds' => ItemKind::options(),
             'units' => ItemUnit::options(),
@@ -354,6 +393,7 @@ class ItemController extends Controller
             'is_container' => ['boolean'],
             'public_contents' => ['boolean'],
             'notes' => ['nullable', 'string', 'max:5000'],
+            'label_hint' => ['nullable', 'string', 'max:100'],
             'home_code' => ['nullable', 'string', 'max:50'],
         ];
     }
@@ -367,7 +407,7 @@ class ItemController extends Controller
     private function itemData(array $validated): array
     {
         return [
-            ...array_intersect_key($validated, array_flip(['name', 'description', 'category_id', 'kind', 'unit', 'notes'])),
+            ...array_intersect_key($validated, array_flip(['name', 'description', 'category_id', 'kind', 'unit', 'notes', 'label_hint'])),
             'quantity' => $validated['quantity'] ?? 1,
             'is_container' => $validated['is_container'] ?? false,
             'public_contents' => $validated['public_contents'] ?? true,
@@ -386,19 +426,7 @@ class ItemController extends Controller
         }
 
         return $this->codes->findPlace($code)
-            ?? throw ValidationException::withMessages([$field => $this->notFoundMessage($code, place: true)]);
-    }
-
-    /**
-     * Message for a code that was not found.
-     */
-    private function notFoundMessage(string $code, bool $place = false): string
-    {
-        if (ItemNumbers::hasWrongCheckDigit($code)) {
-            return "Die Prüfziffer von {$code} stimmt nicht. Ist eine Ziffer vertippt?";
-        }
-
-        return $place ? "Zu {$code} gibt es keinen Standort und keine Box." : "Zu {$code} gibt es nichts.";
+            ?? throw ValidationException::withMessages([$field => $this->codes->notFoundMessage($code, place: true)]);
     }
 
     /**

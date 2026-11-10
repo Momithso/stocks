@@ -29,6 +29,7 @@ class LocationController extends Controller
                     'parent_id' => $location->parent_id,
                     'description' => $location->description,
                     'items_count' => $location->items_count,
+                    'label_printed_at' => $location->label_printed_at?->toIso8601String(),
                 ]),
         ]);
     }
@@ -44,7 +45,7 @@ class LocationController extends Controller
         }
 
         return Inertia::render('Inventory/Locations/Show', [
-            'location' => [...$location->summary(), 'parent_id' => $location->parent_id, 'description' => $location->description],
+            'location' => [...$location->summary(), 'parent_id' => $location->parent_id, 'description' => $location->description, 'label_printed_at' => $location->label_printed_at?->toIso8601String()],
             'path' => $path,
             'children' => $location->children()->withCount(['items' => fn ($query) => $query->active()])->get()
                 ->map(fn (Location $child) => [...$child->summary(), 'items_count' => $child->items_count]),

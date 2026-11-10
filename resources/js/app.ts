@@ -6,6 +6,7 @@ import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import AppLayout from "./layouts/AppLayout.vue";
 import AuthLayout from "./layouts/AuthLayout.vue";
 import KioskLayout from "./layouts/KioskLayout.vue";
+import PublicLayout from "./layouts/PublicLayout.vue";
 import coreIcons from "./icons";
 
 // icons of the core and of all modules (modules/<Module>/resources/js/icons.ts)
@@ -50,6 +51,10 @@ const layoutOf = (name: string) => {
   }
   if (name.startsWith("Kiosk/") || name.includes("::Kiosk")) {
     return KioskLayout;
+  }
+  // scanned labels without login
+  if (name.startsWith("Public/")) {
+    return PublicLayout;
   }
   return AppLayout;
 };

@@ -1,10 +1,14 @@
 <template>
   <div>
-    <label :for="id" class="block text-sm font-medium">{{ label }}</label>
+    <label v-if="label" :for="id" class="block text-sm font-medium">{{
+      label
+    }}</label>
     <select
       :id="id"
       v-model="model"
-      class="mt-1 block w-full rounded-md border-0 bg-surface py-2 text-ink shadow-sm ring-1 ring-inset ring-line focus:ring-2 focus:ring-accent sm:text-sm"
+      :aria-label="label ? undefined : ariaLabel"
+      :class="[label ? 'mt-1' : '', 'block']"
+      class="w-full rounded-md border-0 bg-surface py-2 text-ink shadow-sm ring-1 ring-inset ring-line focus:ring-2 focus:ring-accent sm:text-sm"
     >
       <option v-if="placeholder !== null" :value="null">
         {{ placeholder }}
@@ -17,6 +21,7 @@
         {{ option.label }}
       </option>
     </select>
+    <p v-if="hint" class="mt-1 text-sm text-ink-muted">{{ hint }}</p>
   </div>
 </template>
 
@@ -27,7 +32,10 @@ import { useId, type PropType } from "vue";
  * Select field with label.
  */
 defineProps({
-  label: { type: String, required: true },
+  // without label (e.g. in a toolbar) the field needs an aria label
+  label: { type: String, default: null },
+  ariaLabel: { type: String, default: null },
+  hint: { type: String, default: null },
   options: { type: Array as PropType<Option[]>, required: true },
   // entry for "nothing selected", null hides it
   placeholder: { type: String, default: "Alle" },

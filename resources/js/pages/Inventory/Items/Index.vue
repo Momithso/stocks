@@ -8,6 +8,14 @@
     "
   >
     <UiButton
+      v-if="can('labels.print') && selected.length"
+      variant="secondary"
+      icon="tag"
+      :href="`/labels/print?items=${selected.join(',')}`"
+    >
+      {{ selected.length }} Etiketten drucken
+    </UiButton>
+    <UiButton
       v-if="can('inventory.edit')"
       href="/inventory/items/create"
       icon="plus"
@@ -25,7 +33,7 @@
   <UiCard flush>
     <div
       v-if="!misplaced"
-      class="grid gap-4 border-b border-line p-4 sm:grid-cols-3 sm:px-6"
+      class="grid gap-4 border-b border-line p-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-4"
     >
       <UiSelect
         v-model="filter.category"
@@ -42,7 +50,13 @@
       <UiCheckbox
         v-model="filter.retired"
         label="Ausgemusterte zeigen"
-        class="sm:mt-7"
+        class="lg:mt-7"
+        @update:model-value="applyFilters"
+      />
+      <UiCheckbox
+        v-model="filter.unlabeled"
+        label="Noch ohne Etikett"
+        class="lg:mt-7"
         @update:model-value="applyFilters"
       />
     </div>
@@ -58,6 +72,15 @@
     >
       <template #cell-name="{ row }">
         <div class="flex items-center gap-3">
+          <!-- selection for printing several labels at once -->
+          <input
+            v-if="can('labels.print') && !row.retired"
+            v-model="selected"
+            type="checkbox"
+            :value="row.id"
+            class="h-4 w-4 shrink-0 rounded border-line text-accent focus:ring-accent"
+            :aria-label="`${row.name} auswählen`"
+          />
           <img
             v-if="row.photo_url"
             :src="row.photo_url"
@@ -121,7 +144,12 @@ const props = defineProps<{
   misplaced: boolean;
   categories: Option[];
   conditions: Option[];
-  filters: { category?: string; condition?: string; retired?: string };
+  filters: {
+    category?: string;
+    condition?: string;
+    retired?: string;
+    unlabeled?: string;
+  };
 }>();
 
 const { can } = usePermissions();
@@ -141,13 +169,18 @@ const filter = ref({
   category: props.filters.category ? Number(props.filters.category) : null,
   condition: props.filters.condition ? Number(props.filters.condition) : null,
   retired: props.filters.retired === "1",
+  unlabeled: props.filters.unlabeled === "1",
 });
+
+// items chosen for printing labels
+const selected = ref<number[]>([]);
 
 const applyFilters = () =>
   table.value?.reload({
     category: filter.value.category ? String(filter.value.category) : null,
     condition: filter.value.condition ? String(filter.value.condition) : null,
     retired: filter.value.retired ? "1" : null,
+    unlabeled: filter.value.unlabeled ? "1" : null,
   });
 
 // a search that is exactly an item number or a location code offers to open it

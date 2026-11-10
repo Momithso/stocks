@@ -28,6 +28,8 @@ class Branding
     public const KINDS = [
         'logo' => 'organization.logo_path',
         'favicon' => 'organization.favicon_path',
+        // logo for paper and labels, e.g. a dark one when the screen logo is white
+        'print_logo' => 'organization.print_logo_path',
     ];
 
     public function __construct(private readonly Settings $settings) {}
@@ -52,6 +54,31 @@ class Branding
         }
 
         return route('branding.show', ['kind' => $kind, 'v' => pathinfo($path, PATHINFO_FILENAME)], absolute: false);
+    }
+
+    /**
+     * Kind of the logo for print (labels, pdf): the print logo, or the logo while none was uploaded.
+     */
+    public function printKind(): string
+    {
+        return $this->path('print_logo') !== null ? 'print_logo' : 'logo';
+    }
+
+    /**
+     * Content of an uploaded image, null without image or while S3 is not reachable.
+     */
+    public function contents(string $kind): ?string
+    {
+        $path = $this->path($kind);
+        if ($path === null) {
+            return null;
+        }
+
+        try {
+            return Storage::disk(self::DISK)->get($path);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**

@@ -26,6 +26,15 @@
           </li>
         </ol>
 
+        <!-- camera: the first scan picks the item, the second the target, as with typing -->
+        <InventoryCameraScanner
+          v-if="cameraOpen"
+          autostart
+          class="aspect-video w-full"
+          @scan="scanWithCamera"
+          @stopped="cameraOpen = false"
+        />
+
         <div v-if="item" class="rounded-md bg-surface-muted p-3 text-sm">
           <p class="font-medium">{{ item.name }}</p>
           <p class="font-mono text-ink-muted">{{ item.number }}</p>
@@ -65,6 +74,15 @@
         <div class="flex gap-3">
           <UiButton type="submit" class="flex-1" size="lg" :disabled="busy">
             {{ item ? "Umlagern" : "Weiter" }}
+          </UiButton>
+          <UiButton
+            v-if="!cameraOpen"
+            variant="secondary"
+            size="lg"
+            icon="camera"
+            @click="cameraOpen = true"
+          >
+            <span class="sr-only sm:not-sr-only">Kamera</span>
           </UiButton>
           <UiButton v-if="item" variant="secondary" size="lg" @click="restart">
             Abbrechen
@@ -116,6 +134,7 @@ const busy = ref(false);
 const item = ref<ScannedItem | null>(null);
 const quantity = ref<number | null>(null);
 const log = ref<string[]>([]);
+const cameraOpen = ref(false);
 
 const form = useForm({
   item_id: 0,
@@ -123,7 +142,13 @@ const form = useForm({
   quantity: null as number | null,
 });
 
-const focus = () => nextTick(() => input.value?.focus());
+// with the camera on, a focused field would open the keyboard of phones
+const focus = () =>
+  nextTick(() => {
+    if (!cameraOpen.value) {
+      input.value?.focus();
+    }
+  });
 onMounted(focus);
 
 const restart = () => {
@@ -169,6 +194,11 @@ const next = async () => {
 
   code.value = "";
   focus();
+};
+
+const scanWithCamera = (scanned: string) => {
+  code.value = scanned;
+  next();
 };
 
 // step 2: move the item to the target

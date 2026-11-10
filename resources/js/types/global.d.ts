@@ -28,7 +28,10 @@ declare global {
       imprint_url: string | null;
       privacy_url: string | null;
     };
-    flash: Record<"success" | "error" | "warning" | "info", string | null>;
+    flash: Record<"success" | "error" | "warning" | "info", string | null> & {
+      // item with a new number whose label can be printed right away
+      label?: { id: number; number: string } | null;
+    };
     errors: Record<string, string>;
     serverTime: number;
   }

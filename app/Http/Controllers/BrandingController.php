@@ -38,8 +38,9 @@ class BrandingController extends Controller
         $request->validate([
             'logo' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp', 'max:2048'],
             'favicon' => ['nullable', 'file', 'mimes:png,ico', 'max:512'],
+            'print_logo' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp', 'max:2048'],
             'remove' => ['array'],
-            'remove.*' => ['in:logo,favicon'],
+            'remove.*' => ['in:logo,favicon,print_logo'],
         ]);
 
         foreach (array_keys(Branding::KINDS) as $kind) {
