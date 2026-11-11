@@ -1,6 +1,11 @@
 <template>
+  <!-- downloads and other addresses that are no Inertia page (e.g. a pdf) -->
+  <a v-if="href && !disabled && external" :href="href" :class="classes">
+    <FontAwesomeIcon v-if="icon" :icon="['fas', icon]" />
+    <slot />
+  </a>
   <InertiaLink
-    v-if="href && !disabled"
+    v-else-if="href && !disabled"
     :href="href"
     :method="method"
     :as="method === 'get' ? 'a' : 'button'"
@@ -42,6 +47,8 @@ const props = defineProps({
     default: "get",
   },
   icon: { type: String, default: null },
+  // "href" is no page of Stocks, e.g. a pdf: a normal link instead of an Inertia visit
+  external: { type: Boolean, default: false },
   disabled: { type: Boolean, default: false },
 });
 

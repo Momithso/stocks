@@ -48,6 +48,11 @@ declare global {
     href: string | null;
     icon: string;
     mobile: boolean;
+    // short status beside the title (App\Support\Extensions\Navigation::add)
+    badge?: {
+      text: string;
+      variant: "neutral" | "accent" | "success" | "warning" | "danger";
+    } | null;
     children?: NavigationEntry[];
   }
 

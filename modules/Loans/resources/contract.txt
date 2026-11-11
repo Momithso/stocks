@@ -1,0 +1,68 @@
+## Leihvertrag über Veranstaltungsmaterial · Buchung {number}
+
+zwischen {lender} (Verleiher), vertreten durch {issuer},
+
+und {borrower} (Entleiher), verantwortliche Person: {responsible}, {responsible_address}, {responsible_phone}, {responsible_email}.
+
+### § 1 Gegenstand und Leihzeit
+
+1. Der Verleiher überlässt dem Entleiher die in der Materialliste aufgeführten Gegenstände unentgeltlich zum Gebrauch. Die Materialliste ist Bestandteil dieses Vertrags.
+2. Die Leihzeit beginnt mit der Übergabe am {pickup} und endet am {return}.
+3. Die Gegenstände bleiben Eigentum des Verleihers. Zweck der Leihe: {purpose}.
+
+### § 2 Übergabe
+
+1. Der Entleiher prüft die Gegenstände bei der Übergabe auf Vollständigkeit und erkennbare Mängel. Abweichungen werden vor der Unterschrift in der Materialliste vermerkt.
+2. Mit der Unterschrift bestätigt die verantwortliche Person, die Gegenstände vollständig und in dem Zustand erhalten zu haben, den die Materialliste nennt.
+
+### § 3 Gebrauch
+
+1. Der Entleiher nutzt die Gegenstände nur für den genannten Zweck, behandelt sie sorgfältig und beachtet Bedienungsanleitungen und Sicherheitshinweise.
+2. Er schützt sie vor Nässe, Witterung, Diebstahl und unbefugtem Zugriff und transportiert sie in den mitgegebenen Boxen und Taschen.
+3. Er verändert die Gegenstände nicht, repariert nichts selbst und entfernt keine Etiketten.
+4. Er überlässt die Gegenstände ohne vorherige Zustimmung des Verleihers in Textform keinem Dritten.
+
+### § 4 Verantwortliche Person
+
+1. Die verantwortliche Person ist Ansprechpartner des Verleihers und während der Leihzeit erreichbar. Änderungen ihrer Kontaktdaten teilt sie unverzüglich mit.
+2. Sie tritt den Pflichten des Entleihers aus diesem Vertrag bei. Entleiher und verantwortliche Person haften dem Verleiher als Gesamtschuldner.
+
+### § 5 Haftung des Entleihers
+
+1. Der Entleiher haftet von der Übergabe bis zur Rückgabe für Verlust, Beschädigung und Verschmutzung der Gegenstände, es sei denn, er hat sie nicht zu vertreten. Das Verhalten von Personen, denen er die Gegenstände überlässt oder zugänglich macht, wird ihm wie eigenes zugerechnet.
+2. Für Veränderungen und Verschlechterungen durch vertragsgemäßen Gebrauch haftet er nicht.
+3. Zu ersetzen sind die Kosten der Reparatur, bei Verlust oder wenn eine Reparatur unwirtschaftlich ist der Wiederbeschaffungswert, außerdem die Kosten einer nötigen Reinigung.
+4. Schäden und Verluste meldet der Entleiher unverzüglich an {contact}. Einen Diebstahl zeigt er zusätzlich bei der Polizei an und legt dem Verleiher die Bestätigung vor.
+
+### § 6 Rückgabe
+
+1. Der Entleiher gibt die Gegenstände spätestens zum Ende der Leihzeit vollständig, sauber und in den Boxen sortiert wie bei der Übergabe zurück. Rückgabeort ist der Ort der Übergabe, wenn nichts anderes vereinbart ist.
+2. Die Rückgabe erfolgt an eine vom Verleiher benannte Person und wird in einem Rückgabebeleg festgehalten.
+3. Kann der Verleiher die Gegenstände bei der Rückgabe nicht sofort prüfen, nimmt er sie unter Vorbehalt an. Er prüft sie dann zügig und teilt festgestellte Mängel in Textform mit.
+4. Eine Verlängerung der Leihzeit braucht die Zustimmung des Verleihers vor ihrem Ablauf.
+
+### § 7 Verspätete Rückgabe
+
+1. Gibt der Entleiher die Gegenstände nicht rechtzeitig zurück, kommt er ohne Mahnung in Verzug.
+2. Er ersetzt dem Verleiher den Schaden aus der Verspätung. Dazu gehören insbesondere die Kosten für Ersatz, den der Verleiher für eine anschließende Ausleihe oder eigene Veranstaltung beschaffen oder anmieten muss.
+
+### § 8 Haftung des Verleihers
+
+1. Der Verleiher überlässt die Gegenstände so, wie sie sind. Er sichert weder bestimmte Eigenschaften noch die Eignung für den Zweck des Entleihers zu.
+2. Der Verleiher haftet nur für Vorsatz und grobe Fahrlässigkeit. Für Schäden aus der Verletzung von Leben, Körper oder Gesundheit und für arglistig verschwiegene Mängel haftet er nach dem Gesetz.
+
+### § 9 Vorzeitige Rückforderung
+
+Der Verleiher kann die Gegenstände jederzeit zurückfordern, wenn der Entleiher sie vertragswidrig gebraucht, unbefugt einem Dritten überlässt oder durch mangelnde Sorgfalt erheblich gefährdet, oder wenn der Verleiher sie wegen eines nicht vorhergesehenen Umstands selbst benötigt. Bei Verstößen gegen diesen Vertrag kann der Verleiher den Entleiher und die verantwortliche Person von künftigen Ausleihen ausschließen.
+
+### § 10 Datenschutz
+
+Der Verleiher verarbeitet die Angaben in diesem Vertrag, um die Ausleihe abzuwickeln und Ansprüche daraus geltend zu machen. Näheres steht in der Datenschutzerklärung: {privacy_url}.
+
+### § 11 Schlussbestimmungen
+
+1. Änderungen und Ergänzungen dieses Vertrags bedürfen der Textform.
+2. Ist eine Bestimmung unwirksam, bleibt der Vertrag im Übrigen wirksam. An ihre Stelle tritt die gesetzliche Regelung.
+3. Es gilt deutsches Recht.
+
+{place}, {date}

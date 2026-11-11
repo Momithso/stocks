@@ -40,6 +40,9 @@ PHP-Klassen liegen im Namensraum `Modules\<Modul>` (`composer.json`: `"Modules\\
   "requires": [],
   "permissions": {
     "example.view": "Beispielseite sehen"
+  },
+  "start_roles": {
+    "Vorstand": ["example.view"]
   }
 }
 ```
@@ -49,6 +52,7 @@ PHP-Klassen liegen im Namensraum `Modules\<Modul>` (`composer.json`: `"Modules\\
 | `key` | Schlüssel des Moduls, auch Präfix seiner Rechte |
 | `requires` | Schlüssel von Modulen, die aktiv sein müssen |
 | `permissions` | Rechte mit Beschreibung; erscheinen in der Rollenverwaltung unter dem Modulnamen |
+| `start_roles` | optional: Rechte, die die Startrollen (Name aus `config/stocks.php`) bei der Einrichtung bekommen. Bestehende Instanzen vergeben sie in der Rollenverwaltung; Admin hat sie immer |
 
 `php artisan stocks:sync` (läuft beim Start des Containers und bei `stocks:install`) legt für neue Module einen ausgeschalteten Schalter an, trägt die Rechte ein und gibt sie der Admin-Rolle.
 
@@ -79,14 +83,36 @@ public function boot(Navigation $navigation, DashboardTiles $dashboardTiles): vo
 
 | Punkt | Klasse | Wirkung |
 |---|---|---|
-| Menü | `Navigation::add()` | Eintrag in Bereich `overview`, `inventory`, `loans` oder `admin`; `mobile: true` für die untere Leiste am Handy; `group: 'settings'` legt ihn in das aufklappbare Untermenü **Einstellungen** |
+| Menü | `Navigation::add()` | Eintrag in Bereich `overview`, `inventory`, `loans` oder `admin`; `mobile: true` für die untere Leiste am Handy; `group: 'settings'` legt ihn in das aufklappbare Untermenü **Einstellungen**; `badge:` eine Closure, die `['text' => …, 'variant' => …]` oder `null` liefert (läuft bei jeder Seite, also nur Gespeichertes oder Gecachtes lesen) |
 | Untermenü | `Navigation::addGroup()` | aufklappbare Gruppe in einem Bereich, z. B. `settings` im Bereich `admin` für selten genutzte Seiten |
 | Kiosk | `Navigation::addKioskTile()` | Kachel auf der Kiosk-Startseite; die Route braucht `kiosk.device` und `kiosk` |
 | Dashboard | `DashboardTiles::add()` | Vue-Komponente `<Modul>::<Komponente>` aus `resources/js/components` |
 | Protokoll | `AuditSubjects::register()` | Modelle mit dem Interface `AuditSubject` erscheinen lesbar im Protokoll |
+| Einstellungen | `Settings::addDefaults()` und `Navigation::add(..., group: 'settings')` | eigene Schlüssel mit Präfix des Moduls und eine eigene Seite unter Verwaltung › Einstellungen; `Settings::module('<key>')` liefert alle Werte des Moduls |
+| Reiter am Gegenstand | `ItemExtensions::addTab()` | Reiter neben „Verlauf“ auf der Seite eines Gegenstands; die Komponente bekommt `item` |
+| Hinweis und Sperre am Gegenstand | `ItemExtensions::addInfo()` | siehe [Gegenstände](#gegenstände) |
+| Öffentliche Box-Seite | `ItemExtensions::addPublicBoxSection()` | Abschnitt unter der Inhaltsliste auf `/s/{code}` |
+| Demo-Daten | `DemoData::add()` | eigener Teil des Generators, siehe [DEMO.md](DEMO.md#neue-daten-in-einer-phase) |
 | Ereignisse | Laravel-Events | Listener im Provider registrieren |
 
-Ein Erweiterungspunkt für eigene Einstellungsseiten folgt, sobald ein Modul ihn braucht.
+### Gegenstände
+
+Ein Modul sagt über eine Klasse mit dem Interface `App\Support\Extensions\ItemInfoProvider`, was es über Gegenstände weiß. `notices(Collection $items, ?User $user)` gibt je Gegenstand eine Liste von Hinweisen zurück:
+
+| Feld | Bedeutung |
+|---|---|
+| `text` | Satz für die Seite des Gegenstands und die Scan-Karte; leer, wenn der Hinweis nur eine Aktion bringt |
+| `badge` | kurzer Text für die Gegenstandsliste, `null` für keinen |
+| `variant` | `info`, `warning` oder `danger` |
+| `href` | Link zu mehr, z. B. zur Buchung |
+| `lock` | `true`: Umlagern, Teilen und Ausmustern sind gesperrt, solange der Hinweis gilt; der Text nennt den Grund |
+| `actions` | Knöpfe auf der Scan-Karte (`title`, `href`, `icon`) |
+
+Der Kern fragt die Hinweise für eine ganze Seite der Liste auf einmal ab (`Table::prepareRows()`). Für Sperren ruft er `ItemExtensions::lockOf()` mit `$user = null`; der Provider kann dann alles außer der Sperre weglassen. Ein Modul, das einen Gegenstand selbst wegnimmt (Ausgabe), nutzt `MoveItem::takeAway()`, das keine Sperren prüft.
+
+### Öffentliche Box-Seite
+
+Eine Klasse mit `App\Support\Extensions\PublicBoxSection` liefert für eine Box die Props ihrer Vue-Komponente oder `null`, dann fehlt der Abschnitt. Die Komponente bekommt zusätzlich `checked` (die auf dem Gerät abgehakten Nummern) und `total`. Alles ist ohne Anmeldung sichtbar; eigene Routen dafür registriert das Modul ohne `auth` (Beispiel: `modules/Loans/routes/public.php`).
 
 ## Frontend
 
@@ -103,3 +129,5 @@ Ein Erweiterungspunkt für eigene Einstellungsseiten folgt, sobald ein Modul ihn
 4. `composer dump-autoload` und `php artisan migrate && php artisan stocks:sync` ausführen.
 5. Unter Verwaltung → Module einschalten und einer Rolle die Rechte geben.
 6. Die README des Moduls schreiben: Abläufe, Tabellen, Routen, Rechte.
+
+Tests mit einer gemeinsamen Basisklasse im Modul brauchen einen Eintrag unter `autoload-dev` in `composer.json` (`"Modules\\Loans\\Tests\\": "modules/Loans/tests/"`), weil der Ordner `tests` klein geschrieben ist.

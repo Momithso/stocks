@@ -4,6 +4,7 @@ namespace App\Support\Extensions;
 
 use App\Models\User;
 use App\Support\Modules\ModuleRegistry;
+use Closure;
 
 /**
  * Extension point for menu entries.
@@ -28,7 +29,7 @@ class Navigation
     ];
 
     /**
-     * @var list<array{section: string, title: string, route: string, icon: string, permission: string|null, module: string|null, mobile: bool, order: int, group: string|null}>
+     * @var list<array{section: string, title: string, route: string, icon: string, permission: string|null, module: string|null, mobile: bool, order: int, group: string|null, badge: Closure|null}>
      */
     private array $entries = [];
 
@@ -57,6 +58,7 @@ class Navigation
      * @param  bool  $mobile  show the entry in the bar at the bottom of phones (at most four entries fit)
      * @param  int  $order  position within the section (or the group), lower first
      * @param  string|null  $group  key of a group (addGroup) the entry is shown in
+     * @param  Closure(): (array{text: string, variant: string}|null)|null  $badge  short status beside the title, e.g. "getrennt"; must be quick (no network)
      */
     public function add(
         string $section,
@@ -68,8 +70,9 @@ class Navigation
         bool $mobile = false,
         int $order = 100,
         ?string $group = null,
+        ?Closure $badge = null,
     ): void {
-        $this->entries[] = compact('section', 'title', 'route', 'icon', 'permission', 'module', 'mobile', 'order', 'group');
+        $this->entries[] = compact('section', 'title', 'route', 'icon', 'permission', 'module', 'mobile', 'order', 'group', 'badge');
     }
 
     /**
@@ -106,6 +109,7 @@ class Navigation
                 'href' => route($entry['route'], absolute: false),
                 'icon' => $entry['icon'],
                 'mobile' => $entry['mobile'],
+                'badge' => $entry['badge'] ? ($entry['badge'])() : null,
             ];
             if ($entry['group'] !== null && isset($this->groups[$entry['group']])) {
                 $children[$entry['group']][] = $item;

@@ -6,6 +6,7 @@
 // biome-ignore lint: disable
 export {}
 declare global {
+  const useActiveEntry: typeof import('../composables/useActiveEntry')['default']
   const useColorMode: typeof import('../composables/useColorMode')['default']
   const useImageCompression: typeof import('../composables/useImageCompression')['default']
   const useModuleComponent: typeof import('../composables/useModuleComponent')['default']

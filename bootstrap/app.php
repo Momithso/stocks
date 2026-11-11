@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\ApplyMailSettings;
 use App\Http\Middleware\EnsureKioskDevice;
 use App\Http\Middleware\EnsureKioskUnlocked;
 use App\Http\Middleware\EnsureModuleActive;
@@ -29,6 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             EnsureSetupCompleted::class,
             EnsureUserIsActive::class,
+            ApplyMailSettings::class,
             HandleInertiaRequests::class,
         ]);
 

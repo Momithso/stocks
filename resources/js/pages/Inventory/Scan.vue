@@ -16,33 +16,35 @@
         />
         <UiButton type="submit" variant="secondary">Suchen</UiButton>
       </form>
-      <!-- on phones the camera fills the screen, the card slides up over it -->
+      <!-- on phones the camera fills the screen and shrinks to the upper part once a result is shown,
+           so it stays visible above the card and keeps scanning -->
       <InventoryCameraScanner
-        class="h-[calc(100dvh-14rem-var(--bottom-bar)-env(safe-area-inset-bottom))] w-full lg:aspect-video lg:h-auto"
+        :class="[
+          'w-full transition-[height] duration-300 lg:aspect-video lg:h-auto',
+          hasResult
+            ? 'h-[36dvh]'
+            : 'h-[calc(100dvh-14rem-var(--bottom-bar)-env(safe-area-inset-bottom))]',
+        ]"
         :autostart="autostart"
         @scan="scanned"
         @started="rememberCamera(true)"
         @stopped="rememberCamera(false)"
-      />
+      >
+        <template #actions="{ item }">
+          <button
+            v-if="card || error"
+            type="button"
+            :class="[item, 'lg:hidden']"
+            @click="closeSheet"
+          >
+            <FontAwesomeIcon :icon="['fas', 'expand']" class="h-4" /> Kamera
+            groß
+          </button>
+        </template>
+      </InventoryCameraScanner>
     </div>
 
-    <div
-      :class="[
-        'space-y-4',
-        card || mode || error
-          ? 'fixed inset-x-0 bottom-[calc(var(--bottom-bar)+0.75rem+env(safe-area-inset-bottom))] z-10 mx-2 rounded-2xl lg:mx-0 max-h-[60dvh] overflow-y-auto bg-surface-muted p-3 shadow-[0_-8px_24px_rgba(0,0,0,0.25)] lg:static lg:max-h-none lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none'
-          : '',
-      ]"
-    >
-      <div v-if="card || error" class="flex justify-end lg:hidden">
-        <button
-          type="button"
-          class="rounded-full bg-surface px-3 py-1 text-sm text-ink-muted shadow"
-          @click="closeSheet"
-        >
-          <FontAwesomeIcon :icon="['fas', 'xmark']" /> Schließen
-        </button>
-      </div>
+    <div class="space-y-4">
       <!-- second step of moving, or putting everything at one place -->
       <UiAlert v-if="mode?.type === 'move'" type="info">
         <strong>Umlagern:</strong> {{ mode.item.number }} {{ mode.item.name }}
@@ -97,6 +99,16 @@
             <UiBadge v-if="card.retired" class="ml-2">ausgemustert</UiBadge>
           </div>
         </div>
+        <!-- notices of modules, e.g. "ausgegeben an … bis …" -->
+        <template v-for="(notice, index) in card.notices" :key="index">
+          <UiAlert
+            v-if="notice.text"
+            :type="notice.variant === 'danger' ? 'error' : notice.variant"
+            class="mt-4"
+          >
+            {{ notice.text }}
+          </UiAlert>
+        </template>
         <UiInput
           v-if="card.kind === 'bulk' && canMove"
           v-model="moveQuantity"
@@ -106,11 +118,25 @@
           inputmode="numeric"
           :hint="`Von ${card.quantity} ${card.unit ?? ''}. Eine Teilmenge wird ein eigener Gegenstand.`"
         />
-        <div class="mt-4 grid grid-cols-2 gap-2">
+        <div
+          class="mt-4 grid grid-cols-2 gap-2 [&>*]:min-h-[44px] lg:[&>*]:text-base"
+        >
+          <!-- actions of modules, e.g. "Zur Buchung hinzufügen" -->
+          <template v-for="notice in card.notices" :key="notice.text">
+            <UiButton
+              v-for="action in notice.actions"
+              :key="action.href"
+              :icon="action.icon"
+              size="md"
+              :href="action.href"
+            >
+              {{ action.title }}
+            </UiButton>
+          </template>
           <UiButton
-            v-if="canMove"
+            v-if="canMove && !isLocked"
             icon="right-left"
-            size="lg"
+            size="md"
             @click="startMove"
             >Umlagern</UiButton
           >
@@ -118,7 +144,7 @@
             v-if="canMove && card.consumable"
             variant="secondary"
             icon="minus"
-            size="lg"
+            size="md"
             @click="consumeOpen = true"
           >
             Verbraucht
@@ -127,7 +153,7 @@
             v-if="canMove"
             variant="secondary"
             icon="triangle-exclamation"
-            size="lg"
+            size="md"
             @click="conditionOpen = true"
           >
             Zustand
@@ -136,7 +162,7 @@
             v-if="canMove && card.can_merge"
             variant="secondary"
             icon="rotate"
-            size="lg"
+            size="md"
             @click="mergeOpen = true"
           >
             Zurückbuchen
@@ -145,7 +171,7 @@
             v-if="can('labels.print') && !card.retired"
             variant="secondary"
             icon="tag"
-            size="lg"
+            size="md"
             :href="`/labels/print?items=${card.id}`"
           >
             Etikett
@@ -153,7 +179,7 @@
           <UiButton
             variant="secondary"
             icon="arrow-up-right-from-square"
-            size="lg"
+            size="md"
             :href="card.href"
           >
             {{ card.is_container ? "Inhalt" : "Öffnen" }}
@@ -167,11 +193,13 @@
           {{ [card.type_label, card.name].filter(Boolean).join(" · ") }} ·
           {{ card.items_count }} Gegenstände
         </p>
-        <div class="mt-4 grid grid-cols-2 gap-2">
+        <div
+          class="mt-4 grid grid-cols-2 gap-2 [&>*]:min-h-[44px] lg:[&>*]:text-base"
+        >
           <UiButton
             v-if="can('inventory.move') && card.location_type !== 'address'"
             icon="right-left"
-            size="lg"
+            size="md"
             @click="mode = { type: 'here', code: card.full_code }"
           >
             Hierher umlagern
@@ -180,7 +208,7 @@
             v-if="can('labels.print')"
             variant="secondary"
             icon="tag"
-            size="lg"
+            size="md"
             :href="`/labels/print?locations=${card.id}`"
           >
             Etikett
@@ -188,7 +216,7 @@
           <UiButton
             variant="secondary"
             icon="arrow-up-right-from-square"
-            size="lg"
+            size="md"
             :href="card.href"
           >
             Öffnen
@@ -203,7 +231,7 @@
           v-if="can('inventory.edit')"
           class="mt-4"
           icon="plus"
-          size="lg"
+          size="md"
           :href="card.href"
         >
           Gegenstand anlegen
@@ -275,6 +303,7 @@ type ScannedItem = {
   can_merge: boolean;
   split_from: Place | null;
   href: string;
+  notices: ItemNotice[];
 };
 type ScannedLocation = {
   type: "location";
@@ -313,6 +342,13 @@ const moveQuantity = ref<number | string>(1);
 const canMove = computed(
   () =>
     card.value?.type === "item" && !card.value.retired && can("inventory.move"),
+);
+
+// a module locks the item, e.g. while it is lent out
+const isLocked = computed(
+  () =>
+    card.value?.type === "item" &&
+    card.value.notices.some((notice) => notice.lock),
 );
 
 // the camera starts by itself when it was on last time
@@ -428,6 +464,8 @@ const startMove = () => {
     mode.value = { type: "move", item: card.value };
   }
 };
+
+const hasResult = computed(() => !!(card.value || mode.value || error.value));
 
 // phones: hide the card again to see more of the camera
 const closeSheet = () => {

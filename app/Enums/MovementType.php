@@ -16,6 +16,9 @@ enum MovementType: string
     case Retire = 'retire';
     case Consume = 'consume';
     case Merge = 'merge';
+    // written by modules: an item leaves with a loan and comes back (note names the loan)
+    case Issue = 'issue';
+    case Return = 'return';
 
     public function label(): string
     {
@@ -27,6 +30,8 @@ enum MovementType: string
             self::Retire => 'ausgemustert',
             self::Consume => 'verbraucht',
             self::Merge => 'zurückgebucht',
+            self::Issue => 'ausgegeben',
+            self::Return => 'zurückgenommen',
         };
     }
 }

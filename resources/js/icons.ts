@@ -72,6 +72,7 @@ import {
   faUser,
   faUsers,
   faUserShield,
+  faExpand,
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 
@@ -153,5 +154,6 @@ export default [
   faUser,
   faUsers,
   faUserShield,
+  faExpand,
   faXmark,
 ];

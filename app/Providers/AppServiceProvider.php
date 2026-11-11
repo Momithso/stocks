@@ -17,14 +17,19 @@ use App\Models\Role;
 use App\Models\Setting;
 use App\Models\User;
 use App\Support\Audit\AuditSubjects;
+use App\Support\Demo\InventoryDemo;
 use App\Support\Extensions\DashboardTiles;
+use App\Support\Extensions\DemoData;
+use App\Support\Extensions\ItemExtensions;
 use App\Support\Extensions\Navigation;
+use App\Support\MailSettings;
 use App\Support\Modules\ModuleRegistry;
 use App\Support\Settings;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -44,6 +49,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(ModuleRegistry::class, fn () => new ModuleRegistry(base_path('modules')));
         $this->app->singleton(Navigation::class);
         $this->app->singleton(DashboardTiles::class);
+        $this->app->singleton(DemoData::class);
+        $this->app->singleton(ItemExtensions::class);
         $this->app->singleton(AuditSubjects::class);
         $this->app->singleton(Settings::class);
 
@@ -60,7 +67,7 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Bootstrap any application services.
      */
-    public function boot(Navigation $navigation, DashboardTiles $dashboardTiles, AuditSubjects $auditSubjects): void
+    public function boot(Navigation $navigation, DashboardTiles $dashboardTiles, AuditSubjects $auditSubjects, DemoData $demoData): void
     {
         if (config('app.force_https')) {
             URL::forceScheme('https');
@@ -82,6 +89,9 @@ class AppServiceProvider extends ServiceProvider
             }
         });
 
+        // queued mails use the mail server of the settings too
+        Queue::before(fn () => app(MailSettings::class)->apply());
+
         // short links of labels: guests can not try out the inventory quickly (see ShortLinkController)
         RateLimiter::for('short-links', fn (Request $request) => $request->user()
             ? Limit::perMinute(120)->by('user:'.$request->user()->id)
@@ -89,6 +99,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->registerNavigation($navigation);
         $dashboardTiles->add('inventory/DashboardTile', 'inventory.view', order: 10);
+        $demoData->add(InventoryDemo::class, order: 10);
     }
 
     /**
@@ -112,6 +123,16 @@ class AppServiceProvider extends ServiceProvider
         // things that are set up once and rarely changed, collapsed so the menu stays short
         $navigation->addGroup('admin', 'settings', 'Einstellungen', 'gear', order: 40);
         $navigation->add('admin', 'Allgemein', 'admin.settings.edit', 'sliders', 'settings.manage', order: 10, group: 'settings');
+        // the last connection test of the mail server, never a new one (the menu must not wait)
+        $navigation->add('admin', 'E-Mail', 'admin.mail.edit', 'envelope', 'settings.manage', order: 15, group: 'settings', badge: function () {
+            $ok = app(MailSettings::class)->lastStatus()['ok'] ?? null;
+
+            return match ($ok) {
+                true => ['text' => 'verbunden', 'variant' => 'success'],
+                false => ['text' => 'getrennt', 'variant' => 'danger'],
+                default => null,
+            };
+        });
         $navigation->add('admin', 'Kategorien', 'inventory.categories.index', 'tags', 'locations.manage', order: 20, group: 'settings');
         $navigation->add('admin', 'Zustände', 'inventory.conditions.index', 'clipboard-check', 'inventory.options.manage', order: 30, group: 'settings');
         $navigation->add('admin', 'Einheiten', 'inventory.units.index', 'ruler', 'inventory.options.manage', order: 40, group: 'settings');

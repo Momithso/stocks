@@ -12,6 +12,7 @@ final readonly class ModuleManifest
     /**
      * @param  list<string>  $requires  keys of modules that must be active
      * @param  array<string, string>  $permissions  permission name => German description
+     * @param  array<string, list<string>>  $startRoles  start role (name in config/stocks.php) => permissions it gets on the first setup
      */
     public function __construct(
         public string $key,
@@ -22,6 +23,7 @@ final readonly class ModuleManifest
         public array $requires,
         public array $permissions,
         public string $path,
+        public array $startRoles = [],
     ) {}
 
     /**
@@ -44,6 +46,7 @@ final readonly class ModuleManifest
             requires: $data['requires'] ?? [],
             permissions: $data['permissions'] ?? [],
             path: dirname($file),
+            startRoles: $data['start_roles'] ?? [],
         );
     }
 }

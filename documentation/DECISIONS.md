@@ -2,6 +2,42 @@
 
 Warum Stocks so gebaut ist, wie es gebaut ist. Neue Einträge oben; jeder Eintrag mit Datum, Entscheidung, Grund und verworfener Alternative.
 
+## 2026-11-11 · Rückmeldungen zu Phase 3
+
+**Mailserver in den Einstellungen statt in der `.env`.** Wer Stocks betreibt, soll den Mailserver ohne Zugang zum Server ändern können. Das Passwort liegt mit `APP_KEY` verschlüsselt in `settings`, die Umgebung bleibt als Rückfall. Der Status im Menü kommt aus dem Cache (5 Minuten), damit keine Seite auf den Mailserver wartet. Verworfen: nur `.env` (Wunsch von Maurice), Status bei jedem Seitenaufruf prüfen (zu langsam).
+
+**Vermisst statt sofort verloren.** Was bei der Rückgabe fehlt, bleibt im Bestand, aber ohne Ort und gesperrt für Buchungen, bis es wieder auftaucht („Wieder da“) oder beim Abschließen der Mängel als verloren ausgemustert wird. Grund: Meist taucht etwas ein paar Tage später auf; eine abgeschlossene Buchung soll aber keinen Bestand im Nirgendwo zurücklassen. Verworfen: sofort ausmustern (dann ist ein Fund ein neuer Gegenstand) und „Mängel abschließen“ als reine Notiz (Bestand bleibt falsch).
+
+**Eine Box hakt ihren Inhalt mit ab.** Bei Ausgabe und Rückgabe hakt eine abgehakte Box ihren Inhalt ab, der letzte Inhalt die Box; „Alles vollständig“ und `complete-box` entfallen. Ausnahmen: eine ungeprüft zurückgekommene Box und die spätere Prüfung, dort zählt jede Zeile einzeln.
+
+## 2026-11-11 · Phase 3
+
+**Inhalt einer Box als Zeilen statt als JSON.** Bei der Ausgabe wird der Inhalt jeder Box zu eigenen Zeilen in `loan_items` mit `parent_id`. So lässt sich jeder Gegenstand der Box bei Ausgabe, Rückgabe und Prüfung einzeln abhaken, mit Mangel vermerken und sperren, mit denselben Spalten wie eine Position. Verworfen: `loan_items.contents` als JSON (stand im Detailplan).
+
+**PDFs entstehen beim Herunterladen aus dem eingefrorenen Inhalt.** Gespeichert werden je Dokument der Inhalt (`snapshot`) und seine SHA-256-Prüfsumme; das PDF rendert dompdf daraus bei jedem Download. Grund: Das PDF zeigt so immer genau das Unterschriebene, es gibt keine zweite Kopie, die abweichen kann, und Ausgabe und Rückgabe hängen nicht an S3. Verworfen: PDFs bei der Ausgabe auf S3 ablegen (Detailplan). Nur das Foto eines auf Papier unterschriebenen Blatts liegt auf S3.
+
+**Unterschriften als Bild in der Datenbank.** Ein PNG der Unterschrift hat wenige Kilobyte und liegt als Data-URI in `loan_signatures.image`. Verworfen: `image_path` auf S3 (Detailplan), aus demselben Grund wie oben.
+
+**„Verschmutzt“ als Verlaufseintrag ohne neuen Zustand.** Fotos hängen nach dem Detailplan an einer Zustandsänderung. Für „verschmutzt“ schreibt die Rückgabe einen Eintrag mit gleichem altem und neuem Zustand, damit Notiz und Fotos im Verlauf des Gegenstands stehen. Verworfen: eigene Tabelle für Fotos von Mängeln.
+
+**Ausgabe über `MoveItem::takeAway()`.** Der Kern bekommt eine Methode, die einen Gegenstand ohne neuen Ort wegnimmt und bei Mengen abteilt, mit der Bewegungsart des Aufrufers (`issue`). Grund: Teilen bleibt an einer Stelle. Verworfen: eigene Mengenlogik im Modul.
+
+**„Noch nicht eingeräumt“ wird abgeleitet.** Eine zurückgebuchte Position ohne `stowed_at`, deren Gegenstand keinen Ort hat (oder deren abgeteilter Teil noch besteht), wartet aufs Einräumen. Wer den Gegenstand auf anderem Weg an einen Ort bringt, hat ihn damit eingeräumt. Verworfen: ein Listener im Kern, der `stowed_at` setzt.
+
+**Zeitzone `Europe/Berlin` als Vorgabe.** Abholung und Rückgabe werden als Ortszeit eingegeben und gedruckt; `config/app.php` liest `APP_TIMEZONE` (Vorgabe `Europe/Berlin`). Vorher galt UTC aus dem Framework. Noch keine Instanz läuft im Betrieb, gespeicherte Zeiten müssen nicht umgerechnet werden.
+
+**Start-Rechte von Modulen in der `module.json`.** `start_roles` gibt den Startrollen bei der Einrichtung Rechte des Moduls. Grund: Ein Modul bleibt in seinem Ordner, `config/stocks.php` kennt keine Modulrechte. Verworfen: die Rechte des Verleihs in `config/stocks.php`.
+
+**Ids in Routen des Moduls nur als Zahlen.** `Route::patterns` für `loan`, `position`, `row` usw., damit `/loans/settings` nicht als Buchung „settings“ gelesen wird.
+
+**Basisklasse der Modultests per `autoload-dev`.** Der Ordner heißt wie beim Beispielmodul `tests`; nach `"Modules\\": "modules/"` müsste der Namensraum `Modules\Loans\Tests` aber im Ordner `Tests` liegen, was unter Linux nicht passt. Ein Eintrag in `composer.json` macht `LoansTestCase` ladbar. Verworfen: `require_once` in jedem Test.
+
+**Demo-Daten mit verstellter Uhr.** Der Generator lässt jede Buchung zu ihrer Zeit durch die Actions laufen (`Carbon::setTestNow`), damit Dokumente und Verlauf echte Daten tragen. Mengenartikel teilen sich mehrere Buchungen; reicht die Menge nicht, bleibt eine Buchung als Entwurf mit Kollision stehen (ein Pflichtfall ohnehin). Der Generator leert vorher den Cache, weil nach `migrate:fresh` Einstellungen und Rechte im Cache veraltet sind.
+
+**Pack-PIN nach richtiger Eingabe in der Sitzung.** Die öffentliche Seite merkt sich die PIN je Box in der Sitzung des Browsers, um Buchung und Kontrollen zu zeigen und die Kontrolle zu speichern. Fehlversuche werden ohne Transaktion gezählt, sonst rollt die Ablehnung den Zähler zurück.
+
+**Kontakte im Formular per JSON anlegen.** Der Dialog „Neu“ im Kontaktfeld schickt JSON an `/loans/contacts` und wählt den neuen Kontakt sofort, ohne die Seite neu zu laden. Sonst nutzt das Modul Inertia-Besuche.
+
 ## 2026-11-11 · Phase 2
 
 **Etiketten im Kern.** Wie im Gesamtplan („Kern inklusive Etiketten und Scan“). Verworfen: eigenes Modul.

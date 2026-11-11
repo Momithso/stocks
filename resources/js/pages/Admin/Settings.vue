@@ -109,25 +109,6 @@
     </UiCard>
 
     <UiCard
-      title="E-Mail"
-      description="Zugangsdaten zum Mailserver stehen in den Umgebungsvariablen."
-    >
-      <div class="grid gap-5 sm:grid-cols-2">
-        <UiInput
-          v-model="form.mail.from_name"
-          label="Absendername"
-          :error="form.errors['mail.from_name']"
-        />
-        <UiInput
-          v-model="form.mail.from_address"
-          label="Absenderadresse"
-          type="email"
-          :error="form.errors['mail.from_address']"
-        />
-      </div>
-    </UiCard>
-
-    <UiCard
       title="Inventar"
       description="Neue Artikelnummern beginnen mit dem Präfix, z. B. FSR5-004218. Vergebene Nummern ändern sich nie."
     >
@@ -249,10 +230,6 @@ const form = useForm({
     privacy_url: value("legal.privacy_url"),
     contact_email: value("legal.contact_email"),
   },
-  mail: {
-    from_name: value("mail.from_name"),
-    from_address: value("mail.from_address"),
-  },
   inventory: {
     number_prefix: value("inventory.number_prefix"),
   },
@@ -281,7 +258,6 @@ const submit = () =>
     .transform((data) => ({
       ...data,
       legal: nullIfEmpty(data.legal),
-      mail: nullIfEmpty(data.mail),
       inventory: {
         number_prefix: data.inventory.number_prefix.toUpperCase() || null,
       },

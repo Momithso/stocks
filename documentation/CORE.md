@@ -58,8 +58,9 @@ Der Code prüft nur Rechte, nie Rollennamen. Rechte heißen `bereich.tätigkeit`
 | `audit.view` | Änderungsprotokoll lesen |
 | `inventory.*`, `locations.manage`, `inventory.options.manage` | Inventar, siehe [INVENTORY.md](INVENTORY.md#rechte) |
 | `labels.print`, `labels.manage` | Etiketten und Drucker, siehe [LABELS.md](LABELS.md#rechte) |
+| `loans.*` | Modul Verleih, siehe [LOANS.md](LOANS.md#rechte) |
 
-**Admin** ist eine Systemrolle: Sie hat immer alle Rechte, auch die später hinzugefügter Module (`stocks:sync`), und lässt sich weder ändern noch löschen. Die übrigen Startrollen (`config/stocks.php`) entstehen einmal bei der Einrichtung und sind danach frei änderbar.
+**Admin** ist eine Systemrolle: Sie hat immer alle Rechte, auch die später hinzugefügter Module (`stocks:sync`), und lässt sich weder ändern noch löschen. Die übrigen Startrollen (`config/stocks.php`) entstehen einmal bei der Einrichtung und sind danach frei änderbar. Module geben ihnen eigene Rechte über `start_roles` in der `module.json` mit.
 
 **Vergaberegel** (`App\Support\Permissions\GrantCheck`): Niemand vergibt mehr, als er selbst hat.
 
@@ -82,7 +83,13 @@ Der Code prüft nur Rechte, nie Rollennamen. Rechte heißen `bereich.tätigkeit`
 | `organization.address` | Anschrift, eine Zeile je Adresszeile; Briefkopf der Box-Inhaltsliste |
 | `legal.imprint_url`, `legal.privacy_url`, `legal.contact_email` | Rechtliche Links |
 | `mail.from_name`, `mail.from_address` | Absender aller E-Mails; ohne Adresse gilt `MAIL_FROM_ADDRESS` |
+| `mail.host`, `mail.port`, `mail.username`, `mail.password`, `mail.encryption` | Mailserver (SMTP); das Passwort verschlüsselt mit `APP_KEY`. Ohne Server gelten die `MAIL_*`-Variablen, siehe unten |
 | `setup.completed_at` | Zeitpunkt der Einrichtung; ohne ihn leitet jede Seite auf `/setup` |
+| `demo.seeded_at`, `demo.labels` | Zeitpunkt der Demo-Daten und die Codes des Testetiketten-Blatts, siehe [DEMO.md](DEMO.md); leer in einer echten Instanz |
+
+**E-Mail** (Verwaltung › Einstellungen › E-Mail, `settings.manage`): Server, Port, Verschlüsselung (STARTTLS oder SSL/TLS), Benutzer, Passwort und Absender. `App\Support\MailSettings::apply()` setzt sie vor jeder Anfrage (Middleware `ApplyMailSettings`) und jedem Job (`Queue::before`) als SMTP-Mailer; ist kein Server eingetragen, bleibt die Umgebung (`MAIL_MAILER`, `MAIL_HOST` …). Das Passwort geht nie an den Browser; ein leeres Feld behält das gespeicherte. Der **Status** ist eine echte Anmeldung am Server (Timeout 10 s), 5 Minuten im Cache und nach jedem Speichern oder „Erneut prüfen“ neu. Das Menü zeigt ihn als Badge am Eintrag E-Mail („verbunden“/„getrennt“, bei zugeklappter Gruppe ein roter Punkt); die Seite liest dafür nur den Cache und baut nie selbst eine Verbindung auf. „Test-Mail senden“ schickt eine kurze Mail an eine frei wählbare Adresse (Vorgabe: die eigene) und zeigt den Fehler des Servers, wenn sie nicht rausgeht.
+
+Module bringen eigene Schlüssel mit (`Settings::addDefaults()`, Präfix = Modulschlüssel, z. B. `loans.buffer_hours`); sie liegen in derselben Tabelle, `Settings::module('loans')` liefert sie gesammelt.
 | `inventory.number_prefix` | Präfix neuer Artikelnummern, siehe [INVENTORY.md](INVENTORY.md#artikelnummern) |
 | `labels.base_url`, `labels.base_url_confirmed` | Adresse in den Codes der Etiketten und die vor dem ersten Druck bestätigte Adresse, siehe [LABELS.md](LABELS.md#kurzlink-und-code) |
 

@@ -8,6 +8,7 @@ use App\Enums\RetireReason;
 use App\Models\Item;
 use App\Models\ItemMovement;
 use App\Models\User;
+use App\Support\Extensions\ItemExtensions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -19,6 +20,8 @@ use Illuminate\Validation\ValidationException;
  */
 class RetireItem
 {
+    public function __construct(private readonly ItemExtensions $extensions) {}
+
     /**
      * @param  int|null  $quantity  part of a bulk item, null for everything
      *
@@ -28,6 +31,9 @@ class RetireItem
     {
         if ($item->isRetired()) {
             throw ValidationException::withMessages(['item' => "{$item->number} ist schon ausgemustert."]);
+        }
+        if ($lock = $this->extensions->lockOf($item)) {
+            throw ValidationException::withMessages(['item' => $lock]);
         }
 
         $quantity ??= $item->quantity;

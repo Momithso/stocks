@@ -68,6 +68,16 @@
       </p>
     </section>
 
+    <!-- sections of modules, e.g. the pack pin of a loan -->
+    <component
+      :is="section.is"
+      v-for="section in sectionComponents"
+      :key="section.component"
+      v-bind="section.props"
+      :checked="checked"
+      :total="total"
+    />
+
     <!-- location -->
     <section
       v-if="kind === 'location' && location"
@@ -140,9 +150,16 @@ const props = defineProps<{
   contents?: PublicItem[];
   message?: string;
   createUrl?: string | null;
+  sections?: { component: string; props: Record<string, unknown> }[];
 }>();
 
 const contents = computed(() => props.contents ?? []);
+const sectionComponents = computed(() =>
+  (props.sections ?? []).map((section) => ({
+    ...section,
+    is: useModuleComponent(section.component),
+  })),
+);
 const title = computed(
   () =>
     props.item?.name ??

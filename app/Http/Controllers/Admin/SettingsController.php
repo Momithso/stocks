@@ -7,11 +7,13 @@ use App\Support\Branding;
 use App\Support\Settings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Settings of the instance: organization, legal links, sender of mails, item numbers, labels.
+ * Settings of the instance: organization, legal links, item numbers, labels. Mail has its own page
+ * (MailSettingsController).
  */
 class SettingsController extends Controller
 {
@@ -21,7 +23,8 @@ class SettingsController extends Controller
     public function edit(Settings $settings, Branding $branding): Response
     {
         return Inertia::render('Admin/Settings', [
-            'settings' => $settings->all(),
+            // the mail password never leaves the server
+            'settings' => Arr::except($settings->all(), ['mail.password']),
             'appUrl' => config('app.url'),
             'branding' => [
                 'logo' => $branding->url('logo'),
@@ -44,8 +47,6 @@ class SettingsController extends Controller
             'legal.imprint_url' => ['nullable', 'url'],
             'legal.privacy_url' => ['nullable', 'url'],
             'legal.contact_email' => ['nullable', 'email'],
-            'mail.from_name' => ['nullable', 'string', 'max:100'],
-            'mail.from_address' => ['nullable', 'email'],
             // new numbers only, existing numbers never change
             'inventory.number_prefix' => ['nullable', 'regex:/^[A-Z0-9]{1,6}$/'],
             // address in the codes of labels; old labels keep the old address

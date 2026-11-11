@@ -1,0 +1,20 @@
+{
+  "key": "loans",
+  "name": "Verleih",
+  "description": "Buchungen mit Kontakten, Veranstaltungen, Kalender, Ausgabe und Rückgabe per Scan, Leihvertrag mit Unterschrift.",
+  "version": "0.1.0",
+  "provider": "Modules\\Loans\\LoansServiceProvider",
+  "requires": [],
+  "permissions": {
+    "loans.view": "Buchungen, Kalender und Veranstaltungen ansehen",
+    "loans.manage": "Buchungen, Kontakte und Veranstaltungen anlegen und ändern",
+    "loans.issue": "Ausgeben, zurücknehmen, prüfen und einräumen",
+    "loans.cancel": "Buchungen stornieren und Mängel abschließen",
+    "loans.settings": "Leihvertrag, Fachschaften und Puffer einstellen"
+  },
+  "start_roles": {
+    "Vorstand": ["loans.view", "loans.manage", "loans.issue", "loans.cancel", "loans.settings"],
+    "FSR-Mitglied": ["loans.view", "loans.manage", "loans.issue"],
+    "Freies Mitglied": ["loans.view"]
+  }
+}

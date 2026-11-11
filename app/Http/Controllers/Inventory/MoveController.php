@@ -44,7 +44,7 @@ class MoveController extends Controller
 
         // scanning the item a part was split off from books the part back
         $found = $codes->find($validated['target_code']);
-        if ($found instanceof Item && $item->split_from_id === $found->id) {
+        if ($found instanceof Item && $item->mergeTarget()?->id === $found->id) {
             $origin = $mergeItem->handle($request->user(), $item, $validated['quantity'] ?? null, $validated['note'] ?? null);
 
             return back()->with('success', "{$item->number} zurück zu {$origin->number} gebucht, dort sind jetzt {$origin->quantity} {$origin->unit}.");

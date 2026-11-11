@@ -16,6 +16,8 @@ services:
       APP_URL: '${APP_URL}'
       APP_FORCE_HTTPS: '${APP_FORCE_HTTPS:-true}'
       APP_LOCALE: de
+      # times of loans are entered and printed in this time zone
+      APP_TIMEZONE: '${APP_TIMEZONE:-Europe/Berlin}'
       SETUP_TOKEN: '${SETUP_TOKEN}'
       OCTANE_HTTPS: '${OCTANE_HTTPS:-true}'
       OCTANE_WORKERS: '${OCTANE_WORKERS:-auto}'

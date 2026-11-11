@@ -234,10 +234,8 @@ const mobileEntries = computed(() =>
     .slice(0, 4),
 );
 
-const isActive = (entry: NavigationEntry) => {
-  const path = page.url.split("?")[0];
-  return path === entry.href || path.startsWith(`${entry.href}/`);
-};
+// the entry with the longest matching address is active
+const { isActive } = useActiveEntry();
 
 // the sidebar has its own scan button on top
 const sidebarEntries = (section: NavigationSection) =>

@@ -12,6 +12,19 @@ declare global {
   }
 
   /**
+   * Notice of a module about an item (App\Support\Extensions\ItemInfoProvider), e.g.
+   * "ausgegeben an … bis …". A lock stops moving, splitting and retiring.
+   */
+  interface ItemNotice {
+    text: string;
+    badge: string | null;
+    variant: "info" | "warning" | "danger";
+    href: string | null;
+    lock: boolean;
+    actions: { title: string; href: string; icon: string }[];
+  }
+
+  /**
    * Item in the contents tree of a box.
    */
   interface ContentsItem {

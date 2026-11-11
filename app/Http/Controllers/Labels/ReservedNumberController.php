@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Labels;
 use App\Actions\Labels\ReserveNumbers;
 use App\Http\Controllers\Controller;
 use App\Models\ReservedNumber;
+use App\Support\Demo\DemoGenerator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -22,6 +23,8 @@ class ReservedNumberController extends Controller
     public function index(): Response
     {
         return Inertia::render('Labels/Reserved', [
+            // the test label sheet can be downloaded in an instance with demo data
+            'demoSheet' => app(DemoGenerator::class)->hasDemoData(),
             'reserved' => ReservedNumber::open()->with('creator')->latest('id')->limit(500)->get()->map(fn (ReservedNumber $reserved) => [
                 'id' => $reserved->id,
                 'number' => $reserved->number,

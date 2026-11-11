@@ -22,6 +22,7 @@ use App\Models\ItemPhoto;
 use App\Models\ItemUnit;
 use App\Models\Location;
 use App\Models\ReservedNumber;
+use App\Support\Extensions\ItemExtensions;
 use App\Support\Inventory\CodeLookup;
 use App\Support\Labels\ShortLink;
 use App\Support\Table\ItemsTable;
@@ -38,7 +39,7 @@ use Inertia\Response;
  */
 class ItemController extends Controller
 {
-    public function __construct(private readonly CodeLookup $codes) {}
+    public function __construct(private readonly CodeLookup $codes, private readonly ItemExtensions $extensions) {}
 
     /**
      * Display all items.
@@ -100,7 +101,7 @@ class ItemController extends Controller
     /**
      * Display an item with its place, contents, photos and history.
      */
-    public function show(Item $item): Response
+    public function show(Request $request, Item $item): Response
     {
         $item->load(['category.parent', 'condition', 'location', 'container', 'homeLocation', 'homeContainer', 'splitFrom', 'photos']);
 
@@ -118,13 +119,16 @@ class ItemController extends Controller
                 'home' => Item::placeSummary($item->home()),
                 'location' => Item::placeSummary($item->container ? $item->effectiveLocation() : null),
                 'away_from_home' => $item->isAwayFromHome(),
-                'split_from' => Item::placeSummary($item->splitFrom),
-                'can_merge' => $item->splitFrom !== null && ! $item->splitFrom->isRetired() && ! $item->isRetired(),
+                'split_from' => Item::placeSummary($item->mergeTarget()),
+                'can_merge' => ($target = $item->mergeTarget()) !== null && ! $target->isRetired() && ! $item->isRetired(),
                 'retired_at' => $item->retired_at?->toIso8601String(),
                 'retired_reason' => $item->retired_reason?->label(),
                 'photos' => $item->photos->map(fn (ItemPhoto $photo) => ['id' => $photo->id, 'url' => $photo->url()]),
                 'contents' => $item->is_container ? $this->contentsTree($item) : [],
             ],
+            // notices and tabs of modules, e.g. "ausgegeben an … bis …" and the tab "Verleih"
+            'notices' => $this->extensions->notices(collect([$item]), $request->user())[$item->id] ?? [],
+            'tabs' => $this->extensions->tabsFor($request->user()),
             'history' => fn () => $this->history($item),
             'conditions' => ItemCondition::options(),
             // "verbraucht" has its own action for consumables
@@ -269,9 +273,10 @@ class ItemController extends Controller
                 'photo_url' => ($photo = $found->photos->first()) ? route('inventory.photos.show', $photo, absolute: false) : null,
                 'contents_count' => $found->is_container ? $found->contents()->active()->count() : 0,
                 'consumable' => $found->kind === ItemKind::Bulk && ItemUnit::isConsumable($found->unit),
-                'can_merge' => $found->splitFrom !== null && ! $found->splitFrom->isRetired() && ! $found->isRetired(),
-                'split_from' => Item::placeSummary($found->splitFrom),
+                'can_merge' => ($target = $found->mergeTarget()) !== null && ! $target->isRetired() && ! $found->isRetired(),
+                'split_from' => Item::placeSummary($found->mergeTarget()),
                 'href' => route('inventory.items.show', $found, absolute: false),
+                'notices' => $this->extensions->notices(collect([$found]), $request->user())[$found->id] ?? [],
             ]);
         }
 

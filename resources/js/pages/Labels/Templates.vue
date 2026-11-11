@@ -3,6 +3,15 @@
     title="Etiketten"
     description="Vorlagen für Etiketten. Die Daten kommen beim Drucken aus dem Gegenstand oder Standort; die Standardvorlage einer Art ist beim Drucken vorausgewählt."
   >
+    <UiButton
+      v-if="demoSheet"
+      variant="secondary"
+      icon="file-pdf"
+      href="/labels/demo-sheet.pdf"
+      external
+    >
+      Testetiketten (Demo)
+    </UiButton>
     <UiButton icon="plus" @click="createOpen = true">Vorlage anlegen</UiButton>
   </UiPageHeader>
 
@@ -132,6 +141,8 @@ const props = defineProps<{
   templates: LabelTemplate[];
   targets: { value: LabelTargetName; label: string }[];
   sizes: { label: string; width: number; height: number }[];
+  // instance with demo data: the test label sheet can be downloaded
+  demoSheet: boolean;
 }>();
 
 const byTarget = (target: string) =>

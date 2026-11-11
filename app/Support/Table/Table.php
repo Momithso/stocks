@@ -9,6 +9,7 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\ScrollProp;
 
@@ -123,10 +124,21 @@ abstract class Table
      */
     public function scroll(): ScrollProp
     {
-        return Inertia::scroll(fn () => $this->sortedQuery()
-            ->simplePaginate($this->perPage())
-            ->through(fn (Model $model) => $this->toRow($model)));
+        return Inertia::scroll(function () {
+            $page = $this->sortedQuery()->simplePaginate($this->perPage());
+            $this->prepareRows($page->getCollection());
+
+            return $page->through(fn (Model $model) => $this->toRow($model));
+        });
     }
+
+    /**
+     * Load what the rows of a page need at once, before row() is called for each of them (e.g.
+     * notices of modules for all items of the page).
+     *
+     * @param  Collection<int, Model>  $models
+     */
+    protected function prepareRows(Collection $models): void {}
 
     /**
      * Check if the request asks for the live update of the table.
@@ -177,7 +189,9 @@ abstract class Table
                 $changedQuery->where(fn (Builder $query) => $this->whereChangedSince($query, $since));
             }
 
-            $rows = $changedQuery->get()->map(fn (Model $model) => $this->toRow($model))->values()->all();
+            $models = $changedQuery->get();
+            $this->prepareRows($models);
+            $rows = $models->map(fn (Model $model) => $this->toRow($model))->values()->all();
         }
 
         $newIds = $this->filteredQuery()

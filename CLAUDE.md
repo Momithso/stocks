@@ -1,6 +1,7 @@
 # Stocks
 
 - Before changing or adding a user facing action, read `documentation/INTERFACES.md` and update it: it lists which surfaces (web, phone, kiosk, public page) have the action and which still miss it.
+- Every phase extends the demo data generator with its new data and states and writes the test label sheet again (`php artisan stocks:demo && php artisan stocks:demo-sheet`). Demo data come from building blocks and a fixed seed, never from entries written out by hand. See `documentation/DEMO.md`.
 
 <laravel-boost-guidelines>
 === foundation rules ===

@@ -45,6 +45,8 @@ import { ref, type PropType } from "vue";
 /**
  * Contents of a box as tree; boxes in boxes can be opened.
  */
+// the name lets the component use itself for boxes in boxes; the automatic import does not cover that
+defineOptions({ name: "InventoryContentsTree" });
 defineProps({
   items: { type: Array as PropType<ContentsItem[]>, required: true },
   nested: { type: Boolean, default: false },
