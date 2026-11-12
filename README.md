@@ -4,7 +4,7 @@ Inventar- und Verleihsoftware für Fachschaften: was besitzen wir, wo liegt es, 
 
 Stocks baut auf der Struktur von [Portals](https://github.com/fsr5-fhaachen/portals) auf: Laravel 13, PHP 8.5, Inertia 3, Vue 3 mit TypeScript, Tailwind und Octane mit Swoole.
 
-> **Stand:** Phase 0 (Fundament). Anmeldung, Konten, Rollen, Module, Einstellungen, Einrichtung und das Kiosk-Gerüst sind fertig. Inventar und Verleih folgen ab Phase 1.
+> **Stand:** Phase 4. Kern, Inventar, Etiketten, Verleih und das Modul Kiosk sind fertig. Die Verleihseite für Entleiher und E-Mails folgen in Phase 5.
 
 ## Schnellstart
 
@@ -21,17 +21,19 @@ Anmelden mit `admin@example.com` und dem Passwort `correct horse battery`.
 
 ## Dokumentation
 
-| Datei                                                            | Inhalt                                                             |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------ |
-| [documentation/CORE.md](documentation/CORE.md)                   | Aufbau, Anmeldung, Rollen und Rechte, Kiosk, Oberfläche, Datenbank |
-| [documentation/INVENTORY.md](documentation/INVENTORY.md)         | Standorte, Gegenstände, Boxen, Nummern, Umlagern, Fotos            |
-| [documentation/LABELS.md](documentation/LABELS.md)               | Etiketten, Vorlagen, Drucker, Kurzlinks, Scannen, Web-App          |
-| [documentation/INTERFACES.md](documentation/INTERFACES.md)       | Welche Vorgänge auf welcher Oberfläche (PC, Handy, Kiosk) fehlen   |
-| [documentation/MODULES.md](documentation/MODULES.md)             | Module bauen, Erweiterungspunkte                                   |
-| [documentation/SETUP.md](documentation/SETUP.md)                 | Instanz aufsetzen und aktualisieren                                |
-| [documentation/TABLE_POLLING.md](documentation/TABLE_POLLING.md) | Tabellen mit seitenweisem Laden und Live-Update                    |
-| [documentation/DECISIONS.md](documentation/DECISIONS.md)         | Entscheidungsprotokoll                                             |
-| [CONTRIBUTING.md](CONTRIBUTING.md)                               | Branches, Commits, Werkzeuge                                       |
+| Datei                                                            | Inhalt                                                           |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------- |
+| [documentation/CORE.md](documentation/CORE.md)                   | Aufbau, Anmeldung, Rollen und Rechte, Oberflächen, Datenbank     |
+| [documentation/KIOSK.md](documentation/KIOSK.md)                 | Modul Kiosk: Tablets koppeln, Sitzung, Vorgänge am Tablet        |
+| [documentation/INVENTORY.md](documentation/INVENTORY.md)         | Standorte, Gegenstände, Boxen, Nummern, Umlagern, Fotos          |
+| [documentation/LABELS.md](documentation/LABELS.md)               | Etiketten, Vorlagen, Drucker, Kurzlinks, Scannen, Web-App        |
+| [documentation/INTERFACES.md](documentation/INTERFACES.md)       | Welche Vorgänge auf welcher Oberfläche (PC, Handy, Kiosk) fehlen |
+| [documentation/MODULES.md](documentation/MODULES.md)             | Module bauen, Erweiterungspunkte                                 |
+| [documentation/SETUP.md](documentation/SETUP.md)                 | Instanz aufsetzen und aktualisieren                              |
+| [documentation/DEPLOY.md](documentation/DEPLOY.md)               | Dev-Instanz über GitLab CI/CD                                    |
+| [documentation/TABLE_POLLING.md](documentation/TABLE_POLLING.md) | Tabellen mit seitenweisem Laden und Live-Update                  |
+| [documentation/DECISIONS.md](documentation/DECISIONS.md)         | Entscheidungsprotokoll                                           |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                               | Branches, Commits, Werkzeuge                                     |
 
 ## Tests
 

@@ -2,7 +2,17 @@
   <UiPageHeader
     title="Etiketten auf Vorrat"
     description="Nummern vorab reservieren und drucken. Wer später so ein Etikett scannt, legt den Gegenstand mit genau dieser Nummer an."
-  />
+  >
+    <UiButton
+      v-if="demoSheet"
+      variant="secondary"
+      icon="file-pdf"
+      href="/labels/demo-sheet.pdf"
+      external
+    >
+      Testetiketten (Demo)
+    </UiButton>
+  </UiPageHeader>
 
   <div class="grid gap-6 lg:grid-cols-3">
     <UiCard title="Auf Vorrat drucken">
@@ -101,6 +111,8 @@ defineProps<{
     created_by: string | null;
   }[];
   max: number;
+  // instance with demo data: the test label sheet can be downloaded
+  demoSheet: boolean;
 }>();
 
 const form = useForm({ count: 10 as number | string });

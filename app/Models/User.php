@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Hash;
+use NotificationChannels\WebPush\HasPushSubscriptions;
 use OwenIt\Auditing\Contracts\Auditable;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -21,12 +22,14 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string $email
  * @property string|null $pin hash of the kiosk pin
  * @property bool $is_disabled
+ * @property array<string, array<string, bool>>|null $notification_preferences deviations from the defaults, see App\Support\Notifications\NotificationEvents
  */
 class User extends Authenticatable implements Auditable, AuditSubject
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory;
 
+    use HasPushSubscriptions;
     use HasRoles;
     use Notifiable;
     use \OwenIt\Auditing\Auditable;
@@ -64,6 +67,7 @@ class User extends Authenticatable implements Auditable, AuditSubject
         'pin',
         'remember_token',
         'last_login_at',
+        'notification_preferences',
     ];
 
     /**
@@ -78,6 +82,7 @@ class User extends Authenticatable implements Auditable, AuditSubject
             'pin' => 'hashed',
             'is_disabled' => 'boolean',
             'last_login_at' => 'datetime',
+            'notification_preferences' => 'array',
         ];
     }
 
@@ -111,6 +116,16 @@ class User extends Authenticatable implements Auditable, AuditSubject
     public function isPinValid(string $pin): bool
     {
         return $this->hasPin() && Hash::check($pin, $this->pin);
+    }
+
+    /**
+     * Notification settings of the account: deviations from the defaults.
+     *
+     * @return array<string, array<string, bool>>|null
+     */
+    public function notificationPreferences(): ?array
+    {
+        return $this->notification_preferences;
     }
 
     /**

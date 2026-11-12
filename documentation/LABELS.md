@@ -52,7 +52,7 @@ Ein zurückgebuchter Teil ist ausgemustert; sein altes Etikett öffnet angemelde
 | ausgemustert | Name, Nummer, „Nicht mehr im Bestand“ |
 | reservierte Nummer | Nummer und „Eigentum von {Organisation}“ |
 
-Abgehakt wird nur im Browser (`localStorage`, Schlüssel `stocks.checklist.<Nummer>`), in Stocks ändert sich nichts. Fotos laufen über signierte Links (`/s-photos/{id}`, eine Stunde gültig), damit niemand Fotos über fortlaufende Ids abruft. „Anmelden“ führt über `/s/{code}?login=1` zur Anmeldung und danach zurück auf die volle Seite.
+Abgehakt wird nur im Browser (`localStorage`, Schlüssel `stocks.checklist.<Nummer>`), in Stocks ändert sich nichts. Steckt die Box in einer bestätigten oder ausgegebenen Buchung, zeigt das Modul Verleih darunter das Feld „Pack-PIN“; mit der PIN wird die Kontrolle mit Namen und den Haken gespeichert (siehe [LOANS.md](LOANS.md#pack-pin)). Fotos laufen über signierte Links (`/s-photos/{id}`, eine Stunde gültig), damit niemand Fotos über fortlaufende Ids abruft. „Anmelden“ führt über `/s/{code}?login=1` zur Anmeldung und danach zurück auf die volle Seite.
 
 Die Nummern sind fortlaufend; wer eine errät, sieht Name und Foto. Das Rate Limit bremst das, verhindert es aber nicht (entschieden, siehe Detailplan).
 
@@ -161,11 +161,11 @@ Wer eine reservierte Nummer scannt und `inventory.edit` hat, landet in „Gegens
 
 ## Scannen
 
-**Kamera:** `InventoryCameraScanner` mit dem Paket `barcode-detector` (ZXing als WebAssembly, liest QR-Code und Data Matrix, auch auf dem iPhone). Die `.wasm`-Datei gehört zum Build; ohne die Einstellung in `createDetector()` lüde das Paket sie von jsDelivr. Taschenlampe und Kamerawahl, wo das Gerät es kann. Derselbe Code löst erst nach 2,5 Sekunden Pause wieder aus; jeder Treffer piept und vibriert. Die Kamera braucht HTTPS (lokal geht `localhost`); verweigert der Browser sie, erklärt die Komponente, wie man sie freigibt.
+**Kamera:** `InventoryCameraScanner` mit dem Paket `barcode-detector` (ZXing als WebAssembly, liest QR-Code und Data Matrix, auch auf dem iPhone). Die `.wasm`-Datei gehört zum Build; ohne die Einstellung in `createDetector()` lüde das Paket sie von jsDelivr. Unter dem Bild liegt eine Leiste wie die untere Navigation: in der Mitte groß **Scannen** (liest das Quadrat sofort, auch mit Automatisch und auch denselben Code noch einmal), links in einem eigenen Kasten Automatisch und Licht, rechts Wechseln, Einträge der Seite über den Slot `actions` (auf „Scannen“: Kamera groß) und Aus; Licht und Wechseln nur, wo das Gerät es kann. Nichts liegt auf dem Bild außer dem Quadrat. Gelesen wird nur der Bildausschnitt im Quadrat (`insideFrame()` rechnet ihn aus der `object-cover`-Darstellung zurück), Codes daneben zählen nicht. Mit dem Schalter **Automatisch** liest die Kamera laufend; ausgeschaltet liest ein Tippen aufs Bild oder auf „Scannen“ das Quadrat einmal (mehrere Bilder, gut eine Sekunde), sonst erscheint „Kein Code im Quadrat“. Die Wahl bleibt je Gerät (`localStorage.scanAuto`). Automatisch löst derselbe Code erst nach 2,5 Sekunden Pause wieder aus, per Tippen sofort; jeder Treffer piept und vibriert. Die Kamera braucht HTTPS (lokal geht `localhost`); verweigert der Browser sie, erklärt die Komponente, wie man sie freigibt.
 
 **Handscanner:** wie bisher über Eingabefelder. Auf `/inventory/scan` nimmt `useScannerInput` den Scanner auch ohne angeklicktes Feld an (Tasten bis Enter, eine Pause über eine Sekunde beginnt neu).
 
-**Seite „Scannen“** (`/inventory/scan`, `inventory.view`): Kamera, darunter am Handy eine Karte, die sich über die Kamera schiebt; am PC daneben. Die Daten kommen aus `GET /inventory/lookup`.
+**Seite „Scannen“** (`/inventory/scan`, `inventory.view`): Kamera, am PC die Karte daneben. Am Handy füllt die Kamera den Bildschirm und wird bei einem Treffer oben kleiner, die Karte steht darunter; „Kamera groß“ blendet sie aus. Die Daten kommen aus `GET /inventory/lookup`.
 
 | Gescannt | Aktionen (je nach Recht) |
 |---|---|

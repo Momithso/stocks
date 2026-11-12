@@ -11,6 +11,15 @@
       <FontAwesomeIcon :icon="['fas', entry.icon]" class="w-4" />
       <template v-if="!collapsed">
         <span class="flex-1 text-left">{{ entry.title }}</span>
+        <!-- a problem of an entry inside shows while the group is closed -->
+        <span
+          v-if="
+            !open &&
+            entry.children.some((child) => child.badge?.variant === 'danger')
+          "
+          class="h-2 w-2 rounded-full bg-red-600"
+          aria-label="Problem in dieser Gruppe"
+        />
         <FontAwesomeIcon
           :icon="['fas', open ? 'chevron-down' : 'chevron-right']"
           class="text-xs text-ink-muted"
@@ -50,13 +59,19 @@
     @click="emit('navigate')"
   >
     <FontAwesomeIcon :icon="['fas', entry.icon]" class="w-4" />
-    <span v-if="!collapsed">{{ entry.title }}</span>
+    <!-- title and below it the short status of the entry, e.g. of the mail server -->
+    <span v-if="!collapsed" class="flex min-w-0 flex-1 flex-col items-start">
+      <span class="break-words">{{ entry.title }}</span>
+      <UiBadge v-if="entry.badge" :variant="entry.badge.variant" class="mt-0.5">
+        {{ entry.badge.text }}
+      </UiBadge>
+    </span>
   </InertiaLink>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, type PropType } from "vue";
-import { Link as InertiaLink, usePage } from "@inertiajs/vue3";
+import { Link as InertiaLink } from "@inertiajs/vue3";
 
 /**
  * One entry of the menu: a link, or a collapsible group of links (App\Support\Extensions\Navigation::addGroup).
@@ -72,12 +87,8 @@ const props = defineProps({
 
 const emit = defineEmits<{ navigate: [] }>();
 
-const page = usePage();
-
-const isActive = (entry: NavigationEntry) => {
-  const path = page.url.split("?")[0];
-  return path === entry.href || path.startsWith(`${entry.href}/`);
-};
+// the entry with the longest matching address is active
+const { isActive } = useActiveEntry();
 
 // a group starts open while one of its pages is shown
 const open = ref(props.entry.children?.some(isActive) ?? false);

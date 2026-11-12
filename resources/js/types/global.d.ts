@@ -34,6 +34,8 @@ declare global {
     };
     errors: Record<string, string>;
     serverTime: number;
+    // surface of the page (e.g. the kiosk), null on the pc and the phone; see App\Support\Surface
+    surface: Surface | null;
   }
 
   interface NavigationSection {
@@ -48,7 +50,26 @@ declare global {
     href: string | null;
     icon: string;
     mobile: boolean;
+    // short status beside the title (App\Support\Extensions\Navigation::add)
+    badge?: {
+      text: string;
+      variant: "neutral" | "accent" | "success" | "warning" | "danger";
+    } | null;
     children?: NavigationEntry[];
+  }
+
+  interface Surface {
+    name: string;
+    // path prefix, e.g. "/kiosk"
+    base: string;
+    layout: string;
+    platform?: string;
+    // false: no direct printing on this device; null or missing: the browser decides
+    direct_print?: boolean | null;
+    person?: { id: number; firstname: string; lastname: string } | null;
+    // seconds until the surface locks itself
+    expires_in?: number | null;
+    lock_after_task?: boolean;
   }
 
   interface Option {

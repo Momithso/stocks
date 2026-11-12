@@ -121,7 +121,7 @@ export default defineConfig(({ mode }) => {
     define: {
       __PACKAGE_NAME__: JSON.stringify(process.env.npm_package_name),
       __PACKAGE_REPOSITORY_URL__: JSON.stringify(
-        "https://github.com/Momithso/stocks",
+        "https://github.com/fsr5-fhaachen/stocks",
       ),
     },
   };

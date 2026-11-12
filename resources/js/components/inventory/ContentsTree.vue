@@ -24,7 +24,11 @@
           :icon="['fas', 'box']"
           class="text-ink-muted"
         />
-        <UiLink :href="`/inventory/items/${item.id}`">{{ item.name }}</UiLink>
+        <!-- the kiosk has no item pages -->
+        <span v-if="kiosk">{{ item.name }}</span>
+        <UiLink v-else :href="`/inventory/items/${item.id}`">{{
+          item.name
+        }}</UiLink>
         <span class="font-mono text-xs text-ink-muted">{{ item.number }}</span>
         <UiBadge v-if="item.kind === 'bulk'"
           >{{ item.quantity }} {{ item.unit }}</UiBadge
@@ -45,10 +49,14 @@ import { ref, type PropType } from "vue";
 /**
  * Contents of a box as tree; boxes in boxes can be opened.
  */
+// the name lets the component use itself for boxes in boxes; the automatic import does not cover that
+defineOptions({ name: "InventoryContentsTree" });
 defineProps({
   items: { type: Array as PropType<ContentsItem[]>, required: true },
   nested: { type: Boolean, default: false },
 });
+
+const { kiosk } = useSurface();
 
 const open = ref(new Set<number>());
 const toggle = (id: number) => {

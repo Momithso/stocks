@@ -7,6 +7,7 @@ use App\Enums\RetireReason;
 use App\Models\Item;
 use App\Models\ItemMovement;
 use App\Models\User;
+use App\Support\Extensions\ItemExtensions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -17,6 +18,8 @@ use Illuminate\Validation\ValidationException;
  */
 class MergeItem
 {
+    public function __construct(private readonly ItemExtensions $extensions) {}
+
     /**
      * @param  int|null  $quantity  amount to book back, null for everything
      * @return Item the origin
@@ -25,7 +28,7 @@ class MergeItem
      */
     public function handle(User $actor, Item $part, ?int $quantity = null, ?string $note = null): Item
     {
-        $origin = $part->splitFrom;
+        $origin = $part->mergeTarget();
         $message = match (true) {
             $origin === null => "{$part->number} wurde nicht abgeteilt.",
             $part->isRetired() => "{$part->number} ist ausgemustert.",
@@ -34,6 +37,9 @@ class MergeItem
         };
         if ($message !== null) {
             throw ValidationException::withMessages(['item' => $message]);
+        }
+        if ($lock = $this->extensions->lockOf($part)) {
+            throw ValidationException::withMessages(['item' => $lock]);
         }
 
         $quantity ??= $part->quantity;

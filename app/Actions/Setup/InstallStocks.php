@@ -71,11 +71,14 @@ class InstallStocks
         }
 
         foreach (config('stocks.start_roles') as $name => $role) {
+            // modules add their permissions to the start roles in their module.json ("start_roles")
+            $modulePermissions = array_merge(...array_map(fn ($module) => $module->startRoles[$name] ?? [], array_values($this->modules->all())));
+
             Role::create([
                 'name' => ($roleNames[$name] ?? '') !== '' ? $roleNames[$name] : $name,
                 'guard_name' => 'web',
                 'description' => $role['description'],
-            ])->syncPermissions($role['permissions']);
+            ])->syncPermissions([...$role['permissions'], ...$modulePermissions]);
         }
     }
 }

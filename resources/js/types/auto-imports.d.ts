@@ -6,10 +6,14 @@
 // biome-ignore lint: disable
 export {}
 declare global {
+  const deviceKind: typeof import('../composables/usePush')['deviceKind']
+  const useActiveEntry: typeof import('../composables/useActiveEntry')['default']
   const useColorMode: typeof import('../composables/useColorMode')['default']
   const useImageCompression: typeof import('../composables/useImageCompression')['default']
   const useModuleComponent: typeof import('../composables/useModuleComponent')['default']
   const usePermissions: typeof import('../composables/usePermissions')['default']
   const usePolling: typeof import('../composables/usePolling')['default']
+  const usePush: typeof import('../composables/usePush')['default']
   const useScannerInput: typeof import('../composables/useScannerInput')['default']
+  const useSurface: typeof import('../composables/useSurface')['default']
 }

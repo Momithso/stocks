@@ -6,6 +6,7 @@ use App\Models\Item;
 use App\Models\ItemPhoto;
 use App\Models\Location;
 use App\Models\ReservedNumber;
+use App\Support\Extensions\ItemExtensions;
 use App\Support\Inventory\CodeLookup;
 use App\Support\Settings;
 use Illuminate\Http\RedirectResponse;
@@ -28,7 +29,7 @@ class ShortLinkController extends Controller
      */
     private const PHOTO_LINK_MINUTES = 60;
 
-    public function __construct(private readonly CodeLookup $codes, private readonly Settings $settings) {}
+    public function __construct(private readonly CodeLookup $codes, private readonly Settings $settings, private readonly ItemExtensions $extensions) {}
 
     /**
      * Open a scanned code.
@@ -105,6 +106,8 @@ class ShortLinkController extends Controller
                     'photo_url' => $this->photoUrl($found->photos->first()),
                 ],
                 'contents' => $showContents ? $this->contents($found) : [],
+                // sections of modules, e.g. the pack pin of a loan
+                'sections' => $showContents ? $this->extensions->publicBoxSections($found) : [],
             ];
         }
 

@@ -54,7 +54,7 @@ Ort und Stammplatz zeigen jeweils auf einen Standort **oder** eine Box (`locatio
 
 **Mengenartikel.** Wird nur ein Teil umgelagert, teilt Stocks den Gegenstand: Der Teil wird ein neuer Gegenstand mit eigener Nummer, gleichem Namen, gleicher Kategorie, Kopien der Fotos und Verweis auf den Ursprung (`split_from_id`). So kann jeder Teil sein eigenes Etikett tragen. Eine geänderte Menge beim Bearbeiten wird als Zählung protokolliert.
 
-**Zurückbuchen.** Ein abgeteilter Teil lässt sich zu seinem Ursprung zurückbuchen (`MergeItem`), ganz oder teilweise: auf seiner Seite über „Zurückbuchen“ oder auf der Seite „Umlagern“, indem man als Ziel die Nummer des Ursprungs scannt. Die Menge kommt beim Ursprung dazu, beide bekommen eine Bewegung `merge`. Ein ganz zurückgebuchter Teil wird mit Grund „zurückgebucht“ ausgemustert und behält seine Nummer und seinen Verlauf. Recht: `inventory.move`.
+**Zurückbuchen.** Ein abgeteilter Teil lässt sich zu seinem Ursprung zurückbuchen (`MergeItem`), ganz oder teilweise: auf seiner Seite über „Zurückbuchen“ oder auf der Seite „Umlagern“, indem man als Ziel die Nummer des Ursprungs scannt. Die Menge kommt beim Ursprung dazu, beide bekommen eine Bewegung `merge`. Ein ganz zurückgebuchter Teil wird mit Grund „zurückgebucht“ ausgemustert und behält seine Nummer und seinen Verlauf. Ist der Ursprung selbst schon zurückgebucht (ein Teil von einem Teil, z. B. fehlende Stücke eines verliehenen Teils), geht es weiter zu dessen Ursprung (`Item::mergeTarget()`). Recht: `inventory.move`.
 
 **„Ohne Platz“** listet Gegenstände ohne Ort und solche mit Stammplatz, die nicht dort liegen (`Item::misplaced()`).
 
@@ -84,6 +84,10 @@ Jede Änderung des Orts schreibt eine Zeile in `item_movements`:
 | Zurückbuchen eines Teils | `MergeItem` | `merge` bei Teil und Ursprung |
 | Verbraucht | `RetireItem` mit Grund verbraucht und Menge | `consume` mit Menge; der Gegenstand bleibt am Ort |
 | Teilmenge ausmustern | `RetireItem` mit Menge | `retire` mit Menge; der Gegenstand bleibt am Ort |
+| Ausgabe mit einer Buchung (Modul Verleih) | `MoveItem::takeAway` | `issue`, vom Ort nach nirgends, Notiz mit der Buchungsnummer; bei Mengenartikeln vorher `split` |
+| Rücknahme (Modul Verleih) | `ItemMovement::record` | `return`, ohne Ort; eingeräumt wird danach mit `move` oder `merge` |
+
+**Sperren durch Module.** Ein Modul kann einen Gegenstand sperren (`ItemExtensions::lockOf`, siehe [MODULES.md](MODULES.md#gegenstände)). Solange er ausgegeben ist, lehnen `MoveItem`, `RetireItem` und `MergeItem` ab und nennen den Grund; Seite und Scan-Karte zeigen „Umlagern“ und „Ausmustern“ dann nicht.
 
 Wird eine Box bewegt, bekommt nur die Box eine Zeile. Zeilen werden nie geändert; ein falscher Ort wird durch eine neue Bewegung korrigiert. Feldänderungen an Gegenständen, Standorten und Kategorien stehen zusätzlich im Änderungsprotokoll.
 

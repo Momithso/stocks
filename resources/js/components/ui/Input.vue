@@ -19,6 +19,10 @@
         'mt-1 block w-full rounded-md border-0 bg-surface py-2 text-ink shadow-sm ring-1 ring-inset placeholder:text-ink-muted focus:ring-2 focus:ring-inset focus:ring-accent sm:text-sm',
         error ? 'ring-red-500' : 'ring-line',
         type === 'color' ? 'h-10 p-1' : '',
+        // iOS gives date fields a fixed minimum width and centres the value: they stick out of dialogs
+        type.startsWith('date') || type === 'time'
+          ? 'min-h-[2.5rem] min-w-0 appearance-none [&::-webkit-date-and-time-value]:text-left'
+          : '',
       ]"
     />
     <p

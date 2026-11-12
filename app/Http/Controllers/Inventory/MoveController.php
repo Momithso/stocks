@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Actions\Inventory\MergeItem;
 use App\Actions\Inventory\MoveItem;
+use App\Enums\ItemKind;
 use App\Http\Controllers\Controller;
 use App\Models\Item;
+use App\Support\Extensions\ItemExtensions;
 use App\Support\Inventory\CodeLookup;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -31,20 +33,21 @@ class MoveController extends Controller
      * Move an item to the place of a code. Also used by the dialog on the item page. If the code is
      * the item a part was split off from, the part is booked back (MergeItem).
      */
-    public function store(Request $request, CodeLookup $codes, MoveItem $moveItem, MergeItem $mergeItem): RedirectResponse
+    public function store(Request $request, CodeLookup $codes, MoveItem $moveItem, MergeItem $mergeItem, ItemExtensions $extensions): RedirectResponse
     {
         $validated = $request->validate([
             'item_id' => ['required', 'integer'],
             'target_code' => ['required', 'string', 'max:50'],
             'quantity' => ['nullable', 'integer', 'min:1'],
             'note' => ['nullable', 'string', 'max:2000'],
+            'confirmed' => ['boolean'],
         ]);
 
         $item = Item::findOrFail($validated['item_id']);
 
         // scanning the item a part was split off from books the part back
         $found = $codes->find($validated['target_code']);
-        if ($found instanceof Item && $item->split_from_id === $found->id) {
+        if ($found instanceof Item && $item->mergeTarget()?->id === $found->id) {
             $origin = $mergeItem->handle($request->user(), $item, $validated['quantity'] ?? null, $validated['note'] ?? null);
 
             return back()->with('success', "{$item->number} zurück zu {$origin->number} gebucht, dort sind jetzt {$origin->quantity} {$origin->unit}.");
@@ -52,6 +55,11 @@ class MoveController extends Controller
 
         $target = $codes->findPlace($validated['target_code'])
             ?? throw ValidationException::withMessages(['target_code' => "Zu {$validated['target_code']} gibt es keinen Standort und keine Box."]);
+
+        // a part split off leaves the stock the bookings count on: ask first
+        if ($item->kind === ItemKind::Bulk && ($validated['quantity'] ?? $item->quantity) < $item->quantity) {
+            $extensions->ensureConfirmed($item, $request->boolean('confirmed'), 'abteilen');
+        }
 
         $moved = $moveItem->handle($request->user(), $item, $target, $validated['quantity'] ?? null, $validated['note'] ?? null);
 

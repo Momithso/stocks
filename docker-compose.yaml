@@ -1,55 +1,95 @@
 # One Stocks instance. Every value that differs between instances comes from the .env file next
-# to this file, see documentation/SETUP.md.
+# to this file, see documentation/SETUP.md. STOCKS_IMAGE pins another image (the dev server uses
+# the image of the deployed commit, see documentation/DEPLOY.md).
+
+# environment of web, queue and scheduler (top level, so every service can use the anchor)
+x-environment: &environment
+  APP_NAME: Stocks
+  APP_ENV: '${APP_ENV:-production}'
+  APP_KEY: '${APP_KEY}'
+  APP_DEBUG: '${APP_DEBUG:-false}'
+  APP_URL: '${APP_URL}'
+  APP_FORCE_HTTPS: '${APP_FORCE_HTTPS:-true}'
+  APP_LOCALE: de
+  # times of loans are entered and printed in this time zone
+  APP_TIMEZONE: '${APP_TIMEZONE:-Europe/Berlin}'
+  SETUP_TOKEN: '${SETUP_TOKEN}'
+  OCTANE_HTTPS: '${OCTANE_HTTPS:-true}'
+  OCTANE_WORKERS: '${OCTANE_WORKERS:-auto}'
+  OCTANE_MAX_REQUESTS: '${OCTANE_MAX_REQUESTS:-500}'
+  LOG_CHANNEL: stderr
+  LOG_LEVEL: '${LOG_LEVEL:-warning}'
+  DB_CONNECTION: mysql
+  DB_HOST: mariadb
+  DB_PORT: 3306
+  DB_DATABASE: stocks
+  DB_USERNAME: stocks
+  DB_PASSWORD: '${DB_PASSWORD}'
+  CACHE_STORE: redis
+  SESSION_DRIVER: redis
+  # notifications go through the queue (service "queue"), see documentation/NOTIFICATIONS.md
+  QUEUE_CONNECTION: redis
+  REDIS_HOST: redis
+  REDIS_PASSWORD: '${REDIS_PASSWORD}'
+  REDIS_PORT: 6379
+  MAIL_MAILER: '${MAIL_MAILER:-smtp}'
+  MAIL_HOST: '${MAIL_HOST}'
+  MAIL_PORT: '${MAIL_PORT:-587}'
+  MAIL_USERNAME: '${MAIL_USERNAME}'
+  MAIL_PASSWORD: '${MAIL_PASSWORD}'
+  MAIL_FROM_ADDRESS: '${MAIL_FROM_ADDRESS}'
+  MAIL_FROM_NAME: '${MAIL_FROM_NAME:-Stocks}'
+  # web push, created once with "php artisan webpush:vapid"; empty: no push, only mails
+  VAPID_PUBLIC_KEY: '${VAPID_PUBLIC_KEY:-}'
+  VAPID_PRIVATE_KEY: '${VAPID_PRIVATE_KEY:-}'
+  VAPID_SUBJECT: '${VAPID_SUBJECT:-}'
+  # photos of items on S3, by default the MinIO below
+  AWS_ACCESS_KEY_ID: '${AWS_ACCESS_KEY_ID:-minioadmin}'
+  AWS_SECRET_ACCESS_KEY: '${AWS_SECRET_ACCESS_KEY:-minioadmin123}'
+  AWS_DEFAULT_REGION: '${AWS_DEFAULT_REGION:-us-east-1}'
+  AWS_BUCKET: '${AWS_BUCKET:-stocks}'
+  AWS_ENDPOINT: '${AWS_ENDPOINT:-http://minio:9000}'
+  AWS_USE_PATH_STYLE_ENDPOINT: '${AWS_USE_PATH_STYLE_ENDPOINT:-true}'
+
 services:
   web:
-    image: ghcr.io/momithso/stocks:latest
+    image: '${STOCKS_IMAGE:-ghcr.io/fsr5-fhaachen/stocks:latest}'
     restart: unless-stopped
     depends_on:
-      - redis
-      - mariadb
-      - minio
-    environment:
-      APP_NAME: Stocks
-      APP_ENV: '${APP_ENV:-production}'
-      APP_KEY: '${APP_KEY}'
-      APP_DEBUG: '${APP_DEBUG:-false}'
-      APP_URL: '${APP_URL}'
-      APP_FORCE_HTTPS: '${APP_FORCE_HTTPS:-true}'
-      APP_LOCALE: de
-      SETUP_TOKEN: '${SETUP_TOKEN}'
-      OCTANE_HTTPS: '${OCTANE_HTTPS:-true}'
-      OCTANE_WORKERS: '${OCTANE_WORKERS:-auto}'
-      OCTANE_MAX_REQUESTS: '${OCTANE_MAX_REQUESTS:-500}'
-      LOG_CHANNEL: stderr
-      LOG_LEVEL: '${LOG_LEVEL:-warning}'
-      DB_CONNECTION: mysql
-      DB_HOST: mariadb
-      DB_PORT: 3306
-      DB_DATABASE: stocks
-      DB_USERNAME: stocks
-      DB_PASSWORD: '${DB_PASSWORD}'
-      CACHE_STORE: redis
-      SESSION_DRIVER: redis
-      QUEUE_CONNECTION: sync
-      REDIS_HOST: redis
-      REDIS_PASSWORD: '${REDIS_PASSWORD}'
-      REDIS_PORT: 6379
-      MAIL_MAILER: '${MAIL_MAILER:-smtp}'
-      MAIL_HOST: '${MAIL_HOST}'
-      MAIL_PORT: '${MAIL_PORT:-587}'
-      MAIL_USERNAME: '${MAIL_USERNAME}'
-      MAIL_PASSWORD: '${MAIL_PASSWORD}'
-      MAIL_FROM_ADDRESS: '${MAIL_FROM_ADDRESS}'
-      MAIL_FROM_NAME: '${MAIL_FROM_NAME:-Stocks}'
-      # photos of items on S3, by default the MinIO below
-      AWS_ACCESS_KEY_ID: '${AWS_ACCESS_KEY_ID:-minioadmin}'
-      AWS_SECRET_ACCESS_KEY: '${AWS_SECRET_ACCESS_KEY:-minioadmin123}'
-      AWS_DEFAULT_REGION: '${AWS_DEFAULT_REGION:-us-east-1}'
-      AWS_BUCKET: '${AWS_BUCKET:-stocks}'
-      AWS_ENDPOINT: '${AWS_ENDPOINT:-http://minio:9000}'
-      AWS_USE_PATH_STYLE_ENDPOINT: '${AWS_USE_PATH_STYLE_ENDPOINT:-true}'
+      redis:
+        condition: service_started
+      # migrations run on start, so the database has to accept connections first
+      mariadb:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    environment: *environment
     ports:
       - '${WEB_PORT:-8000}:8000'
+    networks:
+      - stocks
+  # sends the queued notifications (mails, push); same image and environment as "web"
+  queue:
+    image: '${STOCKS_IMAGE:-ghcr.io/fsr5-fhaachen/stocks:latest}'
+    restart: unless-stopped
+    depends_on:
+      - web
+    environment: *environment
+    command: php artisan queue:work --tries=3 --max-time=3600
+    healthcheck:
+      disable: true
+    networks:
+      - stocks
+  # runs the time plan: reminders of loans every 15 minutes, cleaning up once a day
+  scheduler:
+    image: '${STOCKS_IMAGE:-ghcr.io/fsr5-fhaachen/stocks:latest}'
+    restart: unless-stopped
+    depends_on:
+      - web
+    environment: *environment
+    command: php artisan schedule:work
+    healthcheck:
+      disable: true
     networks:
       - stocks
   redis:
@@ -68,6 +108,13 @@ services:
       MARIADB_RANDOM_ROOT_PASSWORD: 'yes'
       MARIADB_USER: stocks
       MARIADB_PASSWORD: '${DB_PASSWORD}'
+    # healthy once InnoDB is ready and connections are accepted (script ships with the image)
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
     volumes:
       - mariadb:/var/lib/mysql/
     networks:

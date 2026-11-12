@@ -22,8 +22,10 @@ use App\Models\ItemPhoto;
 use App\Models\ItemUnit;
 use App\Models\Location;
 use App\Models\ReservedNumber;
+use App\Support\Extensions\ItemExtensions;
 use App\Support\Inventory\CodeLookup;
 use App\Support\Labels\ShortLink;
+use App\Support\Surface;
 use App\Support\Table\ItemsTable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -38,7 +40,7 @@ use Inertia\Response;
  */
 class ItemController extends Controller
 {
-    public function __construct(private readonly CodeLookup $codes) {}
+    public function __construct(private readonly CodeLookup $codes, private readonly ItemExtensions $extensions) {}
 
     /**
      * Display all items.
@@ -100,7 +102,7 @@ class ItemController extends Controller
     /**
      * Display an item with its place, contents, photos and history.
      */
-    public function show(Item $item): Response
+    public function show(Request $request, Item $item): Response
     {
         $item->load(['category.parent', 'condition', 'location', 'container', 'homeLocation', 'homeContainer', 'splitFrom', 'photos']);
 
@@ -118,13 +120,16 @@ class ItemController extends Controller
                 'home' => Item::placeSummary($item->home()),
                 'location' => Item::placeSummary($item->container ? $item->effectiveLocation() : null),
                 'away_from_home' => $item->isAwayFromHome(),
-                'split_from' => Item::placeSummary($item->splitFrom),
-                'can_merge' => $item->splitFrom !== null && ! $item->splitFrom->isRetired() && ! $item->isRetired(),
+                'split_from' => Item::placeSummary($item->mergeTarget()),
+                'can_merge' => ($target = $item->mergeTarget()) !== null && ! $target->isRetired() && ! $item->isRetired(),
                 'retired_at' => $item->retired_at?->toIso8601String(),
                 'retired_reason' => $item->retired_reason?->label(),
                 'photos' => $item->photos->map(fn (ItemPhoto $photo) => ['id' => $photo->id, 'url' => $photo->url()]),
                 'contents' => $item->is_container ? $this->contentsTree($item) : [],
             ],
+            // notices and tabs of modules, e.g. "ausgegeben an … bis …" and the tab "Verleih"
+            'notices' => $this->extensions->notices(collect([$item]), $request->user())[$item->id] ?? [],
+            'tabs' => $this->extensions->tabsFor($request->user()),
             'history' => fn () => $this->history($item),
             'conditions' => ItemCondition::options(),
             // "verbraucht" has its own action for consumables
@@ -164,9 +169,15 @@ class ItemController extends Controller
             'reason' => ['required', 'string', 'max:2000'],
             'photos' => ['array', 'max:'.ItemPhoto::MAX_PER_ITEM],
             'photos.*' => ItemPhotoController::fileRules(),
+            'confirmed' => ['boolean'],
         ]);
+        $condition = ItemCondition::findOrFail($validated['condition_id']);
+        // a defect condition takes the item from its bookings: ask first
+        if ($condition->is_defect && ! $item->condition->is_defect) {
+            $this->extensions->ensureConfirmed($item, $request->boolean('confirmed'), 'als defekt markieren');
+        }
 
-        $changeCondition->handle($request->user(), $item, ItemCondition::findOrFail($validated['condition_id']), $validated['reason'], $request->file('photos', []));
+        $changeCondition->handle($request->user(), $item, $condition, $validated['reason'], $request->file('photos', []));
 
         return back()->with('success', 'Der Zustand wurde geändert.');
     }
@@ -195,8 +206,10 @@ class ItemController extends Controller
             'reason' => ['required', Rule::enum(RetireReason::class)],
             'note' => ['nullable', 'string', 'max:2000'],
             'quantity' => ['nullable', 'integer', 'min:1'],
+            'confirmed' => ['boolean'],
         ]);
         $reason = RetireReason::from($validated['reason']);
+        $this->extensions->ensureConfirmed($item, $request->boolean('confirmed'), 'ausbuchen');
 
         $retireItem->handle($request->user(), $item, $reason, $validated['note'] ?? null, $validated['quantity'] ?? null);
 
@@ -218,6 +231,7 @@ class ItemController extends Controller
         if ($item->kind !== ItemKind::Bulk || ! ItemUnit::isConsumable($item->unit)) {
             throw ValidationException::withMessages(['quantity' => "{$item->number} ist kein Verbrauchsmaterial."]);
         }
+        $this->extensions->ensureConfirmed($item, $request->boolean('confirmed'), 'als verbraucht ausbuchen');
 
         $retireItem->handle($request->user(), $item, RetireReason::Consumed, $validated['note'] ?? null, $validated['quantity']);
 
@@ -266,12 +280,13 @@ class ItemController extends Controller
                 'condition_id' => $found->condition_id,
                 'condition' => $found->condition->name,
                 'condition_is_defect' => $found->condition->is_defect,
-                'photo_url' => ($photo = $found->photos->first()) ? route('inventory.photos.show', $photo, absolute: false) : null,
+                'photo_url' => ($photo = $found->photos->first()) ? Surface::route('inventory.photos.show', $photo) : null,
                 'contents_count' => $found->is_container ? $found->contents()->active()->count() : 0,
                 'consumable' => $found->kind === ItemKind::Bulk && ItemUnit::isConsumable($found->unit),
-                'can_merge' => $found->splitFrom !== null && ! $found->splitFrom->isRetired() && ! $found->isRetired(),
-                'split_from' => Item::placeSummary($found->splitFrom),
-                'href' => route('inventory.items.show', $found, absolute: false),
+                'can_merge' => ($target = $found->mergeTarget()) !== null && ! $target->isRetired() && ! $found->isRetired(),
+                'split_from' => Item::placeSummary($found->mergeTarget()),
+                'href' => Surface::link('inventory.items.show', $found),
+                'notices' => $this->extensions->notices(collect([$found]), $request->user())[$found->id] ?? [],
             ]);
         }
 
@@ -282,7 +297,7 @@ class ItemController extends Controller
                 'type' => 'location',
                 'location_type' => $found->type->value,
                 'items_count' => $found->items()->active()->count(),
-                'href' => route('inventory.locations.show', $found, absolute: false),
+                'href' => Surface::link('inventory.locations.show', $found),
             ]);
         }
 
@@ -292,7 +307,7 @@ class ItemController extends Controller
                 'type' => 'reserved',
                 'number' => $reserved->number,
                 'message' => "{$reserved->number} ist für ein Etikett auf Vorrat reserviert, es gibt noch keinen Gegenstand dazu.",
-                'href' => route('inventory.items.create', ['number' => $reserved->number], absolute: false),
+                'href' => Surface::link('inventory.items.create', ['number' => $reserved->number]),
             ]);
         }
 

@@ -3,10 +3,9 @@ import "../css/app.css";
 import { createInertiaApp } from "@inertiajs/vue3";
 import { library } from "@fortawesome/fontawesome-svg-core";
 import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
-import AppLayout from "./layouts/AppLayout.vue";
 import AuthLayout from "./layouts/AuthLayout.vue";
-import KioskLayout from "./layouts/KioskLayout.vue";
 import PublicLayout from "./layouts/PublicLayout.vue";
+import SurfaceLayout from "./layouts/SurfaceLayout.vue";
 import coreIcons from "./icons";
 
 // icons of the core and of all modules (modules/<Module>/resources/js/icons.ts)
@@ -44,19 +43,18 @@ const resolvePage = (name: string) => {
 
 /**
  * Default layout by the name of the page. A page can set its own layout with defineOptions.
+ * Everything else gets the layout of its surface (SurfaceLayout): the app on the pc and the
+ * phone, the kiosk layout on the kiosk.
  */
 const layoutOf = (name: string) => {
   if (name.startsWith("Auth/") || name === "Setup") {
     return AuthLayout;
   }
-  if (name.startsWith("Kiosk/") || name.includes("::Kiosk")) {
-    return KioskLayout;
-  }
   // scanned labels without login
   if (name.startsWith("Public/")) {
     return PublicLayout;
   }
-  return AppLayout;
+  return SurfaceLayout;
 };
 
 createInertiaApp({

@@ -5,9 +5,11 @@ namespace App\Support\Table;
 use App\Models\Category;
 use App\Models\Item;
 use App\Models\ItemCondition;
+use App\Support\Extensions\ItemExtensions;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 /**
  * Items of the inventory. Filters: category (with its sub categories), condition, retired, without
@@ -18,9 +20,24 @@ class ItemsTable extends Table
     /**
      * @param  bool  $onlyMisplaced  only items without place or away from their home (page "Ohne Platz")
      */
+    /**
+     * Notices of modules for the items of the current page, by item id.
+     *
+     * @var array<int, list<array<string, mixed>>>
+     */
+    private array $notices = [];
+
     public function __construct(Request $request, private readonly bool $onlyMisplaced = false)
     {
         parent::__construct($request);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    protected function prepareRows(Collection $models): void
+    {
+        $this->notices = app(ItemExtensions::class)->notices($models, $this->request->user());
     }
 
     /**
@@ -81,6 +98,11 @@ class ItemsTable extends Table
             'retired' => $model->isRetired(),
             'photo_url' => $model->photos->first()?->url(),
             'label_printed_at' => $model->label_printed_at?->toIso8601String(),
+            // short notices of modules, e.g. "ausgegeben bis 12.11."
+            'badges' => array_values(array_filter(array_map(
+                fn (array $notice) => $notice['badge'] ? ['text' => $notice['badge'], 'variant' => $notice['variant']] : null,
+                $this->notices[$model->id] ?? [],
+            ))),
         ];
     }
 

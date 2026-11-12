@@ -169,6 +169,21 @@ class Item extends Model implements Auditable, AuditSubject
     }
 
     /**
+     * Where a part goes back to: the item it was split from, or, when that went back itself (e.g.
+     * a lent part that was stowed), the one that went back to. Null when there is none.
+     */
+    public function mergeTarget(): ?Item
+    {
+        $origin = $this->splitFrom;
+        // the limit only protects against broken data
+        for ($depth = 0; $origin !== null && $origin->retired_reason === RetireReason::Merged && $depth < 20; $depth++) {
+            $origin = $origin->splitFrom;
+        }
+
+        return $origin;
+    }
+
+    /**
      * Photos of the gallery, the first one is the preview.
      *
      * @return HasMany<ItemPhoto, $this>

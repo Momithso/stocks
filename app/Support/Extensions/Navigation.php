@@ -4,6 +4,7 @@ namespace App\Support\Extensions;
 
 use App\Models\User;
 use App\Support\Modules\ModuleRegistry;
+use Closure;
 
 /**
  * Extension point for menu entries.
@@ -28,7 +29,7 @@ class Navigation
     ];
 
     /**
-     * @var list<array{section: string, title: string, route: string, icon: string, permission: string|null, module: string|null, mobile: bool, order: int, group: string|null}>
+     * @var list<array{section: string, title: string, route: string, icon: string, permission: string|null, module: string|null, mobile: bool, order: int, group: string|null, badge: Closure|null}>
      */
     private array $entries = [];
 
@@ -40,7 +41,7 @@ class Navigation
     private array $groups = [];
 
     /**
-     * @var list<array{title: string, route: string, icon: string, permission: string|null, module: string|null, order: int}>
+     * @var list<array{title: string, route: string, icon: string, permission: string|null, module: string|null, order: int, parameters: array<string, mixed>, description: string|null, section: string, badge: Closure|null}>
      */
     private array $kioskTiles = [];
 
@@ -57,6 +58,7 @@ class Navigation
      * @param  bool  $mobile  show the entry in the bar at the bottom of phones (at most four entries fit)
      * @param  int  $order  position within the section (or the group), lower first
      * @param  string|null  $group  key of a group (addGroup) the entry is shown in
+     * @param  Closure(): (array{text: string, variant: string}|null)|null  $badge  short status beside the title, e.g. "getrennt"; must be quick (no network)
      */
     public function add(
         string $section,
@@ -68,8 +70,9 @@ class Navigation
         bool $mobile = false,
         int $order = 100,
         ?string $group = null,
+        ?Closure $badge = null,
     ): void {
-        $this->entries[] = compact('section', 'title', 'route', 'icon', 'permission', 'module', 'mobile', 'order', 'group');
+        $this->entries[] = compact('section', 'title', 'route', 'icon', 'permission', 'module', 'mobile', 'order', 'group', 'badge');
     }
 
     /**
@@ -83,11 +86,27 @@ class Navigation
     }
 
     /**
-     * Add a tile to the kiosk home page. The route must be a kiosk route (middleware "kiosk").
+     * Add a tile to the kiosk home page. The route must be a kiosk route (see
+     * App\Support\Extensions\SurfaceRoutes); the parameters are passed to it. Tiles are grouped
+     * by section ("Verleih", "Lager"); the description says in one line what happens, the badge
+     * how much there is to do (e.g. "3 heute"), like the badge of the menu.
+     *
+     * @param  array<string, mixed>  $parameters
+     * @param  Closure(): (array{text: string, variant: string}|null)|null  $badge
      */
-    public function addKioskTile(string $title, string $route, string $icon, ?string $permission = null, ?string $module = null, int $order = 100): void
-    {
-        $this->kioskTiles[] = compact('title', 'route', 'icon', 'permission', 'module', 'order');
+    public function addKioskTile(
+        string $title,
+        string $route,
+        string $icon,
+        ?string $permission = null,
+        ?string $module = null,
+        int $order = 100,
+        array $parameters = [],
+        ?string $description = null,
+        string $section = 'Lager',
+        ?Closure $badge = null,
+    ): void {
+        $this->kioskTiles[] = compact('title', 'route', 'icon', 'permission', 'module', 'order', 'parameters', 'description', 'section', 'badge');
     }
 
     /**
@@ -106,6 +125,7 @@ class Navigation
                 'href' => route($entry['route'], absolute: false),
                 'icon' => $entry['icon'],
                 'mobile' => $entry['mobile'],
+                'badge' => $entry['badge'] ? ($entry['badge'])() : null,
             ];
             if ($entry['group'] !== null && isset($this->groups[$entry['group']])) {
                 $children[$entry['group']][] = $item;
@@ -141,12 +161,19 @@ class Navigation
     /**
      * Get the kiosk tiles of a user that unlocked the kiosk.
      *
-     * @return list<array{title: string, href: string, icon: string}>
+     * @return list<array{title: string, href: string, icon: string, description: string|null, section: string, badge: array{text: string, variant: string}|null}>
      */
     public function kioskTilesForUser(User $user): array
     {
         return array_map(
-            fn (array $tile) => ['title' => $tile['title'], 'href' => route($tile['route'], absolute: false), 'icon' => $tile['icon']],
+            fn (array $tile) => [
+                'title' => $tile['title'],
+                'href' => route($tile['route'], $tile['parameters'], absolute: false),
+                'icon' => $tile['icon'],
+                'description' => $tile['description'],
+                'section' => $tile['section'],
+                'badge' => $tile['badge'] ? ($tile['badge'])() : null,
+            ],
             $this->visible($this->kioskTiles, $user),
         );
     }

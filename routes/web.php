@@ -1,7 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AuditLogController;
-use App\Http\Controllers\Admin\KioskDeviceController;
+use App\Http\Controllers\Admin\MailSettingsController;
 use App\Http\Controllers\Admin\ModuleController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\SettingsController;
@@ -21,7 +21,7 @@ use App\Http\Controllers\Inventory\LocationController;
 use App\Http\Controllers\Inventory\MoveController;
 use App\Http\Controllers\Inventory\ScanController;
 use App\Http\Controllers\Inventory\UnitController;
-use App\Http\Controllers\KioskController;
+use App\Http\Controllers\Labels\DemoSheetController;
 use App\Http\Controllers\Labels\PrintController;
 use App\Http\Controllers\Labels\PrinterController;
 use App\Http\Controllers\Labels\PrinterModelController;
@@ -50,7 +50,8 @@ Route::get('/setup', [SetupController::class, 'show'])->name('setup.show');
 Route::get('/branding/{kind}', [BrandingController::class, 'show'])->whereIn('kind', ['logo', 'favicon', 'print_logo'])->name('branding.show');
 Route::post('/setup', [SetupController::class, 'store'])->middleware('throttle:10,1')->name('setup.store');
 
-// web app: manifest and icons from the logo, also for guests (added to the home screen before login)
+// web app: manifest and icons from the logo, also for guests (added to the home screen before login);
+// the service worker for push lies in public/sw.js
 Route::get('/manifest.webmanifest', [WebAppController::class, 'manifest'])->name('web-app.manifest');
 Route::get('/web-app/icon-{size}.png', [WebAppController::class, 'icon'])->whereNumber('size')->name('web-app.icon');
 
@@ -80,6 +81,11 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    // notifications and push of the own account (documentation/NOTIFICATIONS.md)
+    Route::put('/profile/notifications', [ProfileController::class, 'notifications'])->name('profile.notifications');
+    Route::post('/profile/push', [ProfileController::class, 'subscribe'])->middleware('throttle:10,60')->name('profile.push');
+    Route::delete('/profile/push', [ProfileController::class, 'unsubscribe'])->name('profile.push.destroy');
+    Route::post('/profile/notify-test', [ProfileController::class, 'test'])->middleware('throttle:10,1')->name('profile.notify-test');
 
     Route::get('/styleguide', fn () => Inertia::render('Styleguide'))->middleware('can:settings.manage')->name('styleguide');
 
@@ -163,6 +169,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/reserved', [ReservedNumberController::class, 'index'])->name('reserved.index');
             Route::post('/reserved', [ReservedNumberController::class, 'store'])->name('reserved.store');
             Route::post('/reserved/release', [ReservedNumberController::class, 'release'])->name('reserved.release');
+            // test label sheet of the demo data (documentation/DEMO.md)
+            Route::get('/demo-sheet.pdf', [DemoSheetController::class, 'show'])->name('demo-sheet');
         });
 
         Route::middleware('can:labels.manage')->group(function () {
@@ -208,37 +216,13 @@ Route::middleware('auth')->group(function () {
             Route::get('/settings', [SettingsController::class, 'edit'])->name('settings.edit');
             Route::put('/settings', [SettingsController::class, 'update'])->name('settings.update');
             Route::post('/settings/branding', [BrandingController::class, 'update'])->name('settings.branding');
-        });
-
-        Route::middleware('can:kiosk.devices.manage')->group(function () {
-            Route::get('/kiosk-devices', [KioskDeviceController::class, 'index'])->name('kiosk-devices.index');
-            Route::post('/kiosk-devices', [KioskDeviceController::class, 'store'])->name('kiosk-devices.store');
-            Route::post('/kiosk-devices/{device}/regenerate-token', [KioskDeviceController::class, 'regenerateToken'])->name('kiosk-devices.regenerate-token');
-            Route::delete('/kiosk-devices/{device}', [KioskDeviceController::class, 'destroy'])->name('kiosk-devices.destroy');
+            Route::get('/mail', [MailSettingsController::class, 'edit'])->name('mail.edit');
+            Route::put('/mail', [MailSettingsController::class, 'update'])->name('mail.update');
+            Route::post('/mail/check', [MailSettingsController::class, 'check'])->name('mail.check');
+            Route::post('/mail/test', [MailSettingsController::class, 'test'])->middleware('throttle:10,1')->name('mail.test');
+            Route::post('/mail/retry', [MailSettingsController::class, 'retry'])->name('mail.retry');
         });
 
         Route::get('/audit-log', [AuditLogController::class, 'index'])->middleware('can:audit.view')->name('audit-log');
-    });
-});
-
-/*
-|--------------------------------------------------------------------------
-| Kiosk
-|--------------------------------------------------------------------------
-|
-| Only for paired tablets (cookie). The kiosk session is separate from the
-| normal login, see App\Support\Kiosk\KioskSession.
-|
-*/
-
-Route::get('/kiosk/pair/{device}', [KioskController::class, 'pair'])->middleware('throttle:10,1')->name('kiosk.pair');
-
-Route::prefix('kiosk')->name('kiosk.')->middleware('kiosk.device')->group(function () {
-    Route::get('/', [KioskController::class, 'lock'])->name('lock');
-    Route::post('/unlock', [KioskController::class, 'unlock'])->name('unlock');
-    Route::post('/logout', [KioskController::class, 'logout'])->name('logout');
-
-    Route::middleware('kiosk')->group(function () {
-        Route::get('/home', [KioskController::class, 'home'])->name('home');
     });
 });

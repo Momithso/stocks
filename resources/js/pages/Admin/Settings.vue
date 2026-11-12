@@ -82,6 +82,13 @@
           hint="Für den Briefkopf der Inhaltsliste einer Box, eine Zeile je Adresszeile."
           :error="form.errors['organization.address']"
         />
+        <UiInput
+          v-model="form.organization.phone"
+          label="Telefon"
+          type="tel"
+          hint="Zentrale Nummer, z. B. auf der Verleihseite."
+          :error="form.errors['organization.phone']"
+        />
       </div>
     </UiCard>
 
@@ -104,25 +111,6 @@
           label="Kontaktadresse"
           type="email"
           :error="form.errors['legal.contact_email']"
-        />
-      </div>
-    </UiCard>
-
-    <UiCard
-      title="E-Mail"
-      description="Zugangsdaten zum Mailserver stehen in den Umgebungsvariablen."
-    >
-      <div class="grid gap-5 sm:grid-cols-2">
-        <UiInput
-          v-model="form.mail.from_name"
-          label="Absendername"
-          :error="form.errors['mail.from_name']"
-        />
-        <UiInput
-          v-model="form.mail.from_address"
-          label="Absenderadresse"
-          type="email"
-          :error="form.errors['mail.from_address']"
         />
       </div>
     </UiCard>
@@ -243,15 +231,12 @@ const form = useForm({
     short_name: value("organization.short_name"),
     accent_color: value("organization.accent_color"),
     address: value("organization.address"),
+    phone: value("organization.phone"),
   },
   legal: {
     imprint_url: value("legal.imprint_url"),
     privacy_url: value("legal.privacy_url"),
     contact_email: value("legal.contact_email"),
-  },
-  mail: {
-    from_name: value("mail.from_name"),
-    from_address: value("mail.from_address"),
   },
   inventory: {
     number_prefix: value("inventory.number_prefix"),
@@ -281,7 +266,6 @@ const submit = () =>
     .transform((data) => ({
       ...data,
       legal: nullIfEmpty(data.legal),
-      mail: nullIfEmpty(data.mail),
       inventory: {
         number_prefix: data.inventory.number_prefix.toUpperCase() || null,
       },

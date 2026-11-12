@@ -7,28 +7,39 @@ use App\Models\Invitation;
 use App\Models\Item;
 use App\Models\ItemCondition;
 use App\Models\ItemUnit;
-use App\Models\KioskDevice;
 use App\Models\LabelTemplate;
 use App\Models\Location;
 use App\Models\Module;
 use App\Models\Printer;
 use App\Models\PrinterModel;
+use App\Models\PushSubscription;
 use App\Models\Role;
 use App\Models\Setting;
 use App\Models\User;
+use App\Notifications\StocksNotification;
 use App\Support\Audit\AuditSubjects;
+use App\Support\Demo\InventoryDemo;
 use App\Support\Extensions\DashboardTiles;
+use App\Support\Extensions\DemoData;
+use App\Support\Extensions\ItemExtensions;
 use App\Support\Extensions\Navigation;
+use App\Support\Extensions\SurfaceRoutes;
+use App\Support\MailSettings;
 use App\Support\Modules\ModuleRegistry;
+use App\Support\Notifications\NotificationEvents;
 use App\Support\Settings;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Mail\Events\MessageSending;
+use Illuminate\Notifications\Events\NotificationSending;
+use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use NotificationChannels\WebPush\Events\NotificationSent as PushSent;
 use Symfony\Component\Mime\Address;
 
 class AppServiceProvider extends ServiceProvider
@@ -44,8 +55,12 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(ModuleRegistry::class, fn () => new ModuleRegistry(base_path('modules')));
         $this->app->singleton(Navigation::class);
         $this->app->singleton(DashboardTiles::class);
+        $this->app->singleton(DemoData::class);
+        $this->app->singleton(ItemExtensions::class);
+        $this->app->singleton(SurfaceRoutes::class);
         $this->app->singleton(AuditSubjects::class);
         $this->app->singleton(Settings::class);
+        $this->app->singleton(NotificationEvents::class);
 
         foreach ($this->app->make(ModuleRegistry::class)->all() as $module) {
             $this->app->register($module->provider);
@@ -60,7 +75,7 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Bootstrap any application services.
      */
-    public function boot(Navigation $navigation, DashboardTiles $dashboardTiles, AuditSubjects $auditSubjects): void
+    public function boot(Navigation $navigation, DashboardTiles $dashboardTiles, AuditSubjects $auditSubjects, DemoData $demoData): void
     {
         if (config('app.force_https')) {
             URL::forceScheme('https');
@@ -70,7 +85,7 @@ class AppServiceProvider extends ServiceProvider
         // the check against leaked passwords asks an external service and is off by default
         Password::defaults(fn () => Password::min(12)->when(config('stocks.check_leaked_passwords'), fn (Password $rule) => $rule->uncompromised()));
 
-        foreach ([User::class, Role::class, Invitation::class, Module::class, Setting::class, KioskDevice::class, Location::class, Category::class, Item::class, ItemCondition::class, ItemUnit::class, LabelTemplate::class, Printer::class, PrinterModel::class] as $class) {
+        foreach ([User::class, Role::class, Invitation::class, Module::class, Setting::class, Location::class, Category::class, Item::class, ItemCondition::class, ItemUnit::class, LabelTemplate::class, Printer::class, PrinterModel::class] as $class) {
             $auditSubjects->register($class);
         }
 
@@ -82,6 +97,23 @@ class AppServiceProvider extends ServiceProvider
             }
         });
 
+        // queued mails use the mail server of the settings too
+        Queue::before(fn () => app(MailSettings::class)->apply());
+
+        // notifications of Stocks may keep a log (e.g. the messages of a loan), and a device that
+        // received a push was used (documentation/NOTIFICATIONS.md)
+        Event::listen(NotificationSending::class, fn () => NotificationEvents::isMuted() ? false : null);
+        Event::listen(NotificationSent::class, function (NotificationSent $event) {
+            if ($event->notification instanceof StocksNotification) {
+                $event->notification->sent($event->notifiable, $event->channel, $event->response);
+            }
+        });
+        Event::listen(PushSent::class, function (PushSent $event) {
+            if ($event->subscription instanceof PushSubscription) {
+                $event->subscription->forceFill(['last_used_at' => now()])->saveQuietly();
+            }
+        });
+
         // short links of labels: guests can not try out the inventory quickly (see ShortLinkController)
         RateLimiter::for('short-links', fn (Request $request) => $request->user()
             ? Limit::perMinute(120)->by('user:'.$request->user()->id)
@@ -89,6 +121,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->registerNavigation($navigation);
         $dashboardTiles->add('inventory/DashboardTile', 'inventory.view', order: 10);
+        $demoData->add(InventoryDemo::class, order: 10);
     }
 
     /**
@@ -112,6 +145,16 @@ class AppServiceProvider extends ServiceProvider
         // things that are set up once and rarely changed, collapsed so the menu stays short
         $navigation->addGroup('admin', 'settings', 'Einstellungen', 'gear', order: 40);
         $navigation->add('admin', 'Allgemein', 'admin.settings.edit', 'sliders', 'settings.manage', order: 10, group: 'settings');
+        // the last connection test of the mail server, never a new one (the menu must not wait)
+        $navigation->add('admin', 'Benachrichtigungen', 'admin.mail.edit', 'envelope', 'settings.manage', order: 15, group: 'settings', badge: function () {
+            $ok = app(MailSettings::class)->lastStatus()['ok'] ?? null;
+
+            return match ($ok) {
+                true => ['text' => 'verbunden', 'variant' => 'success'],
+                false => ['text' => 'getrennt', 'variant' => 'danger'],
+                default => null,
+            };
+        });
         $navigation->add('admin', 'Kategorien', 'inventory.categories.index', 'tags', 'locations.manage', order: 20, group: 'settings');
         $navigation->add('admin', 'Zustände', 'inventory.conditions.index', 'clipboard-check', 'inventory.options.manage', order: 30, group: 'settings');
         $navigation->add('admin', 'Einheiten', 'inventory.units.index', 'ruler', 'inventory.options.manage', order: 40, group: 'settings');
@@ -119,7 +162,6 @@ class AppServiceProvider extends ServiceProvider
         $navigation->add('admin', 'Etiketten auf Vorrat', 'labels.reserved.index', 'layer-group', 'labels.print', order: 46, group: 'settings');
         $navigation->add('admin', 'Drucker', 'labels.printers.index', 'print', 'labels.manage', order: 47, group: 'settings');
         $navigation->add('admin', 'Module', 'admin.modules.index', 'puzzle-piece', 'modules.manage', order: 50, group: 'settings');
-        $navigation->add('admin', 'Kiosk-Geräte', 'admin.kiosk-devices.index', 'tablet-screen-button', 'kiosk.devices.manage', order: 60, group: 'settings');
         $navigation->add('admin', 'Styleguide', 'styleguide', 'palette', 'settings.manage', order: 70, group: 'settings');
     }
 }

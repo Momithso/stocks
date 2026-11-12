@@ -8,6 +8,7 @@ use App\Models\Item;
 use App\Models\ItemMovement;
 use App\Models\Location;
 use App\Models\User;
+use App\Support\Extensions\ItemExtensions;
 use App\Support\Inventory\ItemNumbers;
 use App\Support\Inventory\Placement;
 use Illuminate\Support\Facades\DB;
@@ -21,7 +22,7 @@ use Illuminate\Validation\ValidationException;
  */
 class MoveItem
 {
-    public function __construct(private readonly ItemNumbers $numbers) {}
+    public function __construct(private readonly ItemNumbers $numbers, private readonly ItemExtensions $extensions) {}
 
     /**
      * @param  int|null  $quantity  part of a bulk item to move, null for everything
@@ -33,6 +34,9 @@ class MoveItem
     {
         if ($item->isRetired()) {
             throw ValidationException::withMessages(['item' => "{$item->number} ist ausgemustert."]);
+        }
+        if ($lock = $this->extensions->lockOf($item)) {
+            throw ValidationException::withMessages(['item' => $lock]);
         }
         Placement::check($item, $target, 'target');
         if ($item->place()?->is($target)) {
@@ -60,9 +64,47 @@ class MoveItem
     }
 
     /**
-     * Split a part off a bulk item and put it at the target.
+     * Take an item away from its place without a new place, e.g. when a module lends it out. Of a
+     * bulk item a part can be taken: it is split off like when moving. The movement log gets a row
+     * of the given type. Locks are not checked, the caller owns the reason for taking it away.
+     *
+     * @param  int|null  $quantity  part of a bulk item, null for everything
+     * @return Item the item that left: the item itself or the new part
+     *
+     * @throws ValidationException
      */
-    private function split(User $actor, Item $item, Location|Item|null $from, Location|Item $target, int $quantity, ?string $note): Item
+    public function takeAway(User $actor, Item $item, MovementType $type, ?int $quantity = null, ?string $note = null): Item
+    {
+        if ($item->isRetired()) {
+            throw ValidationException::withMessages(['item' => "{$item->number} ist ausgemustert."]);
+        }
+        $quantity ??= $item->quantity;
+        if ($quantity < 1 || $quantity > $item->quantity) {
+            throw ValidationException::withMessages(['quantity' => "Die Menge muss zwischen 1 und {$item->quantity} liegen."]);
+        }
+
+        return DB::transaction(function () use ($actor, $item, $type, $quantity, $note) {
+            $from = $item->place();
+
+            if ($item->kind === ItemKind::Bulk && $quantity < $item->quantity) {
+                $part = $this->split($actor, $item, $from, null, $quantity, $note);
+                ItemMovement::record($part, $type, $from, null, $actor, $quantity, $note);
+
+                return $part;
+            }
+
+            $item->setPlace(null);
+            $item->save();
+            ItemMovement::record($item, $type, $from, null, $actor, note: $note);
+
+            return $item;
+        });
+    }
+
+    /**
+     * Split a part off a bulk item and put it at the target (or nowhere, see takeAway()).
+     */
+    private function split(User $actor, Item $item, Location|Item|null $from, Location|Item|null $target, int $quantity, ?string $note): Item
     {
         $part = $item->replicate(['number', 'location_id', 'container_id', 'home_location_id', 'home_container_id']);
         $part->number = $this->numbers->next();

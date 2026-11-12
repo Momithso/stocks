@@ -114,6 +114,14 @@
         <UiBadge v-if="row.away_from_home" variant="warning" class="ml-2">
           nicht am Stammplatz
         </UiBadge>
+        <UiBadge
+          v-for="badge in row.badges"
+          :key="badge.text"
+          :variant="badge.variant === 'info' ? 'accent' : badge.variant"
+          class="ml-2"
+        >
+          {{ badge.text }}
+        </UiBadge>
       </template>
       <template #cell-condition="{ row }">
         <UiBadge :variant="row.condition_is_defect ? 'danger' : 'neutral'">

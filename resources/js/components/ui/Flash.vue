@@ -9,7 +9,7 @@
     <UiAlert v-if="label && can('labels.print')" type="info">
       {{ label.number }} hat eine neue Nummer.
       <InertiaLink
-        :href="`/labels/print?items=${label.id}`"
+        :href="url(`/labels/print?items=${label.id}`)"
         class="ml-1 font-bold underline"
       >
         Etikett drucken
@@ -28,6 +28,7 @@ import { Link as InertiaLink, usePage } from "@inertiajs/vue3";
  */
 const page = usePage<SharedProps>();
 const { can } = usePermissions();
+const { url } = useSurface();
 
 const label = computed(() => page.props.flash?.label ?? null);
 

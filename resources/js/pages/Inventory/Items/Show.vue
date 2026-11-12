@@ -1,7 +1,7 @@
 <template>
   <UiPageHeader :title="item.name" :description="item.number">
     <UiButton
-      v-if="can('inventory.move') && !item.retired_at"
+      v-if="can('inventory.move') && !item.retired_at && !isLocked"
       icon="right-left"
       @click="moveOpen = true"
     >
@@ -40,7 +40,7 @@
       Bearbeiten
     </UiButton>
     <UiButton
-      v-if="can('inventory.retire') && !item.retired_at"
+      v-if="can('inventory.retire') && !item.retired_at && !isLocked"
       variant="ghost"
       icon="box-archive"
       @click="retireOpen = true"
@@ -68,6 +68,22 @@
       }}).
       <template v-if="item.retired_note">{{ item.retired_note }}</template>
     </UiAlert>
+    <!-- notices of modules, e.g. "ausgegeben an … bis …" -->
+    <template v-for="(notice, index) in notices" :key="index">
+      <UiAlert
+        v-if="notice.text"
+        :type="notice.variant === 'danger' ? 'error' : notice.variant"
+      >
+        {{ notice.text }}
+        <InertiaLink
+          v-if="notice.href"
+          :href="notice.href"
+          class="ml-1 font-bold underline"
+        >
+          Öffnen
+        </InertiaLink>
+      </UiAlert>
+    </template>
     <UiAlert v-if="item.away_from_home" type="warning">
       Liegt nicht an seinem Stammplatz
       <InventoryPlaceLink :place="item.home" />.
@@ -106,8 +122,8 @@
     </UiAlert>
   </div>
 
-  <div class="mt-6 grid gap-6 lg:grid-cols-3">
-    <div class="space-y-6 lg:col-span-2">
+  <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+    <div class="min-w-0 space-y-6 lg:col-span-2">
       <UiCard title="Daten">
         <dl class="grid gap-4 sm:grid-cols-2">
           <div>
@@ -201,7 +217,36 @@
         </div>
       </UiCard>
 
-      <UiCard title="Verlauf" flush>
+      <!-- tabs of modules beside the history, e.g. "Verleih" -->
+      <div
+        v-if="tabs.length"
+        class="flex gap-2 border-b border-line"
+        role="tablist"
+      >
+        <button
+          v-for="tab in [{ title: 'Verlauf', component: '' }, ...tabs]"
+          :key="tab.title"
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === tab.component"
+          :class="[
+            '-mb-px border-b-2 px-3 py-2 text-sm font-medium',
+            activeTab === tab.component
+              ? 'border-accent text-accent'
+              : 'border-transparent text-ink-muted hover:text-ink',
+          ]"
+          @click="activeTab = tab.component"
+        >
+          {{ tab.title }}
+        </button>
+      </div>
+      <component
+        :is="activeTabComponent"
+        v-if="activeTabComponent"
+        :item="item"
+      />
+
+      <UiCard v-else title="Verlauf" flush>
         <!-- fixed height, the history scrolls in itself instead of making the page longer and longer -->
         <ul
           v-if="history.length"
@@ -369,7 +414,7 @@
 
   <!-- move -->
   <UiModal v-if="moveOpen" title="Umlagern" @close="moveOpen = false">
-    <form class="space-y-5" @submit.prevent="move">
+    <form class="space-y-5" @submit.prevent="move()">
       <InventoryPlaceInput
         v-model="moveForm.target_code"
         label="Ziel"
@@ -389,6 +434,11 @@
         v-model="moveForm.note"
         label="Notiz"
         :error="moveForm.errors.note"
+      />
+      <InventoryReservedConfirm
+        :message="moveForm.errors.confirm"
+        :processing="moveForm.processing"
+        @confirm="move(true)"
       />
       <UiButton type="submit" class="w-full" :disabled="moveForm.processing">
         Umlagern
@@ -433,7 +483,7 @@
 
   <!-- retire -->
   <UiModal v-if="retireOpen" title="Ausmustern" @close="retireOpen = false">
-    <form class="space-y-5" @submit.prevent="retire">
+    <form class="space-y-5" @submit.prevent="retire()">
       <UiInput
         v-if="item.kind === 'bulk'"
         v-model="retireForm.quantity"
@@ -460,6 +510,11 @@
         v-model="retireForm.note"
         label="Notiz"
         :error="retireForm.errors.note"
+      />
+      <InventoryReservedConfirm
+        :message="retireForm.errors.confirm"
+        :processing="retireForm.processing"
+        @confirm="retire(true)"
       />
       <UiButton
         type="submit"
@@ -577,6 +632,10 @@ type Props = {
     photos: Photo[];
     delete_url: string;
   }[];
+  // notices of modules (App\Support\Extensions\ItemExtensions)
+  notices: ItemNotice[];
+  // tabs of modules, components "<Module>::<Component>" with the prop "item"
+  tabs: { title: string; component: string }[];
   conditions: Option[];
   retireReasons: Option[];
   // bulk item whose unit is marked as consumable
@@ -589,6 +648,15 @@ const props = defineProps<Props>();
 const page = usePage<SharedProps>();
 const { can } = usePermissions();
 const { compressImages } = useImageCompression();
+
+// a module locks the item, e.g. while it is lent out
+const isLocked = computed(() => props.notices.some((notice) => notice.lock));
+
+// tabs of modules; "" is the history
+const activeTab = ref("");
+const activeTabComponent = computed(() =>
+  activeTab.value ? useModuleComponent(activeTab.value) : null,
+);
 
 // errors of actions without own form field, e.g. "In der Box liegen noch Gegenstände."
 const errorMessages = computed(() =>
@@ -606,10 +674,11 @@ const moveForm = useForm({
   quantity: props.item.quantity as number | null,
   note: "",
 });
-const move = () =>
+// confirmed: asked before and answered "Ja, trotzdem" (the item is booked)
+const move = (confirmed = false) =>
   // the id is taken when sending, the page can show another item by now
   moveForm
-    .transform((data) => ({ ...data, item_id: props.item.id }))
+    .transform((data) => ({ ...data, item_id: props.item.id, confirmed }))
     .post("/inventory/move", {
       preserveScroll: true,
       onSuccess: () => {
@@ -688,15 +757,17 @@ const isPartialRetire = computed(
     props.item.kind === "bulk" &&
     Number(retireForm.quantity) < props.item.quantity,
 );
-const retire = () =>
-  retireForm.post(`/inventory/items/${props.item.id}/retire`, {
-    preserveScroll: true,
-    onSuccess: () => {
-      retireOpen.value = false;
-      retireForm.note = "";
-      retireForm.quantity = props.item.quantity;
-    },
-  });
+const retire = (confirmed = false) =>
+  retireForm
+    .transform((data) => ({ ...data, confirmed }))
+    .post(`/inventory/items/${props.item.id}/retire`, {
+      preserveScroll: true,
+      onSuccess: () => {
+        retireOpen.value = false;
+        retireForm.note = "";
+        retireForm.quantity = props.item.quantity;
+      },
+    });
 
 // delete a wrong entry of the history
 const deletingEntry = ref<Props["history"][number] | null>(null);

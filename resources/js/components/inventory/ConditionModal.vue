@@ -1,6 +1,6 @@
 <template>
   <UiModal title="Zustand ändern" @close="$emit('close')">
-    <form class="space-y-5" @submit.prevent="submit">
+    <form class="space-y-5" @submit.prevent="submit()">
       <UiSelect
         v-model="form.condition_id"
         label="Neuer Zustand"
@@ -18,6 +18,11 @@
         v-model="form.photos"
         label="Fotos (empfohlen)"
         :error="photoError"
+      />
+      <InventoryReservedConfirm
+        :message="form.errors.confirm"
+        :processing="form.processing"
+        @confirm="submit(true)"
       />
       <UiButton type="submit" class="w-full" :disabled="form.processing"
         >Speichern</UiButton
@@ -39,6 +44,7 @@ const props = defineProps<{
   conditions: Option[];
 }>();
 const emit = defineEmits<{ close: []; done: [] }>();
+const { url } = useSurface();
 
 const form = useForm({
   // preselect another condition than the current one
@@ -54,11 +60,14 @@ const photoError = computed(
       key.startsWith("photos"),
     )?.[1] ?? null,
 );
-const submit = () =>
-  form.post(`/inventory/items/${props.item.id}/condition`, {
-    preserveScroll: true,
-    preserveState: true,
-    forceFormData: true,
-    onSuccess: () => emit("done"),
-  });
+// confirmed: asked before and answered "Ja, trotzdem" (the item is booked)
+const submit = (confirmed = false) =>
+  form
+    .transform((data) => ({ ...data, confirmed }))
+    .post(url(`/inventory/items/${props.item.id}/condition`), {
+      preserveScroll: true,
+      preserveState: true,
+      forceFormData: true,
+      onSuccess: () => emit("done"),
+    });
 </script>

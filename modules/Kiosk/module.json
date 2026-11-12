@@ -1,0 +1,16 @@
+{
+  "key": "kiosk",
+  "name": "Kiosk",
+  "description": "Tablets als Kiosk: entsperren mit PIN, Ausgabe, Rückgabe, Scannen, Umlagern und Etikettendruck am Tablet.",
+  "version": "0.1.0",
+  "provider": "Modules\\Kiosk\\KioskServiceProvider",
+  "requires": [],
+  "permissions": {
+    "kiosk.use": "Sich am Kiosk mit PIN anmelden",
+    "kiosk.devices.manage": "Kiosk-Geräte koppeln, sperren und einstellen"
+  },
+  "start_roles": {
+    "Vorstand": ["kiosk.use"],
+    "FSR-Mitglied": ["kiosk.use"]
+  }
+}

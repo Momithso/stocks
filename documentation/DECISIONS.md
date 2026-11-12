@@ -2,6 +2,148 @@
 
 Warum Stocks so gebaut ist, wie es gebaut ist. Neue Einträge oben; jeder Eintrag mit Datum, Entscheidung, Grund und verworfener Alternative.
 
+## 2026-11-12 · Dev-Instanz über GitLab CI/CD
+
+**GitLab spiegelt GitHub, der Runner läuft auf dem Dev-Server** (Entscheidung von Maurice). Jeder Push auf `dev` baut ein Image je Commit ins GitLab-Registry und startet es mit Docker Compose in `/opt/stocks-dev` ([DEPLOY.md](DEPLOY.md)). Grund: Der Server ist nur über NetBird erreichbar. Der Runner verbindet sich ausgehend, die Pipeline braucht deshalb keinen SSH-Zugang. Verworfen: SSH-Deploy von einem Shared Runner, nur Deploy des GitHub-Images (`ghcr.io/…:dev`).
+
+**`STOCKS_IMAGE` in `docker-compose.yaml`**, Vorgabe bleibt `ghcr.io/fsr5-fhaachen/stocks:latest`. Die Pipeline setzt das Image des Commits; Zurückrollen heißt, einen alten Deploy neu zu starten.
+
+## 2026-11-12 · E-Mails an Mitglieder nur nach Einschalten
+
+**Mitglieder schalten E-Mails selbst ein** (Wunsch von Maurice: sonst wird man zugespamt). Die Nachrichten des Verleihs an Mitglieder (Chat, Verlängerung angefragt, Überfällig) sind per Mail vorab aus; Push bleibt vorab an, weil er ohnehin nur auf selbst eingeschaltete Geräte kommt. Entleiher bekommen weiter alles vorab. Hat keiner der Beteiligten Mail oder Push, bekommt niemand die Nachricht (Menü-Zähler und Dashboard zeigen sie); die Kontaktadresse springt wie bisher nur ein, wenn es gar keine Beteiligten gibt. Verworfen: Kontaktadresse als Rückfall, auch Push vorab aus.
+
+## 2026-11-12 · Review von Phase 5
+
+**Erinnerungen hängen am Termin.** Das Protokoll merkt sich, um welche Abholung bzw. Rückgabe es ging (`loan_notifications.due_at`). Grund: Nach einer Verlängerung kam sonst keine Rückgabe-Erinnerung und keine Überfällig-Stufe mehr. Verworfen: Protokoll bei jeder Verlängerung leeren (es soll vollständig bleiben).
+
+**Limits der Verleihseite je Adresse und Buchung.** Viele Entleiher teilen sich eine Adresse (Hochschul-WLAN); 60 Abfragen je Minute und Adresse reichten dann für etwa fünf offene Seiten. Gegen das Durchprobieren von Links gibt es zusätzlich 600 je Adresse.
+
+**Zurückgekommene Teilmengen bucht die Ausgabe selbst zurück** (Entscheidung von Maurice). Sie zählen schon vor dem Einräumen als frei; fehlt dem Ursprung Menge, holt die Ausgabe sie wie beim Einräumen zurück. Verworfen: erst nach dem Einräumen frei, oder nur ein Hinweis bei der Ausgabe.
+
+**Offene Verlängerungsanfragen erledigen sich** bei Rückgabe oder Storno (Status `done`, Chat-Eintrag, keine Mail; Entscheidung von Maurice). Verworfen: automatisch ablehnen mit Mail, stehen lassen.
+
+**Mängel auf der Verleihseite erst nach dem Buchen**, mit Notiz wie auf dem Rückgabebeleg (Entscheidung von Maurice). Während der Rückgabe kann sich eine Markierung noch ändern.
+
+**QR-Code der Verleihseite bleibt auf allen PDFs** (Entscheidung von Maurice). Wer eine Papierkopie weitergibt, gibt den Zugang mit; dagegen hilft „Neuer Link“ auf der Buchung.
+
+## 2026-11-12 · Rückmeldungen zu Phase 5
+
+**Hintergrund-Abfragen werden nicht zur „vorigen Seite“.** Json-GETs (Live-Update, Chat, Nachschlagen) gelten als Ajax (Middleware `KeepPreviousPage` vor der Session), sonst landete `back()` nach einem Formular auf dem Json („All Inertia requests must receive a valid Inertia response“). Verleihseite und Buchung leiten nach ihren Aktionen zusätzlich fest auf ihre Seite.
+
+**Teil einer Box zurücklassen.** Ein wieder offener Inhalt einer abgehakten Box bleibt hier, statt die Ausgabe zu blockieren; er kommt aus der Box und steht danach am Platz der Box (Entscheidung von Maurice, Variante A; verworfen: „Ohne Platz“). Das gilt auch für etwas, das nach dem Abhaken in die Box gelegt wurde; der Hinweis „bleibt hier“ steht vor dem Unterschreiben an der Zeile. Verworfen: wie bisher die Ausgabe ablehnen.
+
+**Frühe Abholung prüft nur, was mitgeht.** Der Rest und nicht Abgehaktes zählen nicht; der Schritt Material nennt die Kollision schon an der Zeile.
+
+**Teilrückgabe gibt frei.** Ein zurückgegebenes Teil einer Box, die noch draußen ist, und zurückgegebene, noch nicht eingeräumte Teile eines Mengenartikels zählen wieder als frei.
+
+**Seeden verschickt nichts.** Was direkt danach fällig wäre, steht als „Demo, nicht verschickt“ im Protokoll; die Warteschlange wird geleert. Spätere Ereignisse verschicken normal (Entscheidung von Maurice; verworfen: mit Demo-Daten nie an Kontakte).
+
+**Badge im Menü unter dem Titel**, damit längere Titel wie „Benachrichtigungen“ ihn nicht verdecken.
+
+## 2026-11-12 · Phase 5 (Verleihseite und Nachrichten)
+
+**Schlüssel der Verleihseite berechnet statt als Hash gespeichert.** HMAC-SHA-256 aus `APP_KEY`, Buchung und einer Versionsnummer, 32 Byte. Grund: Mit nur einem Hash in der Datenbank könnte Stocks den Link nicht erneut in Mails und auf PDFs schreiben. Neu ausstellen erhöht die Version. Folge: Ein neuer `APP_KEY` macht alle Links ungültig. Verworfen: Hash in der Datenbank (Gesamtplan).
+
+**Link gilt während der ganzen Leihe, danach 30 Tage** (`loans.page_days_after_close`, Entscheidung von Maurice). Gezählt ab Abschluss, Storno oder dem Abschluss der Mängel.
+
+**Dokumente ohne E-Mail-Code, Kontaktdaten sichtbar.** Wer den Link hat, lädt die PDFs und sieht Telefon, E-Mail und Anschrift beider Seiten, für den FSR die zentrale Nummer (`organization.phone`) und die beteiligten Mitglieder mit Namen (Entscheidungen von Maurice). Gegenmittel sind Sperren und Neu ausstellen.
+
+**Drei Reiter Chat, Übersicht, Material, Aussehen wie Stocks** (Rückmeldungen zum Entwurf): Komponenten des Kerns, Pack-PIN in einer Zeile mit Auge und Stift, Dokumente wie auf der Buchung, Chat wie ein Messenger, der auf den Bildschirm passt.
+
+**Empfänger im FSR sind die Beteiligten.** Wer angelegt, ausgegeben oder im Chat geantwortet hat, mit aktivem Konto und `loans.manage`, nach eigener Einstellung. Abgeschaltet heißt abgeschaltet; `legal.contact_email` nur, wenn es keine aktiven Beteiligten gibt (Entscheidung von Maurice). Verworfen: alle mit `loans.manage`.
+
+**Einstellungen je Ereignis und Kanal.** Mitglieder im Profil, Entleiher auf der Verleihseite (an der Buchung, gilt für alle mit dem Link). Bestätigung, Ausgabe, Rückgabebeleg und Überfällig kommen immer per Mail.
+
+**Push über die Web-App, für Mitglieder und Entleiher.** Paket `laravel-notification-channels/webpush`, Service Worker nur für Push, VAPID-Schlüssel nur aus der `.env`. Die Verleihseite hat ein eigenes Manifest je Buchung, damit sie am iPhone als eigene App auf den Home-Bildschirm kommt. Push-Endpunkte nur von bekannten Diensten. Der Test auf echten Geräten steht noch aus (siehe unten).
+
+**Helfer im Kern statt im Verleih.** `NotificationEvents` (Erweiterungspunkt), `StocksNotification` (Basisklasse), Protokoll über `sent()`; dazu `stocks:notify-test` und ein Knopf im Profil (Entscheidung von Maurice: beides). Grund: Anfrage-Website und SMS nutzen ihn später.
+
+**Erinnerungen per Protokoll entdoppelt.** `loans:remind` läuft alle 15 Minuten und schickt, was in `loan_notifications` fehlt. Vor jeder Erinnerung steht eine Zeile „ausgelöst“, auch wenn niemand sie bekommt (alles abgeschaltet, keine Adresse); sonst käme sie alle 15 Minuten neu.
+
+**Chat-Nachrichten gebündelt** (eine Benachrichtigung je 15 Minuten und Seite, solange nichts gelesen wurde), über einen Cache-Schlüssel, den das Lesen löscht.
+
+**Abholort als Einstellung** (`loans.pickup_place`, leer: Anschrift der Organisation), **Zusatztexte je Nachricht** statt frei gestalteter Mails. Offen bei Maurice: Abholort und Wortlaut prüfen, SMS (Frage 6 des Gesamtplans, frühestens Phase 7).
+
+**Kein Webpush ohne Paketquelle in der Entwicklungsumgebung:** Packagist war aus der Cloud nicht erreichbar; `composer.lock` wurde aus den Quellen auf GitHub mit denselben Adressen wie bei Packagist erzeugt (9 neue Pakete, keine bestehenden geändert). `php-http/discovery` bringt ein Composer-Plugin mit, das in `allow-plugins` abgeschaltet ist; es wird nicht gebraucht.
+
+**Ergebnis des Push-Tests auf echten Geräten:** offen. Maurice prüft auf stocks-dev iPhone (vom Home-Bildschirm), Android und PC (Profil › „Push auf diesem Gerät einschalten“, „Testbenachrichtigung senden“). Ergebnis hier eintragen.
+
+## 2026-11-12 · Review von Phase 3 und 4
+
+**Doppelt gesendete Vorgänge laufen einmal.** Ausgabe, Rückgabe, Prüfung, Mängel abschließen, Einräumen und „Wieder da“ sperren ihre Zeile in der Transaktion und prüfen den Stand dort neu. Was erst prüft und dann reserviert, läuft nacheinander über eine Cache-Sperre (`Availability::exclusively()`), weil zwei Entwürfe für denselben Gegenstand keine gemeinsame Zeile haben. Grund: Doppeltipp am Tablet und wiederholte Anfragen ergaben zwei Verträge und doppelte Bewegungen. Verworfen: nur den Knopf in der Oberfläche sperren.
+
+**Nach der Ausgabe stehen Art, Personen und Zeitraum fest.** Änderbar bleiben Anlass, Notiz, Veranstaltung (Entscheidung von Maurice). Grund: Der Vertrag nennt die Person; eine nachträgliche Umstellung auf Eigenbedarf hätte die Rückgabe ohne Unterschrift erlaubt.
+
+**Unterschriebene Dokumente nur mit Ausgeben oder Verwalten.** Vertrag, Listen, Belege und Unterschriftsbilder sehen `loans.issue` und `loans.manage` (Entscheidung von Maurice). Grund: Sie enthalten Anschrift und Telefon, die `loans.view` schon auf der Seite nicht sieht.
+
+**Gebuchtes Material: Rückfrage statt Sperre.** Ausmustern, Verbrauchen, Abteilen und ein Schadenszustand fragen nach, wenn eine bestätigte Buchung oder ein Rest damit rechnet, und gehen nach „Ja, trotzdem“ durch (Entscheidung von Maurice). Die Rückfrage sitzt in den Controllern, nicht in den Actions, damit der Verleih seine eigenen Buchungen ohne Rückfrage bearbeitet. Verworfen: Sperre wie bei ausgegebenem Material, nur Anzeige.
+
+**Rest und nicht abgeholte Buchung geben nach dem Rückgabetermin frei.** Ein nie ausgegebener Rest und eine nie abgeholte bestätigte Buchung reservieren nach `return_at` nichts mehr; der Rest lässt sich dann nur streichen, die Buchung stornieren, beides oder ein neuer Zeitraum (Entscheidung von Maurice). „Nicht abgeholt“ ist kein neuer Status, sondern ergibt sich aus Status und Termin, wie „überfällig“. Überfällig ist eine Buchung nur, solange etwas draußen ist. Verworfen: automatisch streichen oder stornieren, weiter reservieren.
+
+**Pack-PIN: Wartezeit statt Sperre.** Fünf falsche PINs lassen das Feld der Box 15 Minuten warten, je Box und Adresse; die PIN muss niemand neu setzen (Entscheidung von Maurice). Grund: Die Dauersperre konnte jeder ohne Konto auslösen.
+
+**Kiosk: Koppeln meldet ab, Link bleibt wiederverwendbar.** Koppeln beendet eine normale Anmeldung im Browser des Tablets (Entscheidung von Maurice). Kein Abmelden beim Sperren und kein Einmal-Link: Am PC mit Kiosk im selben Browser soll die eigene Anmeldung bleiben, und ein Gerät neu zu koppeln bleibt einfach.
+
+**Prüfsumme bleibt, wie sie ist.** Sie liegt neben dem Inhalt und zeigt nur versehentliche Änderungen, keine absichtliche mit Datenbankzugriff. Für einen Verein reicht das; eine Signatur mit Schlüssel außerhalb der Datenbank wäre der nächste Schritt.
+
+## 2026-11-14 · Rückmeldungen zu Phase 4
+
+**Teilausgabe statt Pflicht zum vollständigen Abhaken.** Was bei der Ausgabe nicht abgehakt ist, bleibt als Rest; weniger Stück eines Mengenartikels teilen die Position. Der Rest wird später nachausgegeben (eigene Materialliste „Nachtrag“ mit Unterschriften, der Leihvertrag gilt weiter) oder gestrichen. Eine Teilausgabe ist kein Mangel. Grund: Oft wird in Etappen abgeholt oder etwas fehlt kurzfristig (Wunsch von Maurice). Jede Zeile weiß, wann und mit welcher Materialliste sie ging (`loan_items.issued_at`, `issue_document_id`). Verworfen: Rest verfällt automatisch, oder eine zweite Buchung für den Rest.
+
+**Mängel schon bei der Ausgabe.** Beschädigt, verschmutzt oder unvollständig wird an der Zeile vermerkt (mit Notiz und Fotos; beschädigt ändert den Zustand) und auf Wunsch zurückgehalten. Der Mangel steht auf der Materialliste und bei der Rückgabe, damit niemand für einen vorhandenen Mangel geradesteht. „Unvollständig“ gibt es seitdem auch bei der Rückgabe. Die Folgen eines Mangels für den Gegenstand liegen in einer Action (`RecordDefect`) für Ausgabe und Rückgabe.
+
+**Ausgabe und Rückgabe in Schritten, überall.** Ein Strahl oben zeigt die Schritte (Ausgabe: Material, Person, Dokumente, Unterschriften; Rückgabe: Material, Übersicht, Unterschriften); Unterschriften gibt es erst, wenn das Material abgehakt ist. Grund: klare Reihenfolge, niemand unterschreibt für Material, das noch nicht gezählt ist. Gilt für PC, Handy und Kiosk, weil es dieselben Seiten sind. Verworfen: alles auf einer Seite (bisher) und Schritte nur am Kiosk (zwei Abläufe).
+
+**Kiosk-Startseite nach Aufgaben.** Nach üblichen Selbstbedienungs-Terminals: eine Frage („Was möchtest du tun?“), eine Kachel je Aufgabe mit einem Satz und der Zahl, wie viel zu tun ist, gruppiert nach Bereich; „Zurück“ und „Startseite“ immer in der Kopfzeile. Verworfen: Kacheln nur mit Titel.
+
+## 2026-11-14 · Phase 4
+
+**Der Kiosk ist ein Modul.** Gerätekopplung, Sperrbildschirm, Kiosk-Sitzung und Geräteverwaltung liegen in `modules/Kiosk` und lassen sich ausschalten. Im Kern bleiben die PIN der Konten (Spalte, Regel, Zurücksetzen) und die Oberfläche als Begriff. Grund: Viele Fachschaften brauchen kein Tablet; der Gesamtplan zählt den Kiosk zu den Modulen. Verworfen: Kiosk weiter im Kern (Phase 0).
+
+**Eine Oberfläche statt eigener Kiosk-Seiten.** Der Kiosk nutzt dieselben Controller, Actions und Seiten wie PC und Handy, unter `/kiosk` und mit eigenem Layout. Welche Routen es dort gibt, steht je Modul in `routes/kiosk.php` (Liste des Erlaubten); Rechte gelten wie am PC. Seiten bauen ihre Adressen mit `url()` aus `useSurface()`, ein Test sucht feste Adressen. Grund: Jeder Vorgang hat so genau eine Umsetzung; eigene Kiosk-Seiten wären bei jeder Änderung nachzuziehen und liefen auseinander. Verworfen: eigene Kiosk-Controller und -Seiten je Vorgang (Phase 0, Beispielmodul), und alle Routen automatisch auf den Kiosk spiegeln (dann wären Einstellungen und Löschen am Tablet erreichbar).
+
+**Die Person am Kiosk ist für die Anfrage angemeldet.** Die Middleware `kiosk` setzt die entsperrende Person mit `Auth::setUser()` nur für diese Anfrage und vergisst sie danach; in der Sitzung steht weiter nur die Kiosk-Sitzung. So sehen Controller, `can:`, Actions und Änderungsprotokoll `$request->user()` wie am PC, und die PIN öffnet trotzdem nicht das übrige Stocks. Unter Octane setzt `FlushAuthenticationState` die Wächter ohnehin je Anfrage zurück. Verworfen: das Request-Attribut `kioskUser` in jedem Controller abfragen.
+
+**Nach einem Vorgang zur Startseite.** Ausgabe, Rückgabe und Prüfung enden über `Surface::finish()` auf `/kiosk/done`; dort geht der Kiosk zur Startseite oder sperrt (Einstellung `kiosk.lock_after_task`). Vorgabe seit den Rückmeldungen zu Phase 4: Startseite, weil oft mehrere Vorgänge hintereinander kommen (Wunsch von Maurice); vor fremder Nutzung schützt die Sperrzeit ohne Bedienung. Zuerst war sperren die Vorgabe. Die Sperrzeit ohne Bedienung ist einstellbar (30 bis 3600 Sekunden) und steht als Restzeit in der Kopfzeile.
+
+**Plattform je Gerät statt Browsererkennung.** Ein Gerät ist Android-Tablet, iPad, PC oder anderes Gerät. Danach richten sich Direktdruck (iPad: nur Bild für die Niimbot-App) und der Hinweis zum Vollbild. Grund: Geräte stehen fest an ihrem Platz, die Angabe ist zuverlässiger als die Kennung des Browsers. „Anderes Gerät“ lässt den Browser entscheiden.
+
+## 2026-11-11 · Rückmeldungen zu Phase 3
+
+**Mailserver in den Einstellungen statt in der `.env`.** Wer Stocks betreibt, soll den Mailserver ohne Zugang zum Server ändern können. Das Passwort liegt mit `APP_KEY` verschlüsselt in `settings`, die Umgebung bleibt als Rückfall. Der Status im Menü kommt aus dem Cache (5 Minuten), damit keine Seite auf den Mailserver wartet. Verworfen: nur `.env` (Wunsch von Maurice), Status bei jedem Seitenaufruf prüfen (zu langsam).
+
+**Vermisst statt sofort verloren.** Was bei der Rückgabe fehlt, bleibt im Bestand, aber ohne Ort und gesperrt für Buchungen, bis es wieder auftaucht („Wieder da“) oder beim Abschließen der Mängel als verloren ausgemustert wird. Grund: Meist taucht etwas ein paar Tage später auf; eine abgeschlossene Buchung soll aber keinen Bestand im Nirgendwo zurücklassen. Verworfen: sofort ausmustern (dann ist ein Fund ein neuer Gegenstand) und „Mängel abschließen“ als reine Notiz (Bestand bleibt falsch).
+
+**Eine Box hakt ihren Inhalt mit ab.** Bei Ausgabe und Rückgabe hakt eine abgehakte Box ihren Inhalt ab, der letzte Inhalt die Box; „Alles vollständig“ und `complete-box` entfallen. Ausnahmen: eine ungeprüft zurückgekommene Box und die spätere Prüfung, dort zählt jede Zeile einzeln.
+
+## 2026-11-11 · Phase 3
+
+**Inhalt einer Box als Zeilen statt als JSON.** Bei der Ausgabe wird der Inhalt jeder Box zu eigenen Zeilen in `loan_items` mit `parent_id`. So lässt sich jeder Gegenstand der Box bei Ausgabe, Rückgabe und Prüfung einzeln abhaken, mit Mangel vermerken und sperren, mit denselben Spalten wie eine Position. Verworfen: `loan_items.contents` als JSON (stand im Detailplan).
+
+**PDFs entstehen beim Herunterladen aus dem eingefrorenen Inhalt.** Gespeichert werden je Dokument der Inhalt (`snapshot`) und seine SHA-256-Prüfsumme; das PDF rendert dompdf daraus bei jedem Download. Grund: Das PDF zeigt so immer genau das Unterschriebene, es gibt keine zweite Kopie, die abweichen kann, und Ausgabe und Rückgabe hängen nicht an S3. Verworfen: PDFs bei der Ausgabe auf S3 ablegen (Detailplan). Nur das Foto eines auf Papier unterschriebenen Blatts liegt auf S3.
+
+**Unterschriften als Bild in der Datenbank.** Ein PNG der Unterschrift hat wenige Kilobyte und liegt als Data-URI in `loan_signatures.image`. Verworfen: `image_path` auf S3 (Detailplan), aus demselben Grund wie oben.
+
+**„Verschmutzt“ als Verlaufseintrag ohne neuen Zustand.** Fotos hängen nach dem Detailplan an einer Zustandsänderung. Für „verschmutzt“ schreibt die Rückgabe einen Eintrag mit gleichem altem und neuem Zustand, damit Notiz und Fotos im Verlauf des Gegenstands stehen. Verworfen: eigene Tabelle für Fotos von Mängeln.
+
+**Ausgabe über `MoveItem::takeAway()`.** Der Kern bekommt eine Methode, die einen Gegenstand ohne neuen Ort wegnimmt und bei Mengen abteilt, mit der Bewegungsart des Aufrufers (`issue`). Grund: Teilen bleibt an einer Stelle. Verworfen: eigene Mengenlogik im Modul.
+
+**„Noch nicht eingeräumt“ wird abgeleitet.** Eine zurückgebuchte Position ohne `stowed_at`, deren Gegenstand keinen Ort hat (oder deren abgeteilter Teil noch besteht), wartet aufs Einräumen. Wer den Gegenstand auf anderem Weg an einen Ort bringt, hat ihn damit eingeräumt. Verworfen: ein Listener im Kern, der `stowed_at` setzt.
+
+**Zeitzone `Europe/Berlin` als Vorgabe.** Abholung und Rückgabe werden als Ortszeit eingegeben und gedruckt; `config/app.php` liest `APP_TIMEZONE` (Vorgabe `Europe/Berlin`). Vorher galt UTC aus dem Framework. Noch keine Instanz läuft im Betrieb, gespeicherte Zeiten müssen nicht umgerechnet werden.
+
+**Start-Rechte von Modulen in der `module.json`.** `start_roles` gibt den Startrollen bei der Einrichtung Rechte des Moduls. Grund: Ein Modul bleibt in seinem Ordner, `config/stocks.php` kennt keine Modulrechte. Verworfen: die Rechte des Verleihs in `config/stocks.php`.
+
+**Ids in Routen des Moduls nur als Zahlen.** `Route::patterns` für `loan`, `position`, `row` usw., damit `/loans/settings` nicht als Buchung „settings“ gelesen wird.
+
+**Basisklasse der Modultests per `autoload-dev`.** Der Ordner heißt wie beim Beispielmodul `tests`; nach `"Modules\\": "modules/"` müsste der Namensraum `Modules\Loans\Tests` aber im Ordner `Tests` liegen, was unter Linux nicht passt. Ein Eintrag in `composer.json` macht `LoansTestCase` ladbar. Verworfen: `require_once` in jedem Test.
+
+**Demo-Daten mit verstellter Uhr.** Der Generator lässt jede Buchung zu ihrer Zeit durch die Actions laufen (`Carbon::setTestNow`), damit Dokumente und Verlauf echte Daten tragen. Mengenartikel teilen sich mehrere Buchungen; reicht die Menge nicht, bleibt eine Buchung als Entwurf mit Kollision stehen (ein Pflichtfall ohnehin). Der Generator leert vorher den Cache, weil nach `migrate:fresh` Einstellungen und Rechte im Cache veraltet sind.
+
+**Pack-PIN nach richtiger Eingabe in der Sitzung.** Die öffentliche Seite merkt sich die PIN je Box in der Sitzung des Browsers, um Buchung und Kontrollen zu zeigen und die Kontrolle zu speichern. Fehlversuche werden ohne Transaktion gezählt, sonst rollt die Ablehnung den Zähler zurück.
+
+**Kontakte im Formular per JSON anlegen.** Der Dialog „Neu“ im Kontaktfeld schickt JSON an `/loans/contacts` und wählt den neuen Kontakt sofort, ohne die Seite neu zu laden. Sonst nutzt das Modul Inertia-Besuche.
+
 ## 2026-11-11 · Phase 2
 
 **Etiketten im Kern.** Wie im Gesamtplan („Kern inklusive Etiketten und Scan“). Verworfen: eigenes Modul.
@@ -30,7 +172,7 @@ Warum Stocks so gebaut ist, wie es gebaut ist. Neue Einträge oben; jeder Eintra
 
 **Kein Check-Constraint für „Standort oder Box“.** Die Actions setzen Ort und Stammplatz nur über `Item::setPlace()`/`setHome()`, die immer einen der beiden Werte leeren. Grund: Laravel legt Check-Constraints nicht an, und SQLite (Tests) kann sie nachträglich nicht hinzufügen. Verworfen: rohes SQL je Datenbank.
 
-**Kategorien direkt im Controller.** Wie bei Kiosk-Geräten: Anlegen, Ändern, Löschen mit je einer Regel, keine Actions.
+**Kategorien direkt im Controller.** Wie bei Kiosk-Geräten (seit Phase 4 im Modul Kiosk): Anlegen, Ändern, Löschen mit je einer Regel, keine Actions.
 
 **Ein Endpunkt fürs Umlagern.** Scan-Seite und Dialog auf der Detailseite schicken beide Gegenstand und Ziel-Code an `POST /inventory/move`. Der Server löst den Code auf (`CodeLookup`), so funktionieren Handscanner, Tippen und Vorschläge gleich.
 

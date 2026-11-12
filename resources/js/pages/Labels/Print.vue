@@ -258,7 +258,11 @@
               </p>
             </div>
 
-            <div v-if="can('labels.manage')" class="border-t border-line pt-4">
+            <!-- templates are edited on the pc, the kiosk only prints -->
+            <div
+              v-if="can('labels.manage') && !kiosk"
+              class="border-t border-line pt-4"
+            >
               <UiButton
                 variant="ghost"
                 size="sm"
@@ -305,6 +309,7 @@ const props = defineProps<{
 }>();
 
 const { can } = usePermissions();
+const { surface, kiosk, url } = useSurface();
 
 const targetLabels: Record<LabelTargetName, string> = {
   item: "Gegenstand",
@@ -393,7 +398,7 @@ const copyCount = () => Math.max(1, Math.min(100, Number(copies.value) || 1));
 // the address must be confirmed once before printing
 const confirmAddress = () =>
   router.post(
-    "/labels/confirm-address",
+    url("/labels/confirm-address"),
     {},
     { preserveScroll: true, preserveState: true },
   );
@@ -446,7 +451,7 @@ const markPrinted = () => {
       .filter((label) => targets.includes(label.target))
       .map((label) => label.id);
   router.post(
-    "/labels/printed",
+    url("/labels/printed"),
     { items: ids(["item", "box"]), locations: ids(["location"]) },
     { preserveScroll: true, preserveState: true, only: ["labels"] },
   );
@@ -483,7 +488,9 @@ const downloadPng = () =>
   });
 
 // niimbot directly by bluetooth or usb
-const connections = niimbot.directConnections();
+// the platform of a kiosk device can rule it out (iPad: Safari has neither bluetooth nor usb)
+const connections =
+  surface.value?.direct_print === false ? [] : niimbot.directConnections();
 const connected = ref(niimbot.isConnected());
 const deviceName = ref<string | null>(null);
 const connectPrinter = async (connection: niimbot.Connection) => {

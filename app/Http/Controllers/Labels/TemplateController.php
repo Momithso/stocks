@@ -11,6 +11,7 @@ use App\Models\Printer;
 use App\Models\PrinterModel;
 use App\Models\ReservedNumber;
 use App\Support\Branding;
+use App\Support\Demo\DemoGenerator;
 use App\Support\Labels\LabelData;
 use App\Support\Labels\LabelElements;
 use App\Support\Settings;
@@ -45,6 +46,8 @@ class TemplateController extends Controller
             'templates' => LabelTemplate::orderBy('target')->orderBy('name')->get()->map(fn (LabelTemplate $template) => $template->summary()),
             'targets' => LabelTarget::options(),
             'sizes' => self::sizes(),
+            // the test label sheet can be downloaded in an instance with demo data
+            'demoSheet' => app(DemoGenerator::class)->hasDemoData(),
         ]);
     }
 
