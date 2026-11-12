@@ -30,12 +30,12 @@ LABEL maintainer="Stocks"
 WORKDIR /app
 
 # install php extensions: MariaDB, Redis (cache, sessions, queue), signals and sockets for Octane,
-# gmp for the encryption of web push (works without, but slower)
+# gmp for the encryption of web push (works without, but slower);
+# newer swoole images already ship redis, then pecl would fail
 RUN apk add --no-cache gmp \
     && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS linux-headers gmp-dev \
     && docker-php-ext-install bcmath pdo_mysql pcntl sockets gmp \
-    && pecl install redis \
-    && docker-php-ext-enable redis \
+    && (php -m | grep -qi '^redis$' || (pecl install redis && docker-php-ext-enable redis)) \
     && apk del .build-deps
 
 # install composer
@@ -72,6 +72,7 @@ ENV OCTANE_WORKERS="auto"
 EXPOSE 8000
 
 # migrations and the module sync run on every start, so an update only needs a new image
-CMD php artisan migrate --force && php artisan stocks:sync && php artisan octane:start --server=swoole --host="0.0.0.0" --workers=${OCTANE_WORKERS} --max-requests=${OCTANE_MAX_REQUESTS}
+# exec: Octane itself gets the stop signal and shuts down cleanly (needed for deploys)
+CMD ["sh", "-c", "php artisan migrate --force && php artisan stocks:sync && exec php artisan octane:start --server=swoole --host=0.0.0.0 --workers=${OCTANE_WORKERS} --max-requests=${OCTANE_MAX_REQUESTS}"]
 
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD php artisan octane:status

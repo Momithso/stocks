@@ -1,0 +1,9 @@
+# Dev server only: .gitlab-ci.yml copies this file next to docker-compose.yaml, compose reads
+# it automatically. The reverse proxy runs on another host and reaches "web" (WEB_PORT, default
+# 8000) over NetBird; database and MinIO stay inside the docker network. Photos are served by
+# Stocks itself, MinIO needs no public port. "!reset" needs Docker Compose 2.24 or newer.
+services:
+  mariadb:
+    ports: !reset []
+  minio:
+    ports: !reset []

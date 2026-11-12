@@ -6,7 +6,7 @@ on:
 env:
   IMAGE_REGISTRY: ghcr.io
   # lower case, docker does not accept the upper case letters of the repository owner
-  IMAGE_PATH: momithso/stocks
+  IMAGE_PATH: fsr5-fhaachen/stocks
   IMAGE_TAG: ${{ github.ref_name }}
 
 jobs:
