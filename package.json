@@ -6,7 +6,7 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Momithso/stocks"
+    "url": "https://github.com/fsr5-fhaachen/stocks"
   },
   "scripts": {
     "dev": "vite",
