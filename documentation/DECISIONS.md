@@ -2,6 +2,12 @@
 
 Warum Stocks so gebaut ist, wie es gebaut ist. Neue Einträge oben; jeder Eintrag mit Datum, Entscheidung, Grund und verworfener Alternative.
 
+## 2026-11-12 · Dev-Instanz über GitLab CI/CD
+
+**GitLab spiegelt GitHub, der Runner läuft auf dem Dev-Server** (Entscheidung von Maurice). Jeder Push auf `dev` baut ein Image je Commit ins GitLab-Registry und startet es mit Docker Compose in `/opt/stocks-dev` ([DEPLOY.md](DEPLOY.md)). Grund: Der Server ist nur über NetBird erreichbar. Der Runner verbindet sich ausgehend, die Pipeline braucht deshalb keinen SSH-Zugang. Verworfen: SSH-Deploy von einem Shared Runner, nur Deploy des GitHub-Images (`ghcr.io/…:dev`).
+
+**`STOCKS_IMAGE` in `docker-compose.yaml`**, Vorgabe bleibt `ghcr.io/fsr5-fhaachen/stocks:latest`. Die Pipeline setzt das Image des Commits; Zurückrollen heißt, einen alten Deploy neu zu starten.
+
 ## 2026-11-11 · Phase 2
 
 **Etiketten im Kern.** Wie im Gesamtplan („Kern inklusive Etiketten und Scan“). Verworfen: eigenes Modul.

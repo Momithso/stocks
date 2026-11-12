@@ -35,6 +35,10 @@ Jede Organisation bekommt eine eigene Instanz mit eigener Datenbank. Alle Instan
 
 Danach ist `/setup` gesperrt. Den `SETUP_TOKEN` kann man wieder entfernen.
 
+## Dev-Instanz
+
+Die Dev-Instanz spielt GitLab CI/CD bei jedem Push auf `dev` automatisch ein, siehe [DEPLOY.md](DEPLOY.md).
+
 ## Update
 
 1. Datenbank sichern (`mariadb-dump`).
