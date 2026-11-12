@@ -1,0 +1,62 @@
+# Dev instance (https://stocks-dev.proxy.sntg.eu): every push to "dev" builds the image and
+# deploys it. GitLab mirrors the GitHub repository; GitHub Actions ignore this file.
+# Both jobs run on the GitLab Runner of the dev server (shell executor, tag "stocks-dev"),
+# so the server needs no incoming connection. Setup: documentation/DEPLOY.md.
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev" && $CI_PIPELINE_SOURCE != "merge_request_event"
+
+stages:
+  - build
+  - deploy
+
+variables:
+  # one image per commit; re-running an old deploy job brings back exactly that version
+  IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+  DEPLOY_DIR: /opt/stocks-dev
+  COMPOSE_PROJECT_NAME: stocks-dev
+
+default:
+  tags:
+    - stocks-dev
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+
+build:
+  stage: build
+  script:
+    # the layer cache of the server's docker keeps rebuilds fast
+    - docker build --pull -t "$IMAGE" -t "$CI_REGISTRY_IMAGE:dev" .
+    - docker push "$IMAGE"
+    - docker push "$CI_REGISTRY_IMAGE:dev"
+
+deploy:
+  stage: deploy
+  # never two deploys at the same time
+  resource_group: stocks-dev
+  environment:
+    name: dev
+    url: https://stocks-dev.proxy.sntg.eu
+  script:
+    - test -f "$STOCKS_DEV_ENV" || { echo "CI/CD variable STOCKS_DEV_ENV (type File) is missing, see documentation/DEPLOY.md"; exit 1; }
+    # compose files of this commit, .env from GitLab plus the image of this commit
+    - cp docker-compose.yaml "$DEPLOY_DIR/docker-compose.yaml"
+    - cp deploy/dev/docker-compose.override.yaml "$DEPLOY_DIR/docker-compose.override.yaml"
+    - cp "$STOCKS_DEV_ENV" "$DEPLOY_DIR/.env"
+    - printf '\nSTOCKS_IMAGE=%s\n' "$IMAGE" >> "$DEPLOY_DIR/.env"
+    - chmod 600 "$DEPLOY_DIR/.env"
+    - cd "$DEPLOY_DIR"
+    # only the own image; mariadb, redis and minio are updated by hand (see DEPLOY.md)
+    - docker compose pull web queue scheduler
+    # migrations and stocks:sync run when "web" starts
+    - docker compose up -d --remove-orphans
+    # wait until Octane answers, otherwise show the log and fail
+    - |
+      for i in $(seq 1 36); do
+        status=$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q web)")
+        if [ "$status" = "healthy" ]; then echo "web is healthy"; break; fi
+        if [ "$i" = "36" ]; then docker compose logs --tail=100 web; exit 1; fi
+        sleep 5
+      done
+    - docker image prune -f

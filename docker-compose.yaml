@@ -1,8 +1,9 @@
 # One Stocks instance. Every value that differs between instances comes from the .env file next
-# to this file, see documentation/SETUP.md.
+# to this file, see documentation/SETUP.md. STOCKS_IMAGE pins another image (the dev server uses
+# the image of the deployed commit, see documentation/DEPLOY.md).
 services:
   web:
-    image: ghcr.io/momithso/stocks:latest
+    image: '${STOCKS_IMAGE:-ghcr.io/fsr5-fhaachen/stocks:latest}'
     restart: unless-stopped
     depends_on:
       - redis
@@ -61,7 +62,7 @@ services:
       - stocks
   # sends the queued notifications (mails, push); same image and environment as "web"
   queue:
-    image: ghcr.io/momithso/stocks:latest
+    image: '${STOCKS_IMAGE:-ghcr.io/fsr5-fhaachen/stocks:latest}'
     restart: unless-stopped
     depends_on:
       - web
@@ -73,7 +74,7 @@ services:
       - stocks
   # runs the time plan: reminders of loans every 15 minutes, cleaning up once a day
   scheduler:
-    image: ghcr.io/momithso/stocks:latest
+    image: '${STOCKS_IMAGE:-ghcr.io/fsr5-fhaachen/stocks:latest}'
     restart: unless-stopped
     depends_on:
       - web
