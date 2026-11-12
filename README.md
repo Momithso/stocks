@@ -30,7 +30,7 @@ Anmelden mit `admin@example.com` und dem Passwort `correct horse battery`.
 | [documentation/INTERFACES.md](documentation/INTERFACES.md)       | Welche Vorgänge auf welcher Oberfläche (PC, Handy, Kiosk) fehlen |
 | [documentation/MODULES.md](documentation/MODULES.md)             | Module bauen, Erweiterungspunkte                                 |
 | [documentation/SETUP.md](documentation/SETUP.md)                 | Instanz aufsetzen und aktualisieren                              |
-| [documentation/DEPLOY.md](documentation/DEPLOY.md)                 | Dev-Instanz über GitLab CI/CD                                   |
+| [documentation/DEPLOY.md](documentation/DEPLOY.md)               | Dev-Instanz über GitLab CI/CD                                    |
 | [documentation/TABLE_POLLING.md](documentation/TABLE_POLLING.md) | Tabellen mit seitenweisem Laden und Live-Update                  |
 | [documentation/DECISIONS.md](documentation/DECISIONS.md)         | Entscheidungsprotokoll                                           |
 | [CONTRIBUTING.md](CONTRIBUTING.md)                               | Branches, Commits, Werkzeuge                                     |
