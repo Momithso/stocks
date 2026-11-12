@@ -27,7 +27,7 @@ jobs:
           repository: ${{ github.repository }}
           excludes: prerelease, draft
       - name: Docker Login
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.IMAGE_REGISTRY }}
           username: ${{ github.actor }}
