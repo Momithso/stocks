@@ -70,7 +70,7 @@ $events->add(
     NotificationEvents::MEMBERS,   // MEMBERS (Profil) oder CONTACTS (Verleihseite)
     'loans.manage',                // nur Konten mit diesem Recht sehen und bekommen es
     'loans',                       // Modul; aus, wenn das Modul aus ist
-    defaults: ['mail' => true, 'push' => true],
+    defaults: ['mail' => false, 'push' => true],   // Mitglieder: Mail erst nach Einschalten
     requiredMail: false,           // true: kommt immer per Mail, nicht abschaltbar
     description: 'bei Buchungen, die du angelegt hast …',
 );
@@ -78,7 +78,7 @@ $events->add(
 
 ## Einstellungen
 
-- **Mitglieder:** Profil › Benachrichtigungen, je Ereignis E-Mail und Push. Es erscheinen nur Ereignisse, für die das Konto das Recht hat. Gespeichert wird nur, was von der Vorgabe abweicht (`users.notification_preferences`). Darunter die Geräte mit Push (Gerät, eingetragen, zuletzt genutzt, „Entfernen“), „Testmail senden“ und „Testbenachrichtigung senden“. Am Kiosk gibt es die Karte nicht.
+- **Mitglieder:** Profil › Benachrichtigungen, je Ereignis E-Mail und Push. Es erscheinen nur Ereignisse, für die das Konto das Recht hat. E-Mails sind für Mitglieder vorab aus und werden selbst eingeschaltet (sonst schreibt jede Buchung, die man angefasst hat, Mails); Push ist vorab an, kommt aber nur auf Geräte, auf denen man ihn eingeschaltet hat. Hat bei einer Buchung niemand der Beteiligten etwas eingeschaltet, bekommt auch niemand sonst die Nachricht; die Kontaktadresse springt nur ein, wenn es gar keine Beteiligten gibt. Gespeichert wird nur, was von der Vorgabe abweicht (`users.notification_preferences`). Darunter die Geräte mit Push (Gerät, eingetragen, zuletzt genutzt, „Entfernen“), „Testmail senden“ und „Testbenachrichtigung senden“. Am Kiosk gibt es die Karte nicht.
 - **Entleiher:** Karte „Benachrichtigungen“ auf der Verleihseite, gespeichert an der Buchung (`loans.notification_preferences`), gilt für alle mit dem Link. Pflicht-Mails haben einen festen Haken „kommt immer“.
 - Die Spalte Push ist ausgegraut, solange kein Gerät Push eingeschaltet hat; ohne Schlüssel auf dem Server fehlt sie ganz.
 

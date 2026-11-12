@@ -35,6 +35,7 @@ class RemindersTest extends LoansTestCase
     public function test_overdue_loans_get_three_stages_and_the_organization_from_the_second(): void
     {
         $issuer = $this->userWithRoles('FSR-Mitglied');
+        $issuer->forceFill(['notification_preferences' => ['loans.overdue_staff' => ['mail' => true]]])->save();
         $loan = $this->issued([$this->item()], now()->subDays(3), now()->subHours(25), $issuer);
 
         $this->artisan('loans:remind');

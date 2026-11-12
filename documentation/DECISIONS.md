@@ -2,6 +2,10 @@
 
 Warum Stocks so gebaut ist, wie es gebaut ist. Neue Einträge oben; jeder Eintrag mit Datum, Entscheidung, Grund und verworfener Alternative.
 
+## 2026-11-12 · E-Mails an Mitglieder nur nach Einschalten
+
+**Mitglieder schalten E-Mails selbst ein** (Wunsch von Maurice: sonst wird man zugespamt). Die Nachrichten des Verleihs an Mitglieder (Chat, Verlängerung angefragt, Überfällig) sind per Mail vorab aus; Push bleibt vorab an, weil er ohnehin nur auf selbst eingeschaltete Geräte kommt. Entleiher bekommen weiter alles vorab. Hat keiner der Beteiligten Mail oder Push, bekommt niemand die Nachricht (Menü-Zähler und Dashboard zeigen sie); die Kontaktadresse springt wie bisher nur ein, wenn es gar keine Beteiligten gibt. Verworfen: Kontaktadresse als Rückfall, auch Push vorab aus.
+
 ## 2026-11-12 · Review von Phase 5
 
 **Erinnerungen hängen am Termin.** Das Protokoll merkt sich, um welche Abholung bzw. Rückgabe es ging (`loan_notifications.due_at`). Grund: Nach einer Verlängerung kam sonst keine Rückgabe-Erinnerung und keine Überfällig-Stufe mehr. Verworfen: Protokoll bei jeder Verlängerung leeren (es soll vollständig bleiben).

@@ -175,8 +175,10 @@ class LoansServiceProvider extends ServiceProvider
         $contact('defect', 'Mangel gemeldet');
         $contact('cancelled', 'Storniert');
 
+        // members switch mails on themselves in their profile (otherwise every loan they touched
+        // would mail them); push comes only to devices they switched on, so it stays on
         $member = fn (string $key, string $label, ?string $description = null) => $events->add(
-            "loans.{$key}", $label, 'Verleih', NotificationEvents::MEMBERS, 'loans.manage', self::KEY, description: $description,
+            "loans.{$key}", $label, 'Verleih', NotificationEvents::MEMBERS, 'loans.manage', self::KEY, ['mail' => false, 'push' => true], description: $description,
         );
         $member('chat_staff', 'Neue Chat-Nachricht', 'bei Buchungen, die du angelegt, ausgegeben oder im Chat beantwortet hast');
         $member('extension_requested', 'Verlängerung angefragt', 'bei denselben Buchungen');

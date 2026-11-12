@@ -43,12 +43,13 @@ class ChatTest extends LoansTestCase
         $loan = $this->issued([$this->item()], issuer: $issuer);
         $loan->forceFill(['created_by' => $creator->id])->save();
         $viewer->forceFill(['notification_preferences' => null])->save();
-        $issuer->forceFill(['notification_preferences' => ['loans.chat_staff' => ['mail' => false]]])->save();
+        // mails are off until a member switches them on; the issuer did not
+        $creator->forceFill(['notification_preferences' => ['loans.chat_staff' => ['mail' => true]]])->save();
 
         $this->postJson(LoanPage::path($loan).'/messages', ['body' => 'Hallo'])->assertOk();
 
         Notification::assertSentTo($creator, NewChatMessage::class, fn ($notification, array $channels) => $channels === ['mail']);
-        // switched off by mail and no device with push: no channel, nothing goes out
+        // mail not switched on and no device with push: no channel, nothing goes out
         $this->assertSame([], (new NewChatMessage($loan, $loan->messages()->first(), true))->via($issuer));
         Notification::assertNotSentTo([$issuer, $outsider, $viewer], NewChatMessage::class);
     }
@@ -76,6 +77,7 @@ class ChatTest extends LoansTestCase
     public function test_messages_are_bundled_while_nothing_was_read(): void
     {
         $creator = $this->userWithRoles('FSR-Mitglied');
+        $creator->forceFill(['notification_preferences' => ['loans.chat_staff' => ['mail' => true]]])->save();
         $loan = $this->confirmed([$this->item()]);
         $loan->forceFill(['created_by' => $creator->id])->save();
 
@@ -126,5 +128,24 @@ class ChatTest extends LoansTestCase
         $this->actingAs($anna)->postJson("/loans/{$loan->id}/messages", ['body' => 'Von Anna'])->assertOk()->assertJsonPath('mine', true);
         $this->actingAs($ben)->getJson("/loans/{$loan->id}/messages")->assertJsonPath('messages.0.mine', false);
         $this->actingAs($anna)->getJson("/loans/{$loan->id}/messages")->assertJsonPath('messages.0.mine', true);
+    }
+
+    public function test_a_member_gets_no_mail_until_switching_it_on(): void
+    {
+        app(Settings::class)->set(['legal.contact_email' => 'fsr@example.com']);
+        $creator = $this->userWithRoles('FSR-Mitglied');
+        $loan = $this->confirmed([$this->item()]);
+        $loan->forceFill(['created_by' => $creator->id])->save();
+
+        $this->postJson(LoanPage::path($loan).'/messages', ['body' => 'Hallo'])->assertOk();
+        Notification::assertNotSentTo($creator, NewChatMessage::class);
+        // nobody gets it instead: the contact address only steps in when nobody is involved
+        Notification::assertSentOnDemandTimes(NewChatMessage::class, 0);
+
+        $this->actingAs($creator)->put('/profile/notifications', ['events' => ['loans.chat_staff' => ['mail' => true]]])->assertSessionHasNoErrors();
+        $this->getJson("/loans/{$loan->id}/messages?read=1")->assertOk();
+        auth()->logout();
+        $this->postJson(LoanPage::path($loan).'/messages', ['body' => 'Hallo?'])->assertOk();
+        Notification::assertSentTo($creator, NewChatMessage::class, fn ($notification, array $channels) => $channels === ['mail']);
     }
 }

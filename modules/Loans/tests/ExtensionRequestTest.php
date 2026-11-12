@@ -16,6 +16,7 @@ class ExtensionRequestTest extends LoansTestCase
     public function test_the_borrower_asks_and_a_member_accepts(): void
     {
         $issuer = $this->userWithRoles('FSR-Mitglied');
+        $issuer->forceFill(['notification_preferences' => ['loans.extension_requested' => ['mail' => true]]])->save();
         $loan = $this->issued([$this->item()], now()->subHour(), now()->addDay(), $issuer);
         $wanted = now()->addDays(3)->setTime(12, 0);
 

@@ -47,7 +47,8 @@ class NotificationsTest extends TestCase
             'unknown.event' => ['mail' => false],
         ]])->assertSessionHasNoErrors();
 
-        $this->assertSame(['loans.chat_staff' => ['mail' => false]], $user->refresh()->notification_preferences);
+        // mails of members are off until switched on: only that one is stored
+        $this->assertSame(['loans.overdue_staff' => ['mail' => true]], $user->refresh()->notification_preferences);
         $events = app(NotificationEvents::class);
         $this->assertFalse($events->wants($user->notification_preferences, 'loans.chat_staff', 'mail'));
         $this->assertTrue($events->wants($user->notification_preferences, 'loans.overdue_staff', 'mail'));

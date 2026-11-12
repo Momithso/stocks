@@ -84,7 +84,7 @@
   <UiCard
     v-if="notifications"
     title="Benachrichtigungen"
-    description="Worüber Stocks dich per E-Mail oder Push informiert. Einladung und Passwort zurücksetzen kommen immer per E-Mail."
+    description="Worüber Stocks dich per E-Mail oder Push informiert. E-Mails schaltest du hier selbst ein, vorher kommen keine; Push kommt auf die Geräte, auf denen du ihn eingeschaltet hast. Einladung und Passwort zurücksetzen kommen immer per E-Mail."
     class="mt-6"
   >
     <UiAlert v-if="pushError" type="error" class="mb-4">{{

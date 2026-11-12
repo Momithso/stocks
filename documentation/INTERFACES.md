@@ -98,7 +98,7 @@ Seit Phase 3, siehe [LOANS.md](LOANS.md). Ausgabe, Rückgabe, Prüfung und Einr�
 | Verlängerung anfragen / annehmen / ablehnen | annehmen, ablehnen | annehmen, ablehnen | – | n. v. | anfragen | Hinweisbox auf der Buchung; Annehmen prüft die Verfügbarkeit (`ExtendLoan`); nach Rückgabe oder Storno ist eine offene Anfrage „erledigt“ (auf der Verleihseite kein Hinweis mehr) |
 | Checkliste zum Abhaken (Stand auf dem Server) | – | – | n. v. | n. v. | ✓ | nur Hilfe für den Entleiher, ab der Ausgabe; Mitglieder sehen den Stand bisher nicht (offen für später) |
 | Nachrichten-Protokoll, „Erinnerung senden“ | ✓ | ✓ | n. v. | n. v. | n. v. | Karte „Nachrichten“ auf der Buchung: je Empfänger und Kanal eine Zeile |
-| Benachrichtigungen einstellen, Push einschalten | Profil | Profil | n. v. | n. v. | ✓ | Mitglieder im Profil, Entleiher auf der Verleihseite (gilt für alle mit dem Link); Anleitung je Gerät |
+| Benachrichtigungen einstellen, Push einschalten | Profil | Profil | n. v. | n. v. | ✓ | Mitglieder im Profil (E-Mails vorab aus, selbst einschalten), Entleiher auf der Verleihseite (gilt für alle mit dem Link, vorab an); Anleitung je Gerät |
 | Telefon und E-Mail anklickbar (`tel:`, `mailto:`) | ✓ | ✓ | n. v. | ✓ (Kontakt-Mail) | ✓ | Komponente `UiContactLink`: Buchung, Kontaktliste und -seite, Verleihseite; die öffentliche Gegenstandsansicht hatte `mailto:` schon |
 | Einstellungen der Verleihseite und Nachrichten | ✓ | eingeschränkt | n. v. | n. v. | n. v. | Verwaltung › Einstellungen › Verleih: Link-Dauer, Erinnerungen, Überfällig-Stufen, Abholort, Zusatztexte |
 
