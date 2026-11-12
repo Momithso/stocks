@@ -33,8 +33,6 @@ return [
         'roles.manage' => 'Rollen anlegen, ändern, löschen und zuweisen',
         'modules.manage' => 'Module ein- und ausschalten',
         'settings.manage' => 'Einstellungen der Instanz ändern',
-        'kiosk.devices.manage' => 'Kiosk-Geräte koppeln und sperren',
-        'kiosk.use' => 'Sich am Kiosk mit PIN anmelden',
         'audit.view' => 'Änderungsprotokoll lesen',
         'inventory.view' => 'Inventar ansehen',
         'inventory.move' => 'Gegenstände umlagern und ihren Zustand melden',
@@ -63,12 +61,12 @@ return [
     'start_roles' => [
         'Vorstand' => [
             'description' => 'Leitet die Organisation.',
-            'permissions' => ['users.view', 'users.invite', 'users.manage', 'roles.manage', 'settings.manage', 'kiosk.use', 'audit.view',
+            'permissions' => ['users.view', 'users.invite', 'users.manage', 'roles.manage', 'settings.manage', 'audit.view',
                 'inventory.view', 'inventory.move', 'inventory.edit', 'inventory.retire', 'locations.manage', 'labels.print'],
         ],
         'FSR-Mitglied' => [
             'description' => 'Gewähltes Mitglied.',
-            'permissions' => ['users.view', 'kiosk.use', 'inventory.view', 'inventory.move', 'inventory.edit', 'locations.manage', 'labels.print'],
+            'permissions' => ['users.view', 'inventory.view', 'inventory.move', 'inventory.edit', 'locations.manage', 'labels.print'],
         ],
         'Freies Mitglied' => [
             'description' => 'Hilft mit, ohne gewählt zu sein.',

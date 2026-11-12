@@ -2,9 +2,17 @@
   <UiPageHeader :title="isNew ? 'Neue Buchung' : `${loan.number} bearbeiten`" />
 
   <form class="max-w-3xl space-y-6" @submit.prevent="save">
+    <UiCard v-if="fixed">
+      <p class="text-sm text-ink-muted">
+        Seit der Ausgabe stehen Art, Zeitraum und Personen fest, so wie sie im
+        Vertrag stehen. Den Rückgabetermin änderst du mit „Verlängern“ auf der
+        Seite der Buchung.
+      </p>
+    </UiCard>
     <UiCard>
       <div class="space-y-5">
         <UiSelect
+          v-if="!fixed"
           v-model="form.kind"
           label="Art"
           :options="kinds"
@@ -17,7 +25,7 @@
           placeholder="keine"
           hint="Optional. Mehrere Buchungen einer Veranstaltung haben eine gemeinsame Materialliste."
         />
-        <div class="grid gap-4 sm:grid-cols-2">
+        <div v-if="!fixed" class="grid gap-4 sm:grid-cols-2">
           <UiInput
             v-model="form.pickup_at"
             label="Abholung"
@@ -42,7 +50,7 @@
       </div>
     </UiCard>
 
-    <UiCard v-if="form.kind === 'external'" title="Personen">
+    <UiCard v-if="!fixed && form.kind === 'external'" title="Personen">
       <div class="space-y-5">
         <LoansContactPicker
           v-model="responsible"
@@ -65,7 +73,7 @@
         />
       </div>
     </UiCard>
-    <UiCard v-else title="Eigenbedarf">
+    <UiCard v-else-if="!fixed" title="Eigenbedarf">
       <UiSelect
         v-model="form.responsible_user_id"
         label="Verantwortliches Mitglied"
@@ -113,6 +121,7 @@ const props = defineProps<{
   loan: {
     id?: number;
     number?: string;
+    status?: string;
     kind: string;
     event_id: number | null;
     pickup_at: string;
@@ -130,6 +139,10 @@ const props = defineProps<{
   members: Option[];
   councils: Option[];
 }>();
+
+// after the issue kind, time and persons are fixed (the contract names them)
+const fixed =
+  !props.isNew && !["draft", "confirmed"].includes(props.loan.status ?? "");
 
 const responsible = ref<Contact | null>(props.loan.responsible);
 const borrower = ref<Contact | null>(props.loan.borrower);
@@ -155,9 +168,11 @@ const save = () => {
   const data = form.transform((values) => ({
     ...values,
     responsible_contact_id: responsible.value?.id ?? null,
-    borrower_contact_id: separateBorrower.value
-      ? (borrower.value?.id ?? null)
-      : (responsible.value?.id ?? null),
+    borrower_contact_id: fixed
+      ? (props.loan.borrower?.id ?? null)
+      : separateBorrower.value
+        ? (borrower.value?.id ?? null)
+        : (responsible.value?.id ?? null),
   }));
   return props.isNew
     ? data.post("/loans")

@@ -28,9 +28,10 @@ class IssueTest extends LoansTestCase
 
         $this->actingAs($admin)->post("/loans/{$loan->id}/issue/check", ['code' => $foreign->number])->assertSessionHas('foreign.id', $foreign->id)->assertSessionHas('foreign.free', true);
 
-        // something not ticked off can not leave
-        $this->actingAs($admin)->post("/loans/{$loan->id}/issue/complete", ['signatures' => ['responsible' => self::SIGNATURE, 'issuer' => self::SIGNATURE]])->assertSessionHasErrors('loan');
-        $this->assertSame(LoanStatus::Confirmed, $loan->refresh()->status);
+        // what is not ticked off stays as rest (partial issue, see PartialIssueTest)
+        $this->actingAs($admin)->post("/loans/{$loan->id}/issue/complete", ['signatures' => ['responsible' => self::SIGNATURE, 'issuer' => self::SIGNATURE]])->assertSessionHasNoErrors();
+        $this->assertSame(LoanStatus::Issued, $loan->refresh()->status);
+        $this->assertSame(1, $loan->positions()->whereNull('issued_at')->count());
     }
 
     public function test_a_ticked_box_ticks_its_contents_and_the_last_content_ticks_the_box(): void

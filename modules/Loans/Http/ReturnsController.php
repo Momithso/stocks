@@ -4,6 +4,7 @@ namespace Modules\Loans\Http;
 
 use App\Http\Controllers\Controller;
 use App\Models\Item;
+use App\Support\Surface;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -35,6 +36,7 @@ class ReturnsController extends Controller
             'defects' => $loans(LoanStatus::ClosedWithDefects, true),
             'pending' => StowItem::pending()->with(['item.homeLocation', 'item.homeContainer', 'issuedItem', 'loan'])->orderBy('returned_at')->limit(200)->get()->map(fn (LoanItem $row) => [
                 'id' => $row->id,
+                'item_id' => $row->physicalItem()->id,
                 'number' => $row->physicalItem()->number,
                 'name' => $row->item->name,
                 'quantity' => $row->isBulk() ? ($row->returned_quantity ?? $row->quantity) : null,
@@ -73,7 +75,7 @@ class ReturnsController extends Controller
         $message = $resolveMissing->found($request->user(), $row);
 
         return StowItem::pending()->whereKey($row->id)->exists()
-            ? to_route('loans.returns', ['row' => $row->id])->with('success', $message)
+            ? redirect(Surface::route('loans.returns', ['row' => $row->id]))->with('success', $message)
             : back()->with('success', $message);
     }
 }

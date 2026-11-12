@@ -71,6 +71,12 @@
           <p v-if="error" class="mt-1 text-sm text-red-600">{{ error }}</p>
         </div>
 
+        <InventoryReservedConfirm
+          :message="reserved?.message"
+          :processing="form.processing"
+          @confirm="reserved?.retry()"
+        />
+
         <div class="flex gap-3">
           <UiButton type="submit" class="flex-1" size="lg" :disabled="busy">
             {{ item ? "Umlagern" : "Weiter" }}
@@ -202,23 +208,36 @@ const scanWithCamera = (scanned: string) => {
 };
 
 // step 2: move the item to the target
-const moveTo = (targetCode: string) => {
+// a split of a booked item asks first ("Ja, trotzdem" sends it again confirmed)
+const reserved = ref<{ message: string; retry: () => void } | null>(null);
+const moveTo = (targetCode: string, confirmed = false) => {
+  reserved.value = null;
   form.item_id = item.value!.id;
   form.target_code = targetCode;
   form.quantity = item.value!.kind === "bulk" ? quantity.value : null;
-  form.post("/inventory/move", {
-    preserveScroll: true,
-    onSuccess: () => {
-      if (page.props.flash.success) {
-        log.value = [page.props.flash.success, ...log.value].slice(0, 20);
-      }
-      restart();
-    },
-    onError: (errors) => {
-      error.value = errors.target_code ?? errors.target ?? errors.item ?? null;
-      code.value = "";
-      focus();
-    },
-  });
+  form
+    .transform((data) => ({ ...data, confirmed }))
+    .post("/inventory/move", {
+      preserveScroll: true,
+      onSuccess: () => {
+        if (page.props.flash.success) {
+          log.value = [page.props.flash.success, ...log.value].slice(0, 20);
+        }
+        restart();
+      },
+      onError: (errors) => {
+        if (errors.confirm) {
+          reserved.value = {
+            message: errors.confirm,
+            retry: () => moveTo(targetCode, true),
+          };
+          return;
+        }
+        error.value =
+          errors.target_code ?? errors.target ?? errors.item ?? null;
+        code.value = "";
+        focus();
+      },
+    });
 };
 </script>

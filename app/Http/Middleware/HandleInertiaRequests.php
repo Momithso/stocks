@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Support\Branding;
 use App\Support\Extensions\Navigation;
 use App\Support\Settings;
+use App\Support\Surface;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -36,7 +37,10 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user()->only(['id', 'firstname', 'lastname', 'email', 'name']),
                 'permissions' => $request->user()->getAllPermissions()->pluck('name'),
             ] : null,
-            'navigation' => fn () => $request->user() ? app(Navigation::class)->forUser($request->user()) : [],
+            // a surface (e.g. the kiosk) has no menu
+            'navigation' => fn () => $request->user() && ! Surface::current() ? app(Navigation::class)->forUser($request->user()) : [],
+            // surface of the request (e.g. the kiosk) or null, see App\Support\Surface
+            'surface' => fn () => Surface::shared(),
             'organization' => fn () => [
                 'name' => $settings->get('organization.name'),
                 'short_name' => $settings->get('organization.short_name'),

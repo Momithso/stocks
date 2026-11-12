@@ -1,5 +1,12 @@
 <?php
 
+/*
+| Kiosk pin and kiosk session. The pin belongs to the account and stays in the core
+| (App\Rules\KioskPin reads pin_length and trivial_pins); the module "kiosk" reads the rest.
+| The session timeout is only the default of the setting "kiosk.session_timeout"
+| (Verwaltung › Einstellungen › Kiosk-Geräte).
+*/
+
 return [
 
     /*
@@ -19,7 +26,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | Seconds of inactivity after which a person that unlocked the kiosk with
-    | the PIN has to enter the PIN again.
+    | the PIN has to enter the PIN again. Default of the setting.
     |
     */
 

@@ -6,13 +6,14 @@ use App\Models\Item;
 use App\Models\User;
 use App\Support\Modules\ModuleRegistry;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Extension points around items, used by modules (see documentation/MODULES.md):
  *
  * - tabs on the page of an item (Vue component of the module, gets the item as prop),
  * - notices and locks on items (ItemInfoProvider): shown on the item page, in the item list and
- *   on the scan card; a lock stops moving, splitting and retiring,
+ *   on the scan card; a lock stops moving, splitting and retiring, a reservation asks first,
  * - sections on the public page of a box (PublicBoxSection).
  *
  * Entries of a switched off module are left out.
@@ -117,6 +118,42 @@ class ItemExtensions
         }
 
         return null;
+    }
+
+    /**
+     * Bookings that count on the item later (e.g. a confirmed loan), as sentences. Retiring,
+     * using up, splitting it or setting a defect condition is allowed, but asks first (see
+     * ensureConfirmed()).
+     *
+     * @return list<string>
+     */
+    public function reservationsOf(Item $item): array
+    {
+        $texts = [];
+        foreach ($this->providers as $provider) {
+            if ($this->isOn($provider['module'])) {
+                $texts = [...$texts, ...app($provider['class'])->reservations($item)];
+            }
+        }
+
+        return $texts;
+    }
+
+    /**
+     * Ask before an action that takes the item from a booking: without "confirmed" the action
+     * stops with the bookings as error "confirm", the page asks and sends it again confirmed.
+     *
+     * @param  string  $action  what happens, for the question, e.g. "ausmustern"
+     *
+     * @throws ValidationException
+     */
+    public function ensureConfirmed(Item $item, bool $confirmed, string $action): void
+    {
+        if ($confirmed || ($reservations = $this->reservationsOf($item)) === []) {
+            return;
+        }
+
+        throw ValidationException::withMessages(['confirm' => "{$item->number} ist gebucht: ".implode(' ', $reservations)." Trotzdem {$action}?"]);
     }
 
     /**

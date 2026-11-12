@@ -6,6 +6,7 @@ use App\Enums\ItemKind;
 use App\Http\Controllers\Controller;
 use App\Models\Item;
 use App\Models\User;
+use App\Support\Surface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,6 +20,7 @@ use Modules\Loans\Actions\CancelLoan;
 use Modules\Loans\Actions\ChangePositions;
 use Modules\Loans\Actions\ConfirmLoan;
 use Modules\Loans\Actions\ExtendLoan;
+use Modules\Loans\Actions\IssueLoan;
 use Modules\Loans\Actions\ReturnLoan;
 use Modules\Loans\Actions\SaveLoan;
 use Modules\Loans\Actions\StowItem;
@@ -35,6 +37,7 @@ use Modules\Loans\Models\LoanItem;
 use Modules\Loans\Support\Availability;
 use Modules\Loans\Support\LoanDocuments;
 use Modules\Loans\Support\LoansTable;
+use Modules\Loans\Support\RowTree;
 use Modules\Loans\Support\SignatureInput;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
@@ -103,6 +106,8 @@ class LoanController extends Controller
         $loan->load(['borrower.council', 'responsible.council', 'responsibleUser', 'issuer', 'event', 'creator', 'documents.signatures']);
         $canManage = $request->user()->can('loans.manage');
         $checks = $loan->status->isOpen() ? $availability->forLoan($loan) : [];
+        // signed papers carry contact data and signatures: only for those who issue or manage
+        $documentsVisible = self::canSeeDocuments($request->user());
 
         return Inertia::render('Loans::Loans/Show', [
             'loan' => [
@@ -122,7 +127,6 @@ class LoanController extends Controller
                 'defects_closed_at' => $loan->defects_closed_at?->toIso8601String(),
                 // the pin is only for members who manage loans
                 'pack_pin' => $canManage && in_array($loan->status, LoanStatus::reserving(), true) ? $loan->pack_pin : null,
-                'pin_locked' => $loan->isPinLocked(),
             ],
             'positions' => $this->positions($loan, $checks),
             // still missing after the return, with box contents
@@ -135,7 +139,7 @@ class LoanController extends Controller
             ]),
             'contents' => $documents->positions($loan),
             'problems' => $loan->status === LoanStatus::Draft ? [...$confirmLoan->responsibleProblems($loan), ...$availability->problems($loan)] : [],
-            'documents' => $loan->documents->map(fn (LoanDocument $document) => [
+            'documents' => ! $documentsVisible ? [] : $loan->documents->map(fn (LoanDocument $document) => [
                 'id' => $document->id,
                 'type' => $document->type->value,
                 'label' => $document->type->label(),
@@ -147,6 +151,48 @@ class LoanController extends Controller
                 'url' => route('loans.document', [$loan, $document], absolute: false),
             ]),
             'pendingStow' => StowItem::pending()->where('loan_id', $loan->id)->count(),
+            // rest of a partial issue that may still leave, or that missed its time
+            'hasRest' => IssueLoan::hasRest($loan),
+            'restExpired' => IssueLoan::restExpired($loan),
+        ]);
+    }
+
+    /**
+     * The loan in short for a window (json): positions with their defects, what is still missing,
+     * and the steps the person may take here. Used on the kiosk, which has no loan page.
+     */
+    public function details(Request $request, Loan $loan): JsonResponse
+    {
+        $loan->load(['responsible', 'responsibleUser', 'borrower']);
+        $user = $request->user();
+        $openDefects = $loan->status === LoanStatus::ClosedWithDefects && $loan->defects_closed_at === null;
+
+        return response()->json([
+            'loan' => [
+                ...$loan->summary(),
+                'returned_at' => $loan->returned_at?->toIso8601String(),
+                'defects_note' => $loan->defects_note,
+                'open_defects' => $openDefects,
+            ],
+            'rows' => RowTree::flatten($loan->loanItems()->with(['item', 'issuedItem'])->get(), fn (LoanItem $row) => [
+                'state' => $row->return_state?->value,
+                'state_label' => $row->return_state?->label(),
+                'note' => $row->return_note,
+                'returned' => $row->returned_at !== null,
+                'issued' => $row->issued_at !== null,
+                'issue_defect' => $row->issueDefect(),
+            ]),
+            'missing' => $loan->loanItems()->stillMissing()->with('missingItem', 'item')->get()->map(fn (LoanItem $row) => [
+                'id' => $row->id,
+                'number' => $row->missingItem->number,
+                'name' => $row->item->name,
+            ]),
+            'can_found' => $user->can('loans.issue') && Surface::has('loans.missing.found'),
+            'can_close_defects' => $openDefects && $user->can('loans.cancel') && Surface::has('loans.close-defects'),
+            'return_href' => $loan->status === LoanStatus::Issued && $user->can('loans.issue') ? Surface::link('loans.return.show', [$loan, 'return']) : null,
+            'issue_href' => IssueLoan::hasRest($loan) && $user->can('loans.issue') ? Surface::link('loans.issue', $loan) : null,
+            'inspect_href' => $loan->status === LoanStatus::ReturnedUnchecked && $user->can('loans.issue') ? Surface::link('loans.return.show', [$loan, 'inspect']) : null,
+            'href' => Surface::link('loans.show', $loan),
         ]);
     }
 
@@ -236,7 +282,7 @@ class LoanController extends Controller
     }
 
     /**
-     * Set a new pack pin: a random one, or the given six digits. Unlocks a locked pin.
+     * Set a new pack pin: a random one, or the given six digits.
      */
     public function pin(Request $request, Loan $loan): RedirectResponse
     {
@@ -245,7 +291,7 @@ class LoanController extends Controller
             throw ValidationException::withMessages(['pin' => 'Die Pack-PIN gilt nur für bestätigte und ausgegebene Buchungen.']);
         }
 
-        $loan->forceFill(['pack_pin' => $validated['pin'] ?? ConfirmLoan::randomPin(), 'pin_attempts' => 0])->save();
+        $loan->forceFill(['pack_pin' => $validated['pin'] ?? ConfirmLoan::randomPin()])->save();
 
         return back()->with('success', 'Die Pack-PIN wurde neu gesetzt.');
     }
@@ -263,8 +309,10 @@ class LoanController extends Controller
     /**
      * Download a document: the pdf of what was signed, or the scan of a paper.
      */
-    public function document(Loan $loan, LoanDocument $document, LoanDocuments $documents): HttpResponse
+    public function document(Request $request, Loan $loan, LoanDocument $document, LoanDocuments $documents): HttpResponse
     {
+        abort_unless(self::canSeeDocuments($request->user()), 403);
+
         if ($document->type === DocumentType::PaperScan) {
             return Storage::disk('s3')->download($document->path, "Unterschriebenes Blatt {$loan->number}.".pathinfo($document->path, PATHINFO_EXTENSION));
         }
@@ -365,12 +413,23 @@ class LoanController extends Controller
             'condition' => $position->condition_at_issue ?? $position->item->condition->name,
             'check' => $checks[$position->id] ?? null,
             'checked_at' => $position->checked_at?->toIso8601String(),
+            'issued_at' => $position->issued_at?->toIso8601String(),
+            'issue_defect' => $position->issueDefect(),
             'returned_at' => $position->returned_at?->toIso8601String(),
             'return_state' => $position->returned_at ? ($position->return_state ?? ReturnState::Ok)->label() : $position->return_state?->label(),
             'return_note' => $position->return_note,
             'stowed_at' => $position->stowed_at?->toIso8601String(),
             'box_checks' => $position->boxChecks->map(fn ($check) => ['name' => $check->name, 'checked_at' => $check->checked_at->toIso8601String(), 'ticked' => count($check->ticks), 'total' => $check->total]),
         ])->all();
+    }
+
+    /**
+     * Check if a person may see the signed papers of a loan (contract, lists, receipts, scans and
+     * signatures): those who issue or manage loans, not everyone who may look at loans.
+     */
+    public static function canSeeDocuments(User $user): bool
+    {
+        return $user->canAny(['loans.issue', 'loans.manage']);
     }
 
     /**

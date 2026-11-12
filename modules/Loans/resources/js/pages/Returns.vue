@@ -44,29 +44,44 @@
           @scan="scanned"
         />
         <ul v-if="pending.length" class="divide-y divide-line">
-          <li v-for="row in pending" :key="row.id">
-            <button
-              type="button"
-              :class="[
-                'flex w-full items-center justify-between gap-2 py-2 text-left',
-                row.id === selected ? 'text-accent' : '',
-              ]"
+          <li
+            v-for="row in pending"
+            :key="row.id"
+            :class="[
+              'flex items-center justify-between gap-3 py-2',
+              row.id === selected ? 'text-accent' : '',
+            ]"
+          >
+            <!-- the item: a window on the kiosk, its page on the pc -->
+            <component
+              :is="kiosk ? 'button' : InertiaLink"
+              :type="kiosk ? 'button' : undefined"
+              :href="kiosk ? undefined : `/inventory/items/${row.item_id}`"
+              class="min-w-0 flex-1 text-left hover:underline"
+              @click="kiosk && (infoRow = row)"
+            >
+              <span class="font-medium">{{ row.name }}</span>
+              <span class="block text-xs text-ink-muted">
+                <span class="font-mono">{{ row.number }}</span>
+                <template v-if="row.quantity !== null">
+                  · {{ row.quantity }} {{ row.unit }}</template
+                >
+                · aus {{ row.loan.number }} ·
+                {{
+                  row.merge_to
+                    ? `zurück zu ${row.merge_to}`
+                    : `Stammplatz ${row.home?.code ?? "–"}`
+                }}
+              </span>
+            </component>
+            <UiButton
+              size="sm"
+              :variant="row.id === selected ? 'primary' : 'secondary'"
+              icon="warehouse"
               @click="selected = row.id"
             >
-              <span class="min-w-0">
-                <span class="font-medium">{{ row.name }}</span>
-                <span class="block text-xs text-ink-muted">
-                  <span class="font-mono">{{ row.number }}</span>
-                  <template v-if="row.quantity !== null">
-                    · {{ row.quantity }} {{ row.unit }}</template
-                  >
-                  · aus {{ row.loan.number }}
-                </span>
-              </span>
-              <span class="shrink-0 font-mono text-sm">{{
-                row.merge_to ? `→ ${row.merge_to}` : (row.home?.code ?? "–")
-              }}</span>
-            </button>
+              Einräumen
+            </UiButton>
           </li>
         </ul>
         <UiEmptyState v-else icon="warehouse" title="Alles eingeräumt" />
@@ -86,7 +101,15 @@
             class="flex items-center justify-between gap-2 px-4 py-2 sm:px-6"
           >
             <span>
-              <UiLink :href="`/loans/${loan.id}`" class="font-medium">{{
+              <button
+                v-if="kiosk"
+                type="button"
+                class="font-medium hover:underline"
+                @click="loanId = loan.id"
+              >
+                {{ loan.title }}
+              </button>
+              <UiLink v-else :href="`/loans/${loan.id}`" class="font-medium">{{
                 loan.title
               }}</UiLink>
               <span class="block text-xs text-ink-muted"
@@ -96,7 +119,7 @@
             <UiButton
               size="sm"
               icon="clipboard-check"
-              :href="`/loans/${loan.id}/inspect`"
+              :href="url(`/loans/${loan.id}/inspect`)"
               >Prüfen</UiButton
             >
           </li>
@@ -111,7 +134,15 @@
       <UiCard title="Mängel offen" flush>
         <ul v-if="defects.length" class="divide-y divide-line">
           <li v-for="loan in defects" :key="loan.id" class="px-4 py-2 sm:px-6">
-            <UiLink :href="`/loans/${loan.id}`" class="font-medium">{{
+            <button
+              v-if="kiosk"
+              type="button"
+              class="block text-left font-medium hover:underline"
+              @click="loanId = loan.id"
+            >
+              {{ loan.title }}
+            </button>
+            <UiLink v-else :href="`/loans/${loan.id}`" class="font-medium">{{
               loan.title
             }}</UiLink>
             <span class="block text-xs text-ink-muted">{{
@@ -123,16 +154,36 @@
       </UiCard>
     </div>
   </div>
+
+  <InventoryItemInfoModal
+    v-if="infoRow"
+    :code="infoRow.number"
+    @close="infoRow = null"
+  >
+    <p>
+      <span class="text-ink-muted">Zurück aus:</span>
+      {{ infoRow.loan.number }}
+    </p>
+    <p>
+      <span class="text-ink-muted">Gehört nach:</span>
+      {{ infoRow.merge_to ?? infoRow.home?.code ?? "kein Stammplatz" }}
+    </p>
+  </InventoryItemInfoModal>
+  <LoansLoanModal v-if="loanId" :loan-id="loanId" @close="loanId = null" />
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { router, usePage } from "@inertiajs/vue3";
+import { Link as InertiaLink, router, usePage } from "@inertiajs/vue3";
 import type { LoanSummary } from "../http";
 import LoansScanInput from "../components/ScanInput.vue";
+import LoansLoanModal from "../components/LoanModal.vue";
+
+const { kiosk, url } = useSurface();
 
 type PendingRow = {
   id: number;
+  item_id: number;
   number: string;
   name: string;
   quantity: number | null;
@@ -143,7 +194,8 @@ type PendingRow = {
 };
 
 /**
- * Returns: putting back by scan (item, then shelf), open inspections and open defects.
+ * Returns: putting back by scan (item, then shelf) or with "Einräumen", open inspections and open
+ * defects. On the kiosk, items and loans open a window instead of their page.
  */
 const props = defineProps<{
   pending: PendingRow[];
@@ -159,6 +211,9 @@ const errorMessages = computed(() =>
     .filter(Boolean),
 );
 const selected = ref<number | null>(props.selected);
+// windows on the kiosk: an item of the list, a loan
+const infoRow = ref<PendingRow | null>(null);
+const loanId = ref<number | null>(null);
 const current = computed(
   () => props.pending.find((row) => row.id === selected.value) ?? null,
 );
@@ -185,7 +240,7 @@ const scanned = (code: string) => {
 
 const stow = (code: string | null) =>
   router.post(
-    "/loans/returns/stow",
+    url("/loans/returns/stow"),
     { row_id: selected.value, code },
     {
       preserveScroll: true,

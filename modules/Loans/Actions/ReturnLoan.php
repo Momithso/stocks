@@ -2,7 +2,6 @@
 
 namespace Modules\Loans\Actions;
 
-use App\Actions\Inventory\ChangeItemCondition;
 use App\Actions\Inventory\MoveItem;
 use App\Actions\Inventory\RetireItem;
 use App\Enums\MovementType;
@@ -10,7 +9,6 @@ use App\Enums\RetireReason;
 use App\Models\Item;
 use App\Models\ItemCondition;
 use App\Models\ItemMovement;
-use App\Models\ItemPhoto;
 use App\Models\ItemUnit;
 use App\Models\User;
 use App\Support\Inventory\CodeLookup;
@@ -33,7 +31,7 @@ use Modules\Loans\Support\Snapshot;
  * issue, the state is kept on the server until it is booked:
  *
  * 1. check() ticks a row off (scan or by hand), a box with its contents (not for boxes that came
- *    back unchecked before); defect() marks a row as missing, damaged or dirty,
+ *    back unchecked before); defect() marks a row as missing, damaged, dirty or incomplete,
  * 2. complete() books the handled rows with a receipt and the signatures; what is not back yet keeps
  *    the loan issued (partial return, every part gets its own receipt),
  * 3. acceptUnchecked() books everything at once without checking: the time stops, the loan waits
@@ -48,12 +46,13 @@ class ReturnLoan
         private readonly CodeLookup $codes,
         private readonly MoveItem $moveItem,
         private readonly RetireItem $retireItem,
-        private readonly ChangeItemCondition $changeCondition,
+        private readonly RecordDefect $recordDefect,
         private readonly LoanDocuments $documents,
     ) {}
 
     /**
-     * Rows the mode works on: still out (return) or back but unchecked (inspect).
+     * Rows the mode works on: still out (return) or back but unchecked (inspect). The rest of a
+     * partial issue never left and is not part of the return.
      *
      * @return Collection<int, LoanItem>
      */
@@ -63,7 +62,7 @@ class ReturnLoan
 
         return $inspect
             ? $query->whereNotNull('returned_at')->whereNull('inspected_at')->get()
-            : $query->whereNull('returned_at')->get();
+            : $query->whereNotNull('issued_at')->whereNull('returned_at')->get();
     }
 
     /**
@@ -141,21 +140,7 @@ class ReturnLoan
         $item = $row->physicalItem();
 
         DB::transaction(function () use ($actor, $loan, $row, $state, $note, $condition, $photos, $item, $returned) {
-            if ($state === ReturnState::Damaged) {
-                if ($condition === null) {
-                    throw ValidationException::withMessages(['condition_id' => 'Wähle den neuen Zustand.']);
-                }
-                $this->changeCondition->handle($actor, $item, $condition, "Beschädigt zurück aus {$loan->number}: {$note}", $photos, $loan->id);
-            } elseif ($state === ReturnState::Dirty) {
-                $change = $item->conditionChanges()->create([
-                    'from_condition' => $item->condition->name,
-                    'to_condition' => $item->condition->name,
-                    'reason' => "Verschmutzt zurück aus {$loan->number}: {$note}",
-                    'user_id' => $actor->id,
-                    'loan_id' => $loan->id,
-                ]);
-                ItemPhoto::uploadAll($item, $photos, $change);
-            }
+            $this->recordDefect->handle($actor, $loan, $item, $state, $note, $condition, $photos, 'zurück aus');
 
             $row->forceFill([
                 'return_state' => $state,
@@ -254,13 +239,17 @@ class ReturnLoan
     public function completeInspection(User $actor, Loan $loan): void
     {
         $this->ensureMode($loan, true);
-        $rows = $this->rows($loan, true);
-        $open = $rows->reject(fn (LoanItem $row) => $row->isReturnHandled());
-        if ($open->isNotEmpty()) {
-            throw ValidationException::withMessages(['loan' => 'Noch nicht geprüft: '.$open->map(fn (LoanItem $row) => $row->physicalItem()->number)->implode(', ').'.']);
-        }
 
-        DB::transaction(function () use ($actor, $loan, $rows) {
+        DB::transaction(function () use ($actor, $loan) {
+            // locked and checked again, so a second tap does nothing
+            $loan->lockForTask();
+            $this->ensureMode($loan, true);
+            $rows = $this->rows($loan, true);
+            $open = $rows->reject(fn (LoanItem $row) => $row->isReturnHandled());
+            if ($open->isNotEmpty()) {
+                throw ValidationException::withMessages(['loan' => 'Noch nicht geprüft: '.$open->map(fn (LoanItem $row) => $row->physicalItem()->number)->implode(', ').'.']);
+            }
+
             foreach ($rows as $row) {
                 $row->forceFill(['inspected_at' => now(), 'inspected_by' => $actor->id])->save();
                 $this->bookItem($actor, $loan, $row, false);
@@ -277,11 +266,12 @@ class ReturnLoan
      */
     public function closeDefects(User $actor, Loan $loan, string $note): void
     {
-        if ($loan->status !== LoanStatus::ClosedWithDefects || $loan->defects_closed_at !== null) {
-            throw ValidationException::withMessages(['loan' => 'Die Buchung hat keine offenen Mängel.']);
-        }
-
         DB::transaction(function () use ($actor, $loan, $note) {
+            $loan->lockForTask();
+            if ($loan->status !== LoanStatus::ClosedWithDefects || $loan->defects_closed_at !== null) {
+                throw ValidationException::withMessages(['loan' => 'Die Buchung hat keine offenen Mängel.']);
+            }
+
             // what is still missing is written off as lost
             foreach ($loan->loanItems()->stillMissing()->with('missingItem')->get() as $row) {
                 $this->retireItem->handle($actor, $row->missingItem, RetireReason::Lost, "Verloren nach {$loan->number}. {$note}");
@@ -310,6 +300,15 @@ class ReturnLoan
         }
 
         DB::transaction(function () use ($actor, $loan, $rows, $signatures, $onPaper, $returner, $device) {
+            // locked, and only rows that are still out: a second tap or a repeated request finds
+            // them booked and stops
+            $loan->lockForTask();
+            $this->ensureMode($loan, false);
+            $rows = $this->rows($loan, false)->whereIn('id', $rows->modelKeys())->values();
+            if ($rows->isEmpty()) {
+                throw ValidationException::withMessages(['loan' => 'Das ist schon als zurück gebucht.']);
+            }
+
             $snapshot = $this->documents->returnSnapshot($loan, $rows, $returner, $actor);
             $document = $loan->documents()->create(['type' => DocumentType::ReturnReceipt, 'snapshot' => $snapshot, 'hash' => Snapshot::hash($snapshot), 'created_by' => $actor->id]);
             if (! $loan->isInternal()) {
@@ -338,11 +337,20 @@ class ReturnLoan
                 }
             }
 
-            if (! $loan->loanItems()->whereNull('returned_at')->exists()) {
-                $loan->forceFill(['returned_at' => now()])->save();
-                $this->finish($loan);
-            }
+            $this->finishIfBack($loan);
         });
+    }
+
+    /**
+     * Close the loan once every row is back. A rest of a partial issue that may still leave keeps
+     * it open; IssueLoan calls this when such a rest is dropped.
+     */
+    public function finishIfBack(Loan $loan): void
+    {
+        if ($loan->status === LoanStatus::Issued && ! $loan->loanItems()->whereNull('returned_at')->exists()) {
+            $loan->forceFill(['returned_at' => now()])->save();
+            $this->finish($loan);
+        }
     }
 
     /**
@@ -388,7 +396,7 @@ class ReturnLoan
         $rows = $loan->loanItems()->get();
         $status = match (true) {
             $rows->contains(fn (LoanItem $row) => $row->inspected_at === null) => LoanStatus::ReturnedUnchecked,
-            $rows->contains(fn (LoanItem $row) => in_array($row->return_state, [ReturnState::Missing, ReturnState::Damaged, ReturnState::Dirty], true)) => LoanStatus::ClosedWithDefects,
+            $rows->contains(fn (LoanItem $row) => $row->return_state !== null && $row->return_state !== ReturnState::Ok) => LoanStatus::ClosedWithDefects,
             default => LoanStatus::Closed,
         };
 
@@ -407,7 +415,13 @@ class ReturnLoan
     {
         $item = $this->codes->find($code);
 
-        return $item instanceof Item ? $rows->first(fn (LoanItem $row) => $row->physicalItem()->is($item)) : null;
+        if (! $item instanceof Item) {
+            return null;
+        }
+
+        // the part that left has a number of its own, but often carries the label of its origin
+        return $rows->first(fn (LoanItem $row) => $row->physicalItem()->is($item))
+            ?? $rows->first(fn (LoanItem $row) => $row->issued_item_id !== null && $row->item->is($item));
     }
 
     /**

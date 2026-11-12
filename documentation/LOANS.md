@@ -1,6 +1,6 @@
 # Verleih
 
-Das Modul `modules/Loans` (Schlüssel `loans`) verwaltet, wer was von wann bis wann leiht: Kontakte, Veranstaltungen, Buchungen mit Verfügbarkeit, Kalender, Ausgabe und Rückgabe per Scan mit Leihvertrag und Unterschrift. Im Code heißt die Buchung `Loan`. Ausgabe und Rückgabe laufen am PC und Handy; der Kiosk bekommt sie optional in Phase 4, die Verleihseite für Entleiher und E-Mails kommen in Phase 5.
+Das Modul `modules/Loans` (Schlüssel `loans`) verwaltet, wer was von wann bis wann leiht: Kontakte, Veranstaltungen, Buchungen mit Verfügbarkeit, Kalender, Ausgabe und Rückgabe per Scan mit Leihvertrag und Unterschrift. Im Code heißt die Buchung `Loan`. Ausgabe und Rückgabe laufen am PC und Handy und mit dem Modul Kiosk auch am Tablet ([KIOSK.md](KIOSK.md#verleih-am-kiosk)); die Verleihseite für Entleiher und E-Mails kommen in Phase 5.
 
 ## Inhalt
 
@@ -34,7 +34,9 @@ Das Modul `modules/Loans` (Schlüssel `loans`) verwaltet, wer was von wann bis w
 | Abgeschlossen mit Mängeln | `defects` | etwas fehlt, ist beschädigt oder verschmutzt; offen bis `loans.cancel` die Mängel mit Notiz abschließt | nein |
 | Storniert | `cancelled` | mit Grund, nur vor der Ausgabe | nein |
 
-„Überfällig“ ist kein Status: Eine ausgegebene Buchung ist überfällig, sobald `return_at` vorbei ist (`Loan::isOverdue()`, Tage mit `overdueDays()`). Sie belegt ihre Gegenstände, bis die Rückgabe gebucht ist.
+„Überfällig“ ist kein Status: Eine ausgegebene Buchung ist überfällig, sobald `return_at` vorbei ist und noch etwas draußen ist (`Loan::isOverdue()`, Tage mit `overdueDays()`). Sie belegt, was draußen ist, bis die Rückgabe gebucht ist. Ein Rest, der nie ausgegeben wurde, macht sie nicht überfällig und belegt nach dem Rückgabetermin nichts mehr.
+
+„Nicht abgeholt“ ist ebenfalls kein Status: Eine bestätigte Buchung, deren Rückgabetermin vorbei ist (`Loan::isNotPickedUp()`, Scope `notPickedUp`). Sie reserviert nichts mehr, lässt sich nicht mehr ausgeben, steht in Listen als „Nicht abgeholt“ und bietet auf ihrer Seite das Stornieren an; mit einem neuen Zeitraum (Bearbeiten) gilt sie wieder.
 
 Den Status ändern nur die Actions in `modules/Loans/Actions`. Entwürfe lassen sich löschen, alles andere wird storniert.
 
@@ -91,14 +93,25 @@ Die Liste Verleih › Buchungen hat Filter nach Status (auch „offen“ und „
 
 „Ausgeben“ auf einer bestätigten Buchung (`/loans/{id}/issue`, `IssueLoan`). Der Stand liegt auf dem Server; man kann unterbrechen und auf einem anderen Gerät weitermachen.
 
+Die Seite führt in Schritten mit einem Strahl oben (`components/Steps.vue`): **Material → Rest → Person → Dokumente → Unterschriften** (Eigenbedarf ohne Person; „Rest“ nur, wenn etwas nicht abgehakt ist). „Weiter“ und die späteren Schritte gehen, sobald mindestens eine Position abgehakt ist; wird auf einem anderen Gerät alles wieder offen, springt die Seite zurück zum Material. Fertige Schritte lassen sich im Strahl wieder öffnen, eine schon geleistete Unterschrift bleibt dabei stehen. Die Unterschriftenfelder sind groß (am Tablet nebeneinander).
+
 1. **Vorbereiten:** Der Inhalt jeder Box wird zu Zeilen unter der Box (`parent_id`), Boxen in Boxen eingerückt; beim Öffnen und beim Abschluss wird er mit dem aktuellen Inhalt abgeglichen.
-2. **Scannen** (Kamera, Handscanner, Tippen): Jeder Scan hakt eine Zeile ab (`checked_by_scan`); von Hand geht es auch. Eine abgehakte Box hakt ihren Inhalt mit ab (Boxen in Boxen auch); ist der letzte Inhalt einer Box abgehakt, ist es auch die Box. Wird etwas wieder offen, sind es auch die Boxen darüber. Bei Mengenartikeln bestätigt man die Anzahl. Ein fremder Gegenstand gibt eine Warnung und, wenn er frei ist, „Zur Buchung hinzufügen“. Was nicht abgehakt ist, steht als „fehlt“ da: von Hand abhaken oder aus der Buchung nehmen. Kontrollen per Pack-PIN stehen an der Box.
+2. **Scannen** (Kamera, Handscanner, Tippen): Jeder Scan hakt eine Zeile ab (`checked_by_scan`); von Hand geht es auch. Eine abgehakte Box hakt ihren Inhalt mit ab (Boxen in Boxen auch); ist der letzte Inhalt einer Box abgehakt, ist es auch die Box. Wird etwas wieder offen, sind es auch die Boxen darüber. Bei Mengenartikeln bestätigt man die Anzahl; weniger als gebucht teilt die Position, der Rest bleibt eine eigene Position (wieder abgehakt oder zurückgenommen wird sie wieder eins). Ein fremder Gegenstand gibt eine Warnung und, wenn er frei ist, „Zur Buchung hinzufügen“. Kontrollen per Pack-PIN stehen an der Box.
+   **Mangel bei der Ausgabe:** an jeder Zeile „Mangel“ mit Art (beschädigt, verschmutzt, unvollständig), Notiz und Fotos (`loan_items.issue_state`, `issue_note`, `RecordDefect`). „Beschädigt“ ändert den Zustand mit Verweis auf die Buchung, die anderen schreiben einen Eintrag in den Verlauf. „Nicht ausgeben“ hält eine Position zurück, sie wird Rest. Der Mangel steht auf der Materialliste, bei der Rückgabe an der Zeile („Schon bei der Ausgabe: …“), im Buchungsfenster und auf dem Rückgabebeleg; niemand haftet dafür bei der Rückgabe.
+   **Rest (Teilausgabe):** Was nicht abgehakt ist, geht nicht mit. Im Schritt „Rest“ steht jede solche Position mit „Später ausgeben“ (bleibt gebucht und reserviert) oder „Streichen“ (fliegt aus der Buchung). Eine Teilausgabe ist kein Mangel. Die letzte Position einer bestätigten Buchung lässt sich nicht streichen, dafür gibt es „Stornieren“.
+   **Ungeprüft zurückgekommene Box:** Ihr Inhalt wird einzeln abgehakt, ein Scan der Box selbst wird abgelehnt; mit dem letzten Inhalt ist die Box abgehakt. Beim Abschluss prüft der Server, dass in jeder Box, die geht, alles abgehakt ist (auch was nach dem Abhaken in die Box gelegt wurde).
 3. **Verantwortliche Person:** Holt jemand anderes ab, wird sie vorher geändert; der neue Kontakt muss vollständig sein.
 4. **Dokumente:** Leihvertrag und Materialliste als Vorschau-PDF ohne Unterschriften, der Vertrag auch zum Lesen auf der Seite.
 5. **Unterschriften:** erst die verantwortliche Person, dann der Herausgeber (angemeldet, `loans.issue`). Oder „auf Papier unterschrieben“ mit optionalem Foto oder Scan des Blatts.
-6. **Abschluss:** Inhalt und Zustände werden eingefroren, die Dokumente mit Prüfsumme gespeichert, die Gegenstände verlassen ihren Ort (`MoveItem::takeAway`, Bewegung `issue` mit Buchungsnummer). Der Stammplatz bleibt, der Inhalt einer Box bleibt in der Box. Von Mengenartikeln wird die Anzahl abgeteilt (`issued_item_id`), wie beim Umlagern einer Teilmenge. Eine Ausgabe vor dem Abholtermin setzt die Abholung auf jetzt, wenn nichts kollidiert.
+6. **Abschluss:** Nur das Abgehakte geht: Inhalt und Zustände werden eingefroren, die Dokumente mit Prüfsumme gespeichert (`loan_items.issued_at`, `issue_document_id`), die Gegenstände verlassen ihren Ort (`MoveItem::takeAway`, Bewegung `issue` mit Buchungsnummer). Der Stammplatz bleibt, der Inhalt einer Box bleibt in der Box. Von Mengenartikeln wird die Anzahl abgeteilt (`issued_item_id`), wie beim Umlagern einer Teilmenge. Eine Ausgabe vor dem Abholtermin setzt die Abholung auf jetzt, wenn nichts kollidiert.
 
 Ausgegebene Gegenstände sind gesperrt: kein Umlagern, Teilen oder Ausmustern (siehe [Am Gegenstand](#am-gegenstand)).
+
+**Nachausgabe:** Hat eine ausgegebene Buchung noch einen Rest, zeigt die Buchung „Rest ausgeben“ (am Kiosk: „Heute abholen“ mit „Rest nachausgeben“, oder Scan eines Rest-Gegenstands). Es sind dieselben Schritte ohne „Person“; es entsteht eine eigene **Materialliste „Nachtrag“**, die beide wieder unterschreiben. Der Leihvertrag wird nur bei der ersten Ausgabe unterschrieben und gilt weiter. Zurückgenommen wird nur, was ausgegeben ist; die Buchung schließt erst, wenn alles Ausgegebene zurück ist und kein Rest mehr offen ist (gestrichener Rest zählt nicht). Nach dem Rückgabetermin reserviert der Rest nichts mehr und lässt sich nur noch streichen („Rest streichen“, Hinweis auf Buchung und Ausgabeseite); wer ihn doch noch ausgeben will, verlängert erst die Buchung.
+
+**Doppelt gesendet:** Ausgabe, Rückgabe, Prüfung, Mängel abschließen, Einräumen und „Wieder da“ sperren ihre Buchung bzw. Zeile in der Transaktion (`Loan::lockForTask()`, `lockForUpdate`) und prüfen dort Status und Zeilen neu. Ein zweiter Tipp oder eine wiederholte Anfrage findet alles gebucht und bricht mit einer Meldung ab. Vorgänge, die erst prüfen und dann reservieren (Bestätigen, Position hinzufügen oder ändern, neuer Zeitraum, Verlängern, vorzeitige Ausgabe, geänderte Menge bei der Ausgabe), laufen nacheinander über eine Cache-Sperre (`Availability::exclusively()`).
+
+**Nach der Ausgabe** lassen sich nur noch Anlass, Notiz und Veranstaltung ändern; Art, Entleiher, verantwortliche Person und Zeitraum stehen so fest, wie sie im Vertrag stehen (`SaveLoan`). Den Rückgabetermin ändert „Verlängern“.
 
 ## Dokumente und Unterschrift
 
@@ -125,7 +138,7 @@ Mit der Pack-PIN bestätigt jemand ohne Konto, dass er eine Box für eine Buchun
 - Das Feld erscheint auf `/s/{code}` nur, wenn die Box in einer bestätigten oder ausgegebenen Buchung steckt. Die PIN gilt nur für die Boxen dieser Buchung.
 - Nach der richtigen PIN (in der Sitzung des Browsers gemerkt) zeigt die Seite Nummer und Zeitraum der Buchung, die bisher genutzten Namen und die Kontrollen der Box, sonst nichts.
 - „Kontrolle bestätigen“ speichert Name, abgehakte Nummern und Zeilenzahl an der Position (`loan_box_checks`). Mehrere Kontrollen bleiben sichtbar, am Ausgabe-Bildschirm, auf der Buchung und auf der Materialliste.
-- Nach fünf falschen PINs ist die PIN jeder Buchung der Box gesperrt, bis jemand vom FSR sie neu setzt. Dazu kommt das Rate Limit der Kurzlinks.
+- Nach fünf falschen PINs wartet das PIN-Feld dieser Box 15 Minuten, gezählt je Box und Adresse (`CheckBox`, Rate Limiter). Die PIN selbst wird nie gesperrt, damit niemand ohne Konto die Packenden aussperren kann. Dazu kommt das Rate Limit der Kurzlinks.
 
 Der Vermerk ersetzt weder den Scan bei der Ausgabe noch die Unterschriften.
 
@@ -133,9 +146,11 @@ Der Vermerk ersetzt weder den Scan bei der Ausgabe noch die Unterschriften.
 
 „Zurücknehmen“ auf der Buchung oder „Rückgabe dieser Buchung“ auf der Scan-Karte eines ausgegebenen Gegenstands (`/loans/{id}/return`, `ReturnLoan`). Der Stand liegt auf dem Server wie bei der Ausgabe.
 
+Schritte: **Material → Übersicht → Unterschriften**. Die Übersicht zeigt, was in Ordnung zurück ist, was einen Mangel hat und was ausgegeben bleibt (Teilrückgabe), bevor jemand unterschreibt. Weiter geht es, sobald eine Position erledigt ist. „Ungeprüft annehmen“ im ersten Schritt überspringt das Zählen. Die Prüfung hat zwei Schritte: **Prüfen → Abschluss**, der Abschluss öffnet sich erst, wenn jede Position erledigt ist.
+
 - **Scannen:** Jede offene Zeile wird abgehakt (Scan der ausgegebenen Nummer, bei Mengen die abgeteilte; von Hand mit Vermerk im Beleg). Eine abgehakte Box hakt ihren Inhalt mit ab, Mengen mit der eingetragenen Anzahl (ohne Eintrag voll); eine falsche Anzahl lässt alles offen; der letzte abgehakte Inhalt hakt die Box ab. Ausnahme: Kam die Box beim letzten Mal ungeprüft zurück, muss man den Inhalt einzeln abhaken. Bei der späteren **Prüfung** hakt die Box nichts mit ab, dort wird jede Zeile einzeln angesehen.
 - **Mengen:** Man trägt die gezählte Anzahl ein, vor oder nach dem Abhaken; eine geänderte Anzahl an einer abgehakten Zeile wird sofort übernommen. Fehlt etwas, steht die Zeile auf „fehlt“, außer bei Verbrauchsmaterial: was davon nicht zurückkommt, wird beim Buchen als verbraucht ausgebucht. Fehlende Stücke eines anderen Mengenartikels werden beim Buchen als eigener Teil ohne Ort abgeteilt (wie ein fehlendes Einzelstück), der Rest kommt mit seiner Anzahl ins Bewegungsprotokoll. Was fehlt, ist danach **vermisst**, siehe unten. Ein Mangel (beschädigt, verschmutzt) an einer Mengenzeile übernimmt die eingetragene Anzahl und vermerkt die fehlenden Stücke in der Notiz.
-- **Mängel:** an jeder Zeile fehlt, beschädigt oder verschmutzt, mit Notiz und Fotos. „Beschädigt“ ändert den Zustand mit dem Dialog aus Phase 1 und verweist auf die Buchung (`item_condition_changes.loan_id`); „verschmutzt“ schreibt einen Eintrag mit Fotos in den Verlauf, ohne den Zustand zu ändern. Ein fehlendes Einzelstück, auch aus einer Box, hat danach keinen Ort.
+- **Mängel:** an jeder Zeile fehlt, beschädigt, verschmutzt oder unvollständig, mit Notiz und Fotos. „Beschädigt“ ändert den Zustand mit dem Dialog aus Phase 1 und verweist auf die Buchung (`item_condition_changes.loan_id`); „verschmutzt“ und „unvollständig“ schreiben einen Eintrag mit Fotos in den Verlauf, ohne den Zustand zu ändern. Ein schon bei der Ausgabe vermerkter Mangel steht an der Zeile. Ein fehlendes Einzelstück, auch aus einer Box, hat danach keinen Ort.
 - **Unterschriften:** Rückgebender (Name änderbar) und Annehmender, oder auf Papier. Eigenbedarf ohne Unterschriften.
 - **Buchen:** Nur die abgehakten oder markierten Zeilen werden gebucht, mit eigenem Rückgabebeleg und Bewegung `return`. Was noch fehlt, lässt die Buchung ausgegeben (**Teilrückgabe**). Sind alle Zeilen gebucht: ohne Abweichung „abgeschlossen“, sonst „abgeschlossen mit Mängeln“; die Mängel erscheinen im Dashboard, bis `loans.cancel` sie mit Notiz abschließt.
 - **Ungeprüft annehmen:** bucht alles Offene ohne einzelnes Abhaken; beide unterschreiben, der Beleg trägt „ungeprüft, Mängel vorbehalten“, die Frist stoppt. Die Buchung steht auf „angenommen, ungeprüft“ und unter „Prüfung offen“. Eine Frist für die Prüfung gibt es nicht.
@@ -201,7 +216,7 @@ Die Vorgaben stehen unter `start_roles` in `module.json` und gelten bei der Einr
 | `contacts` | `name`, `email`, `phone`, `street`, `zip`, `city`, `council_id` (leer = privat), `notes` |
 | `events` | `name`, `starts_at`, `ends_at`, `place`, `responsible_contact_id`, `notes` |
 | `loans` | `number`, `status`, `kind`, `borrower_contact_id`, `responsible_contact_id`, `responsible_user_id`, `issuer_id`, `event_id`, `pickup_at`, `return_at`, `confirmed_at`, `issued_at`, `returned_at`, `inspected_at`, `defects_closed_at`, `defects_note`, `purpose`, `notes`, `pack_pin` (verschlüsselt), `pin_attempts`, `contract_text`, `cancelled_at`, `cancelled_reason`, `created_by` |
-| `loan_items` | `loan_id`, `parent_id` (Zeile einer Box), `item_id`, `quantity`, `issued_item_id` (abgeteilter Teil), `condition_at_issue`, `checked_at`/`_by`/`_by_scan` (Ausgabe), `return_checked_at`/`_by`/`_by_scan` (Rückgabe oder Prüfung, noch nicht gebucht), `returned_quantity`, `return_state` (ok, missing, damaged, dirty), `return_note`, `returned_at`, `return_document_id`, `inspected_at`, `inspected_by`, `stowed_at` |
+| `loan_items` | `loan_id`, `parent_id` (Zeile einer Box), `item_id`, `quantity`, `issued_item_id` (abgeteilter Teil), `condition_at_issue`, `checked_at`/`_by`/`_by_scan` (Ausgabe), `return_checked_at`/`_by`/`_by_scan` (Rückgabe oder Prüfung, noch nicht gebucht), `returned_quantity`, `return_state` (ok, missing, damaged, dirty, incomplete), `return_note`, `issued_at` und `issue_document_id` (mit welcher Materialliste die Zeile ging; leer: Rest), `issue_state` und `issue_note` (Mangel bei der Ausgabe), `returned_at`, `return_document_id`, `inspected_at`, `inspected_by`, `stowed_at` |
 | `loan_documents` | `loan_id`, `type` (confirmation, contract, list, return_receipt, paper_scan), `snapshot` (JSON), `hash`, `path` (nur Papier-Scan), `created_by` |
 | `loan_signatures` | `loan_id`, `loan_document_id`, `role` (responsible, issuer, returner, receiver), `name`, `image`, `signed_at`, `user_id`, `device`, `document_hash`, `on_paper` |
 | `loan_box_checks` | `loan_item_id`, `name`, `ticks` (JSON), `total`, `checked_at` |
@@ -215,21 +230,24 @@ Alle unter `/loans` hinter `auth` und `module:loans`; ausgeschaltet antworten si
 | Bereich | Adressen |
 |---|---|
 | Buchungen | `/loans`, `/loans/create`, `/loans/{id}`, `/loans/{id}/edit`, `confirm`, `extend`, `cancel`, `pin`, `close-defects`, `positions`, `/loans/search-items`, `/loans/add-item/{item}` |
-| Ausgabe | `/loans/{id}/issue`, `issue/check`, `issue/rows/{row}/uncheck`, `issue/responsible`, `issue/complete`, `/loans/{id}/preview/{contract,list}.pdf` |
+| Ausgabe | `/loans/{id}/issue`, `issue/check`, `issue/rows/{row}/uncheck`, `issue/rows/{row}/defect`, `issue/rows/{row}/reset-defect`, `issue/rows/{row}/drop`, `issue/responsible`, `issue/complete`, `/loans/{id}/preview/{contract,list}.pdf` |
 | Rückgabe, Prüfung | `/loans/{id}/return`, `/loans/{id}/inspect`, je `check`, `rows/{row}/defect`, `rows/{row}/reset`; `return/complete`, `return/unchecked`, `inspect/complete` |
 | Rückgaben, Einräumen | `/loans/returns`, `/loans/returns/stow` |
+| Kurzinfo (JSON, Fenster am Kiosk) | `/loans/{id}/details` |
 | Dokumente | `/loans/{id}/confirmation.pdf`, `/loans/{id}/documents/{document}` |
 | Kalender | `/loans/calendar`, `/loans/calendar/loans`, `/loans/calendar/timeline`, `/loans/items/{item}`, `/loans/stats` |
 | Kontakte, Veranstaltungen | `/loans/contacts…`, `/loans/events…` |
 | Einstellungen | `/loans/settings`, `/loans/settings/preview.pdf`, `/loans/councils…` |
 | Öffentlich (ohne Anmeldung) | `POST /s/{code}/pack-pin`, `POST /s/{code}/box-check` (Rate Limit `short-links`) |
+| Kiosk (Modul Kiosk) | `/kiosk/loans`, `/kiosk/loans/find` und Ausgabe, Rückgabe, Prüfung, Einräumen, Kurzinfo, „Wieder da“ und Mängel abschließen unter `/kiosk/loans/…` aus `routes/kiosk.php`, siehe [KIOSK.md](KIOSK.md#verleih-am-kiosk) |
 
 ## Sicherheit
 
 - Kontaktdaten nur mit `loans.manage`; die öffentliche Box-Seite zeigt vor der richtigen PIN nichts von einer Buchung, danach nur Nummer und Zeitraum.
-- Pack-PIN verschlüsselt, Vergleich mit `hash_equals`, Sperre nach fünf Fehlversuchen je Buchung (ohne Transaktion gezählt, damit die Ablehnung den Zähler nicht zurückrollt), Rate Limit der Kurzlinks.
+- Pack-PIN verschlüsselt, Vergleich mit `hash_equals`, nach fünf Fehlversuchen je Box und Adresse 15 Minuten Wartezeit, Rate Limit der Kurzlinks. Die Spalte `loans.pin_attempts` wird nicht mehr genutzt.
 - Unterschriften nur als geprüftes PNG bis rund 400 KB; Vertragstext maskiert, bevor er ausgezeichnet wird.
-- Dokumente nur für angemeldete Mitglieder mit `loans.view`; die Buchungsbestätigung mit PIN nur mit `loans.manage`.
+- Unterschriebene Dokumente (Vertrag, Materialliste, Rückgabebeleg, Foto des Blatts) und Unterschriftsbilder nur mit `loans.issue` oder `loans.manage` (`LoanController::canSeeDocuments()`); wer nur `loans.view` hat, sieht Positionen und Status. Die Buchungsbestätigung mit PIN nur mit `loans.manage`.
+- Die Prüfsumme der Dokumente liegt neben ihrem Inhalt: Sie zeigt versehentliche Änderungen, schützt aber nicht vor jemandem mit Schreibzugriff auf die Datenbank.
 - Ausgegebene Gegenstände sind gegen Umlagern und Ausmustern gesperrt; die Sperre prüfen die Actions des Kerns, nicht nur die Oberfläche.
 
 ## Code
@@ -239,7 +257,7 @@ Alle unter `/loans` hinter `auth` und `module:loans`; ausgeschaltet antworten si
 | Provider, Rechte | `modules/Loans/LoansServiceProvider.php`, `module.json` |
 | Vorgänge | `modules/Loans/Actions` (`SaveLoan`, `ChangePositions`, `ConfirmLoan`, `CancelLoan`, `ExtendLoan`, `IssueLoan`, `ReturnLoan`, `StowItem`, `CheckBox`) |
 | Verfügbarkeit, Dokumente, Vertrag | `modules/Loans/Support` |
-| Seiten und Komponenten | `modules/Loans/resources/js` |
+| Seiten und Komponenten | `modules/Loans/resources/js` (Startseite am Kiosk: `pages/Kiosk.vue`, `Http/KioskLoanController.php`) |
 | PDFs | `modules/Loans/resources/views/pdf` |
 | Demo-Daten | `modules/Loans/Support/LoansDemo.php`, siehe [DEMO.md](DEMO.md) |
 | Tests | `modules/Loans/tests` (Basisklasse `LoansTestCase`) |

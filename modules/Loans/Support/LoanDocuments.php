@@ -7,8 +7,10 @@ use App\Models\User;
 use App\Support\Branding;
 use App\Support\Settings;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Modules\Loans\Enums\DocumentType;
+use Modules\Loans\Enums\LoanStatus;
 use Modules\Loans\Enums\ReturnState;
 use Modules\Loans\Models\Contact;
 use Modules\Loans\Models\Loan;
@@ -35,7 +37,7 @@ class LoanDocuments
      *
      * @return array<string, mixed>
      */
-    public function issueSnapshot(Loan $loan, User $issuer): array
+    public function issueSnapshot(Loan $loan, User $issuer, ?EloquentCollection $positions = null, bool $supplement = false): array
     {
         $loan->loadMissing(['borrower.council', 'responsible.council', 'responsibleUser', 'event']);
         $values = $this->variables($loan, $issuer->name);
@@ -47,7 +49,8 @@ class LoanDocuments
             'borrower' => $this->person($loan->borrower ?? $loan->responsible),
             'responsible' => $loan->isInternal() ? ['name' => $loan->responsibleUser?->name] : $this->person($loan->responsible),
             'contract' => $loan->isInternal() ? null : ContractTemplate::render($this->template->text(), $values),
-            'positions' => $this->positions($loan),
+            'positions' => $this->positions($loan, $positions),
+            'supplement' => $supplement,
             'date' => now()->format('d.m.Y H:i'),
         ];
     }
@@ -74,7 +77,7 @@ class LoanDocuments
                 'of' => $row->isBulk() ? $row->quantity : null,
                 'unit' => $row->item->unit,
                 'state' => $row->isReturnHandled() ? ($row->return_state ?? ReturnState::Ok)->label() : 'ungeprüft',
-                'note' => $row->return_note,
+                'note' => implode('; ', array_filter([$row->return_note, $row->issueDefect() ? "schon bei der Ausgabe: {$row->issueDefect()}" : null])) ?: null,
                 'manual' => $row->return_checked_at !== null && ! $row->return_checked_by_scan,
             ])->values()->all(),
             'date' => now()->format('d.m.Y H:i'),
@@ -101,7 +104,11 @@ class LoanDocuments
      */
     public function preview(Loan $loan, DocumentType $type, User $issuer): string
     {
-        return $this->render($type === DocumentType::Contract ? 'loans::pdf.contract' : 'loans::pdf.list', $this->issueSnapshot($loan, $issuer), [], null);
+        // what leaves now: the ticked rows that did not leave yet, before ticking all of them
+        $open = $loan->positions()->whereNull('issued_at')->get();
+        $leaving = $open->whereNotNull('checked_at');
+
+        return $this->render($type === DocumentType::Contract ? 'loans::pdf.contract' : 'loans::pdf.list', $this->issueSnapshot($loan, $issuer, $leaving->isEmpty() ? $open : $leaving, $loan->status === LoanStatus::Issued), [], null);
     }
 
     /**
@@ -199,15 +206,30 @@ class LoanDocuments
      *
      * @return list<array<string, mixed>>
      */
-    public function positions(Loan $loan): array
+    public function positions(Loan $loan, ?EloquentCollection $positions = null): array
     {
+        $positions = $positions?->load(['item.condition', 'issuedItem', 'children.item.condition', 'boxChecks'])
+            ?? $loan->positions()->with(['item.condition', 'issuedItem', 'children.item.condition', 'boxChecks'])->get();
+
         $rows = [];
-        foreach ($loan->positions()->with(['item.condition', 'issuedItem', 'children.item.condition', 'boxChecks'])->get() as $position) {
-            $rows[] = $this->row($position->physicalItem(), $position->item, $position->quantity, 0, $position->condition_at_issue, $this->boxNote($position));
-            $rows = [...$rows, ...($loan->issued_at !== null ? $this->frozenRows($position, 1) : $this->liveRows($position->item, 1))];
+        foreach ($positions as $position) {
+            $rows[] = $this->row($position->physicalItem(), $position->item, $position->quantity, 0, $position->condition_at_issue, $this->notes($this->boxNote($position), $position));
+            // the rows of the contents exist from the start of the issue, and stay as they left
+            $frozen = $position->issued_at !== null || $position->children->isNotEmpty();
+            $rows = [...$rows, ...($frozen ? $this->frozenRows($position, 1) : $this->liveRows($position->item, 1))];
         }
 
         return $rows;
+    }
+
+    /**
+     * Note of a row with the defect found at the issue.
+     */
+    private function notes(?string $note, LoanItem $row): ?string
+    {
+        $defect = $row->issueDefect() ? "Mangel bei der Ausgabe: {$row->issueDefect()}" : null;
+
+        return implode('; ', array_filter([$note, $defect])) ?: null;
     }
 
     /**
@@ -219,7 +241,7 @@ class LoanDocuments
     {
         $rows = [];
         foreach ($parent->children()->with(['item.condition', 'children'])->get() as $child) {
-            $rows[] = $this->row($child->item, $child->item, $child->quantity, $depth, $child->condition_at_issue, null);
+            $rows[] = $this->row($child->item, $child->item, $child->quantity, $depth, $child->condition_at_issue, $this->notes(null, $child));
             $rows = [...$rows, ...$this->frozenRows($child, $depth + 1)];
         }
 

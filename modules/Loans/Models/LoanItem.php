@@ -27,6 +27,10 @@ use Modules\Loans\Enums\ReturnState;
  * @property Carbon|null $checked_at
  * @property int|null $checked_by
  * @property bool $checked_by_scan
+ * @property Carbon|null $issued_at left with the loan; null: rest that did not leave yet
+ * @property int|null $issue_document_id material list it left with
+ * @property ReturnState|null $issue_state defect found at the issue (damaged, dirty, incomplete)
+ * @property string|null $issue_note
  * @property Carbon|null $return_checked_at ticked off at the return or the inspection, not booked yet
  * @property int|null $return_checked_by
  * @property bool $return_checked_by_scan
@@ -59,6 +63,8 @@ class LoanItem extends Model
             'returned_quantity' => 'integer',
             'checked_at' => 'datetime',
             'checked_by_scan' => 'boolean',
+            'issued_at' => 'datetime',
+            'issue_state' => ReturnState::class,
             'return_checked_at' => 'datetime',
             'return_checked_by_scan' => 'boolean',
             'return_state' => ReturnState::class,
@@ -191,6 +197,14 @@ class LoanItem extends Model
     {
         return $this->item->is_container
             && self::where('item_id', $this->item_id)->whereKeyNot($this->id)->whereNotNull('returned_at')->whereNull('inspected_at')->exists();
+    }
+
+    /**
+     * Defect found at the issue as one line, e.g. "beschädigt: Kratzer am Gehäuse".
+     */
+    public function issueDefect(): ?string
+    {
+        return $this->issue_state ? $this->issue_state->label().($this->issue_note ? ": {$this->issue_note}" : '') : null;
     }
 
     /**

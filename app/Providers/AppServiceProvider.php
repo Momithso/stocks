@@ -7,7 +7,6 @@ use App\Models\Invitation;
 use App\Models\Item;
 use App\Models\ItemCondition;
 use App\Models\ItemUnit;
-use App\Models\KioskDevice;
 use App\Models\LabelTemplate;
 use App\Models\Location;
 use App\Models\Module;
@@ -22,6 +21,7 @@ use App\Support\Extensions\DashboardTiles;
 use App\Support\Extensions\DemoData;
 use App\Support\Extensions\ItemExtensions;
 use App\Support\Extensions\Navigation;
+use App\Support\Extensions\SurfaceRoutes;
 use App\Support\MailSettings;
 use App\Support\Modules\ModuleRegistry;
 use App\Support\Settings;
@@ -51,6 +51,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(DashboardTiles::class);
         $this->app->singleton(DemoData::class);
         $this->app->singleton(ItemExtensions::class);
+        $this->app->singleton(SurfaceRoutes::class);
         $this->app->singleton(AuditSubjects::class);
         $this->app->singleton(Settings::class);
 
@@ -77,7 +78,7 @@ class AppServiceProvider extends ServiceProvider
         // the check against leaked passwords asks an external service and is off by default
         Password::defaults(fn () => Password::min(12)->when(config('stocks.check_leaked_passwords'), fn (Password $rule) => $rule->uncompromised()));
 
-        foreach ([User::class, Role::class, Invitation::class, Module::class, Setting::class, KioskDevice::class, Location::class, Category::class, Item::class, ItemCondition::class, ItemUnit::class, LabelTemplate::class, Printer::class, PrinterModel::class] as $class) {
+        foreach ([User::class, Role::class, Invitation::class, Module::class, Setting::class, Location::class, Category::class, Item::class, ItemCondition::class, ItemUnit::class, LabelTemplate::class, Printer::class, PrinterModel::class] as $class) {
             $auditSubjects->register($class);
         }
 
@@ -140,7 +141,6 @@ class AppServiceProvider extends ServiceProvider
         $navigation->add('admin', 'Etiketten auf Vorrat', 'labels.reserved.index', 'layer-group', 'labels.print', order: 46, group: 'settings');
         $navigation->add('admin', 'Drucker', 'labels.printers.index', 'print', 'labels.manage', order: 47, group: 'settings');
         $navigation->add('admin', 'Module', 'admin.modules.index', 'puzzle-piece', 'modules.manage', order: 50, group: 'settings');
-        $navigation->add('admin', 'Kiosk-Geräte', 'admin.kiosk-devices.index', 'tablet-screen-button', 'kiosk.devices.manage', order: 60, group: 'settings');
         $navigation->add('admin', 'Styleguide', 'styleguide', 'palette', 'settings.manage', order: 70, group: 'settings');
     }
 }

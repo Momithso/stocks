@@ -25,4 +25,12 @@ interface ItemInfoProvider
      * @return array<int, list<array{text: string, badge: string|null, variant: string, href: string|null, lock: bool, actions: list<array{title: string, href: string, icon: string}>}>>
      */
     public function notices(Collection $items, ?User $user): array;
+
+    /**
+     * Bookings that count on the item later, as sentences (e.g. "B-2026-0042 ab 14.11., 16:00
+     * Uhr."). Retiring, using up, splitting the item or setting a defect condition asks first.
+     *
+     * @return list<string>
+     */
+    public function reservations(Item $item): array;
 }

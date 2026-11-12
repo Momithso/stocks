@@ -9,11 +9,22 @@
       >
     </template>
     <UiButton
-      v-if="loan.status === 'confirmed' && can('loans.issue')"
+      v-if="
+        loan.status === 'confirmed' && !loan.not_picked_up && can('loans.issue')
+      "
       icon="right-from-bracket"
       :href="`/loans/${loan.id}/issue`"
     >
       Ausgeben
+    </UiButton>
+    <!-- the rest of a partial issue leaves later with a material list of its own -->
+    <UiButton
+      v-if="hasRest && can('loans.issue')"
+      :icon="restExpired ? 'xmark' : 'right-from-bracket'"
+      :variant="restExpired ? 'secondary' : 'primary'"
+      :href="`/loans/${loan.id}/issue`"
+    >
+      {{ restExpired ? "Rest streichen" : "Rest ausgeben" }}
     </UiButton>
     <UiButton
       v-if="loan.status === 'issued' && can('loans.issue')"
@@ -37,8 +48,9 @@
     >
       Verlängern
     </UiButton>
+    <!-- after the issue only purpose, notes and event change (see the form) -->
     <UiButton
-      v-if="isOpen && can('loans.manage')"
+      v-if="loan.status !== 'cancelled' && can('loans.manage')"
       variant="secondary"
       icon="pen"
       :href="`/loans/${loan.id}/edit`"
@@ -95,6 +107,15 @@
       Seit {{ loan.overdue_days }}
       {{ loan.overdue_days === 1 ? "Tag" : "Tagen" }} überfällig. Die
       Gegenstände bleiben belegt, bis die Rückgabe gebucht ist.
+    </UiAlert>
+    <UiAlert v-if="loan.not_picked_up" type="error">
+      Nicht abgeholt: der Rückgabetermin ist vorbei. Die Buchung reserviert
+      nichts mehr. Storniere sie oder gib ihr unter „Bearbeiten“ einen neuen
+      Zeitraum.
+    </UiAlert>
+    <UiAlert v-if="restExpired" type="warning">
+      Der Rest wurde nicht abgeholt und reserviert nichts mehr. Streiche ihn auf
+      der Ausgabeseite oder verlängere die Buchung, um ihn noch auszugeben.
     </UiAlert>
     <UiAlert v-if="loan.status === 'cancelled'" type="warning">
       Storniert am <UiDateTime :value="loan.cancelled_at" />:
@@ -193,6 +214,18 @@
                   <template v-if="position.return_state">
                     · {{ position.return_state }}</template
                   >
+                  <template
+                    v-if="
+                      ['issued', 'unchecked', 'closed', 'defects'].includes(
+                        loan.status,
+                      ) && !position.issued_at
+                    "
+                  >
+                    · <strong>Rest, noch nicht ausgegeben</strong></template
+                  >
+                </p>
+                <p v-if="position.issue_defect" class="text-sm text-yellow-700">
+                  Mangel bei der Ausgabe: {{ position.issue_defect }}
                 </p>
                 <p v-if="position.return_note" class="text-sm">
                   {{ position.return_note }}
@@ -406,9 +439,6 @@
         <p class="font-mono text-2xl font-semibold tracking-widest">
           {{ loan.pack_pin }}
         </p>
-        <p v-if="loan.pin_locked" class="mt-1 text-sm text-red-600">
-          Nach fünf falschen Eingaben gesperrt. Setze eine neue PIN.
-        </p>
         <p class="mt-1 text-sm text-ink-muted">
           Damit bestätigt jemand ohne Konto auf der Seite einer Box dieser
           Buchung, dass er sie kontrolliert hat.
@@ -616,7 +646,6 @@ const props = defineProps<{
     cancelled_at: string | null;
     defects_closed_at: string | null;
     pack_pin: string | null;
-    pin_locked: boolean;
   };
   positions: {
     id: number;
@@ -632,6 +661,8 @@ const props = defineProps<{
     quantity: number;
     condition: string;
     return_state: string | null;
+    issued_at: string | null;
+    issue_defect: string | null;
     return_note: string | null;
     check: {
       problem: string | null;
@@ -670,6 +701,8 @@ const props = defineProps<{
     url: string;
   }[];
   pendingStow: number;
+  hasRest: boolean;
+  restExpired: boolean;
   missing: {
     id: number;
     number: string;

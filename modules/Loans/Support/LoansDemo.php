@@ -207,16 +207,24 @@ class LoansDemo implements DemoPart
     {
         $this->createSheetLoans();
 
-        for ($index = 0; $index < self::COUNTS['issued'] - 4; $index++) {
+        // one of them is the overdue loan whose rest missed its time, below
+        for ($index = 0; $index < self::COUNTS['issued'] - 5; $index++) {
             // every fourth is overdue, every fifth is the organization's own use
             $overdue = $index % 4 === 1;
             $pickup = $this->demo->today->subDays($this->demo->int($overdue ? 6 : 1, $overdue ? 12 : 4))->setTime(14, 0);
             $return = $overdue ? $this->demo->today->subDays($this->demo->int(1, 4))->setTime(12, 0) : $this->demo->today->addDays($this->demo->int(1, 10))->setTime(12, 0);
             $loan = $this->draft($pickup, $return, $this->freeItems(), internal: $index % 5 === 3);
-            $this->tryTo(fn () => $this->issue($loan, $pickup));
+            // the first one is a partial issue: one position stays as rest, one left with a defect
+            $this->tryTo(fn () => $this->issue($loan, $pickup, partial: $index === 0));
         }
 
-        for ($index = 0; $index < self::COUNTS['confirmed'] - 1; $index++) {
+        // an overdue partial issue: its rest was not picked up in time and holds nothing any more
+        $pickup = $this->demo->today->subDays(5)->setTime(14, 0);
+        $loan = $this->draft($pickup, $this->demo->today->subDay()->setTime(12, 0), array_filter([$this->takeLendable(), $this->takeLendable()]), purpose: 'Sommerfest (Rest nicht abgeholt)');
+        $this->tryTo(fn () => $this->issue($loan, $pickup, partial: true));
+
+        // one of them is the loan that was not picked up, below
+        for ($index = 0; $index < self::COUNTS['confirmed'] - 2; $index++) {
             // the first three are picked up today
             $pickup = $index < 3 ? $this->demo->today->setTime(16 + $index, 0) : $this->demo->today->addDays($this->demo->int(1, 50))->setTime(15, 0);
             $loan = $this->draft($pickup, $pickup->addDays($this->demo->int(1, 4)), $this->freeItems());
@@ -224,11 +232,16 @@ class LoansDemo implements DemoPart
             // some boxes were checked with the pack pin already
             $box = $loan->positions()->with('item')->get()->first(fn ($position) => $position->item->is_container)?->item;
             if ($box && $loan->refresh()->pack_pin) {
-                $this->checkBox->store($box, $loan->pack_pin, $this->demo->pick(['Kim Packer', 'Lea', 'Tom']), $box->contents()->pluck('number')->all(), $box->contents()->count());
+                $this->checkBox->store($box, $loan->pack_pin, 'demo', $this->demo->pick(['Kim Packer', 'Lea', 'Tom']), $box->contents()->pluck('number')->all(), $box->contents()->count());
             }
         }
 
-        $confirmed = Loan::where('status', 'confirmed')->with('positions.item')->get();
+        // one confirmed loan whose time passed without a pickup ("Nicht abgeholt")
+        $pickup = $this->demo->today->subDays(4)->setTime(15, 0);
+        $missed = $this->draft($pickup, $pickup->addDays(2), $this->freeItems(), purpose: 'Grillabend (nicht abgeholt)');
+        $this->at($pickup->subDay(), fn () => $this->tryTo(fn () => $this->confirmLoan->handle($missed)));
+
+        $confirmed = Loan::where('status', 'confirmed')->where('return_at', '>', $this->demo->today)->with('positions.item')->get();
         for ($index = 0; $index < self::COUNTS['draft'] - 1; $index++) {
             $pickup = $this->demo->today->addDays($this->demo->int(1, 50))->setTime(15, 0);
             // every fourth draft collides with a confirmed loan, the others have items of their own
@@ -253,7 +266,7 @@ class LoansDemo implements DemoPart
         $this->confirmLoan->handle($today);
         // a pin from the seed, so the test sheet names the right one after every run
         $today->forceFill(['pack_pin' => sprintf('%06d', $this->demo->int(100000, 999999))])->save();
-        $this->checkBox->store($box, $today->refresh()->pack_pin, 'Kim Packer', $box->contents()->pluck('number')->all(), $box->contents()->count());
+        $this->checkBox->store($box, $today->refresh()->pack_pin, 'demo', 'Kim Packer', $box->contents()->pluck('number')->all(), $box->contents()->count());
         $this->demo->label($box->number, $box->name, 'Box, bestätigte Buchung: für die Ausgabe', "In {$today->number} (heute abholen); Pack-PIN {$today->pack_pin}, kontrolliert von Kim Packer.");
         $this->demo->label($single->number, $single->name, 'Position der Buchung zum Abhaken', "Hakt in der Ausgabe von {$today->number} ab.");
         $this->demo->label($bulk->number, $bulk->name, 'Mengenartikel der Buchung', "In {$today->number}: nach dem Scan die Anzahl bestätigen; bei der Ausgabe wird abgeteilt.");
@@ -347,15 +360,30 @@ class LoansDemo implements DemoPart
 
     /**
      * Confirm and issue a loan at its pickup: every position ticked off by scan, signed on the screen
-     * or (sometimes) on paper.
+     * or (sometimes) on paper. A partial issue keeps the last position back as rest ("Nachausgabe")
+     * and notes a defect at the first one.
      */
-    private function issue(Loan $loan, CarbonImmutable $pickup): void
+    private function issue(Loan $loan, CarbonImmutable $pickup, bool $partial = false): void
     {
         $this->at($pickup->subDays(1)->min($this->demo->today->subMinutes(30)), fn () => $this->confirmLoan->handle($loan));
-        $this->at($pickup, function () use ($loan) {
+        $this->at($pickup, function () use ($loan, $partial) {
             $this->issueLoan->prepare($loan);
-            foreach ($loan->positions()->get() as $position) {
-                $this->issueLoan->check($this->demo->actor, $loan, $position->item->number, null);
+            $positions = $loan->positions()->get();
+            foreach ($positions as $index => $position) {
+                if ($partial && $positions->count() > 1 && $index === $positions->count() - 1) {
+                    continue;
+                }
+                // a box that came back unchecked leaves with its contents ticked one by one
+                if ($position->isUncheckedBox() && $position->children()->exists()) {
+                    foreach (LoanItem::whereIn('id', $position->descendantIds())->whereDoesntHave('children')->get() as $row) {
+                        $this->issueLoan->check($this->demo->actor, $loan, null, $row->id);
+                    }
+                } else {
+                    $this->issueLoan->check($this->demo->actor, $loan, $position->item->number, null);
+                }
+                if ($partial && $index === 0) {
+                    $this->issueLoan->defect($this->demo->actor, $loan, $position, ReturnState::Dirty, 'Aufkleberreste am Gehäuse', null, [], false);
+                }
             }
             $this->issueLoan->complete($this->demo->actor, $loan, $this->signatures('responsible', 'issuer'), $this->demo->chance(0.15), null, 'Demo');
         });

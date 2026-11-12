@@ -84,6 +84,8 @@ import { ref } from "vue";
 import { getJson, type Contact } from "../http";
 import LoansContactForm from "./ContactForm.vue";
 
+const { url } = useSurface();
+
 /**
  * Field for a contact: search by name or e-mail, or create a new one in the same dialog.
  */
@@ -117,7 +119,7 @@ const find = () => {
   timeout = setTimeout(async () => {
     suggestions.value =
       (await getJson<Contact[]>(
-        `/loans/contacts/search?search=${encodeURIComponent(text)}`,
+        url(`/loans/contacts/search?search=${encodeURIComponent(text)}`),
       )) ?? [];
   }, 250);
 };

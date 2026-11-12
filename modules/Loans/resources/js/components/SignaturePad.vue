@@ -13,7 +13,7 @@
     <!-- white like paper in both colour modes, so the image looks the same on the pdf -->
     <canvas
       ref="canvas"
-      class="mt-1 h-40 w-full touch-none rounded-md bg-white ring-1 ring-line"
+      class="mt-1 h-56 w-full touch-none rounded-md bg-white ring-1 ring-line sm:h-72"
       @pointerdown="start"
       @pointermove="draw"
       @pointerup="end"
@@ -50,10 +50,23 @@ onMounted(() => {
   context = element.getContext("2d");
   context?.scale(ratio, ratio);
   if (context) {
-    context.lineWidth = 2.2;
+    context.lineWidth = 3;
     context.lineCap = "round";
     context.lineJoin = "round";
     context.strokeStyle = "#111";
+  }
+  // a signature made before (e.g. one step back and forth again) is shown again
+  if (model.value && context) {
+    const image = new Image();
+    image.onload = () =>
+      context?.drawImage(
+        image,
+        0,
+        0,
+        element.clientWidth,
+        element.clientHeight,
+      );
+    image.src = model.value;
   }
 });
 

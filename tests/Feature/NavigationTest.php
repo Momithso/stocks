@@ -26,7 +26,12 @@ class NavigationTest extends TestCase
                 ->where('navigation.2.entries.3.title', 'Einstellungen')
                 ->where('navigation.2.entries.3.href', null)
                 ->where('navigation.2.entries.3.children.0.href', '/admin/settings')
-                ->has('navigation.2.entries.3.children', 11));
+                ->has('navigation.2.entries.3.children', 10));
+
+        // modules add their pages, e.g. the kiosk its devices
+        $this->activateModule('kiosk');
+        $this->actingAs($this->admin())->get('/dashboard')
+            ->assertInertia(fn ($page) => $page->has('navigation.2.entries.3.children', 11));
 
         // a group only shows the entries the user may use
         $this->actingAs($this->userWithRoles('FSR-Mitglied'))->get('/dashboard')

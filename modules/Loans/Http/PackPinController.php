@@ -26,7 +26,7 @@ class PackPinController extends Controller
         $validated = $request->validate(['pin' => ['required', 'digits:6']]);
         $box = $this->box($code);
 
-        $this->checkBox->unlock($box, $validated['pin']);
+        $this->checkBox->unlock($box, $validated['pin'], (string) $request->ip());
         $request->session()->put(self::sessionKey($box), $validated['pin']);
 
         return back();
@@ -47,7 +47,7 @@ class PackPinController extends Controller
         $pin = $request->session()->get(self::sessionKey($box))
             ?? throw ValidationException::withMessages(['pin' => 'Gib zuerst die Pack-PIN ein.']);
 
-        $this->checkBox->store($box, $pin, $validated['name'], $validated['ticks'] ?? [], $validated['total']);
+        $this->checkBox->store($box, $pin, (string) $request->ip(), $validated['name'], $validated['ticks'] ?? [], $validated['total']);
 
         return back();
     }

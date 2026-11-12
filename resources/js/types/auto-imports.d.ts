@@ -13,4 +13,5 @@ declare global {
   const usePermissions: typeof import('../composables/usePermissions')['default']
   const usePolling: typeof import('../composables/usePolling')['default']
   const useScannerInput: typeof import('../composables/useScannerInput')['default']
+  const useSurface: typeof import('../composables/useSurface')['default']
 }

@@ -37,6 +37,8 @@ Danach ist `/setup` gesperrt. Den `SETUP_TOKEN` kann man wieder entfernen.
 1. Datenbank sichern (`mariadb-dump`).
 2. `docker compose pull && docker compose up -d`. Migrationen und `stocks:sync` laufen beim Start.
 
+**Update auf Phase 4:** Der Kiosk ist jetzt ein Modul und nach dem Update ausgeschaltet. Wer Tablets nutzt, schaltet unter Verwaltung › Module „Kiosk“ ein; gekoppelte Geräte, PINs und Protokolleinträge bleiben erhalten. Rechte `kiosk.use` und `kiosk.devices.manage` behalten ihre Rollen. Danach unter Verwaltung › Einstellungen › Kiosk-Geräte die Plattform jedes Geräts wählen ([KIOSK.md](KIOSK.md)).
+
 ## Umgebungsvariablen von Stocks
 
 | Variable | Bedeutung |

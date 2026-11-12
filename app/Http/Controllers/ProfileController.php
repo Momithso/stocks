@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\Users\UpdateProfile;
 use App\Rules\KioskPin;
+use App\Support\Modules\ModuleRegistry;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rules\Password;
@@ -22,7 +23,8 @@ class ProfileController extends Controller
     {
         return Inertia::render('Profile/Edit', [
             'hasPin' => $request->user()->hasPin(),
-            'canUseKiosk' => $request->user()->can('kiosk.use'),
+            // the one place where the core names the kiosk module: the pin only matters with it
+            'showPin' => $this->usesKiosk($request),
             'pinLength' => config('kiosk.pin_length'),
         ]);
     }
@@ -49,5 +51,13 @@ class ProfileController extends Controller
         );
 
         return back()->with('success', 'Dein Profil wurde gespeichert.');
+    }
+
+    /**
+     * Check if the profile shows the kiosk pin: the module "kiosk" is on and the person may use it.
+     */
+    private function usesKiosk(Request $request): bool
+    {
+        return app(ModuleRegistry::class)->isActive('kiosk') && $request->user()->can('kiosk.use');
     }
 }

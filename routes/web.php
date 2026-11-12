@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Admin\AuditLogController;
-use App\Http\Controllers\Admin\KioskDeviceController;
 use App\Http\Controllers\Admin\MailSettingsController;
 use App\Http\Controllers\Admin\ModuleController;
 use App\Http\Controllers\Admin\RoleController;
@@ -22,7 +21,6 @@ use App\Http\Controllers\Inventory\LocationController;
 use App\Http\Controllers\Inventory\MoveController;
 use App\Http\Controllers\Inventory\ScanController;
 use App\Http\Controllers\Inventory\UnitController;
-use App\Http\Controllers\KioskController;
 use App\Http\Controllers\Labels\DemoSheetController;
 use App\Http\Controllers\Labels\PrintController;
 use App\Http\Controllers\Labels\PrinterController;
@@ -218,35 +216,6 @@ Route::middleware('auth')->group(function () {
             Route::post('/mail/test', [MailSettingsController::class, 'test'])->middleware('throttle:10,1')->name('mail.test');
         });
 
-        Route::middleware('can:kiosk.devices.manage')->group(function () {
-            Route::get('/kiosk-devices', [KioskDeviceController::class, 'index'])->name('kiosk-devices.index');
-            Route::post('/kiosk-devices', [KioskDeviceController::class, 'store'])->name('kiosk-devices.store');
-            Route::post('/kiosk-devices/{device}/regenerate-token', [KioskDeviceController::class, 'regenerateToken'])->name('kiosk-devices.regenerate-token');
-            Route::delete('/kiosk-devices/{device}', [KioskDeviceController::class, 'destroy'])->name('kiosk-devices.destroy');
-        });
-
         Route::get('/audit-log', [AuditLogController::class, 'index'])->middleware('can:audit.view')->name('audit-log');
-    });
-});
-
-/*
-|--------------------------------------------------------------------------
-| Kiosk
-|--------------------------------------------------------------------------
-|
-| Only for paired tablets (cookie). The kiosk session is separate from the
-| normal login, see App\Support\Kiosk\KioskSession.
-|
-*/
-
-Route::get('/kiosk/pair/{device}', [KioskController::class, 'pair'])->middleware('throttle:10,1')->name('kiosk.pair');
-
-Route::prefix('kiosk')->name('kiosk.')->middleware('kiosk.device')->group(function () {
-    Route::get('/', [KioskController::class, 'lock'])->name('lock');
-    Route::post('/unlock', [KioskController::class, 'unlock'])->name('unlock');
-    Route::post('/logout', [KioskController::class, 'logout'])->name('logout');
-
-    Route::middleware('kiosk')->group(function () {
-        Route::get('/home', [KioskController::class, 'home'])->name('home');
     });
 });

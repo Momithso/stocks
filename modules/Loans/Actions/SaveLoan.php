@@ -14,10 +14,23 @@ use Modules\Loans\Support\LoanNumbers;
 
 /**
  * Create a loan as draft or change its data. Times can only change while nothing is issued; a
- * confirmed loan keeps its items only if they are free in the new time.
+ * confirmed loan keeps its items only if they are free in the new time. After the issue only
+ * purpose, notes and event change (the contract names the person).
  */
 class SaveLoan
 {
+    /**
+     * Fields that are fixed once something was issued, with their label for the message.
+     *
+     * @var array<string, string>
+     */
+    private const FIXED_AFTER_ISSUE = [
+        'kind' => 'Die Art',
+        'borrower_contact_id' => 'Der Entleiher',
+        'responsible_contact_id' => 'Die verantwortliche Person',
+        'responsible_user_id' => 'Das verantwortliche Mitglied',
+    ];
+
     public function __construct(private readonly LoanNumbers $numbers, private readonly Availability $availability) {}
 
     /**
@@ -33,17 +46,27 @@ class SaveLoan
             throw ValidationException::withMessages(['return_at' => 'Die Rückgabe muss nach der Abholung liegen.']);
         }
 
-        if ($loan !== null && ! $loan->status->isOpen() && ($pickup->ne($loan->pickup_at) || $return->ne($loan->return_at))) {
-            throw ValidationException::withMessages(['pickup_at' => 'Nach der Ausgabe lässt sich der Zeitraum nur noch verlängern.']);
-        }
-
         // internal loans have a member instead of contacts, external ones no member
         $kind = LoanKind::from($data['kind']);
         $data = $kind === LoanKind::Internal
             ? [...$data, 'borrower_contact_id' => null, 'responsible_contact_id' => null]
             : [...$data, 'responsible_user_id' => null];
 
-        return DB::transaction(function () use ($actor, $loan, $data, $pickup, $return) {
+        // after the issue the contract stands: only purpose, notes and event change
+        if ($loan !== null && ! $loan->status->isOpen()) {
+            if ($pickup->ne($loan->pickup_at) || $return->ne($loan->return_at)) {
+                throw ValidationException::withMessages(['pickup_at' => 'Nach der Ausgabe lässt sich der Zeitraum nur noch verlängern.']);
+            }
+            foreach (self::FIXED_AFTER_ISSUE as $field => $label) {
+                $value = $field === 'kind' ? $kind : $data[$field] ?? null;
+                if ($value != $loan->{$field}) {
+                    throw ValidationException::withMessages([$field => "{$label} steht seit der Ausgabe fest."]);
+                }
+            }
+        }
+
+        // a confirmed loan reserves its new time: one change at a time
+        $save = fn () => DB::transaction(function () use ($actor, $loan, $data, $pickup, $return) {
             $isNew = $loan === null;
             $loan ??= new Loan;
             $loan->fill($data);
@@ -63,5 +86,7 @@ class SaveLoan
 
             return $loan;
         });
+
+        return $loan?->status === LoanStatus::Confirmed ? Availability::exclusively($save) : $save();
     }
 }

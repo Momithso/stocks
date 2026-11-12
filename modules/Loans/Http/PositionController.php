@@ -5,6 +5,7 @@ namespace Modules\Loans\Http;
 use App\Http\Controllers\Controller;
 use App\Models\Item;
 use App\Support\Inventory\CodeLookup;
+use App\Support\Surface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -40,7 +41,10 @@ class PositionController extends Controller
 
         $this->positions->add($loan, $item->load('condition'), $validated['quantity'] ?? 1);
 
-        return to_route('loans.show', $loan)->with('success', "{$item->number} {$item->name} ist in der Buchung.");
+        // on the kiosk (no loan page) the page that added it, e.g. the issue
+        $target = Surface::link('loans.show', $loan);
+
+        return ($target ? redirect($target) : back())->with('success', "{$item->number} {$item->name} ist in der Buchung.");
     }
 
     /**

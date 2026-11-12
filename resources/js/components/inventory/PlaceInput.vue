@@ -53,6 +53,7 @@ const props = defineProps({
 });
 
 const model = defineModel<string>({ default: "" });
+const { url } = useSurface();
 const selected = ref<Place | null>(props.initial);
 const suggestions = ref<Place[]>([]);
 
@@ -79,7 +80,7 @@ const search = (value: string | number | null | undefined) => {
 
   timeout = setTimeout(async () => {
     const response = await fetch(
-      `/inventory/places?search=${encodeURIComponent(text)}`,
+      url(`/inventory/places?search=${encodeURIComponent(text)}`),
       { headers: { Accept: "application/json" } },
     );
     suggestions.value = response.ok ? await response.json() : [];

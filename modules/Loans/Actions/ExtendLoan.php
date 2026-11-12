@@ -27,10 +27,13 @@ class ExtendLoan
             throw ValidationException::withMessages(['return_at' => 'Der neue Rückgabetermin muss nach dem alten und in der Zukunft liegen.']);
         }
 
-        if ($problems = $this->availability->problems($loan, now(), $returnAt)) {
-            throw ValidationException::withMessages(['return_at' => 'Bis dahin ist nicht alles frei: '.implode(' ', $problems)]);
-        }
+        // one at a time, the new time reserves
+        Availability::exclusively(function () use ($loan, $returnAt) {
+            if ($problems = $this->availability->problems($loan, now(), $returnAt)) {
+                throw ValidationException::withMessages(['return_at' => 'Bis dahin ist nicht alles frei: '.implode(' ', $problems)]);
+            }
 
-        $loan->update(['return_at' => $returnAt]);
+            $loan->update(['return_at' => $returnAt]);
+        });
     }
 }

@@ -2,10 +2,10 @@
 
 namespace Modules\Example\Tests;
 
-use App\Models\KioskDevice;
 use App\Models\User;
 use Database\Factories\UserFactory;
 use Illuminate\Support\Facades\Schema;
+use Modules\Kiosk\Models\KioskDevice;
 use Tests\TestCase;
 
 /**
@@ -52,9 +52,17 @@ class ExampleModuleTest extends TestCase
         $this->actingAs($this->userWithPermissions('example.view'))->get('/example')->assertOk();
     }
 
+    public function test_the_kiosk_page_answers_404_while_the_kiosk_module_is_off(): void
+    {
+        $this->activateModule('example');
+
+        $this->get('/kiosk/example')->assertNotFound();
+    }
+
     public function test_the_kiosk_tile_leads_to_the_kiosk_page_of_the_module(): void
     {
         $this->activateModule('example');
+        $this->activateModule('kiosk');
         $device = KioskDevice::factory()->create();
         $user = User::factory()->withPin()->create();
         $user->givePermissionTo(['kiosk.use', 'example.view']);
@@ -65,6 +73,7 @@ class ExampleModuleTest extends TestCase
         $this->withCookie(KioskDevice::COOKIE_NAME, $device->cookieValue())->get('/kiosk/home')
             ->assertInertia(fn ($page) => $page->where('tiles.0.href', '/kiosk/example'));
         $this->withCookie(KioskDevice::COOKIE_NAME, $device->cookieValue())->get('/kiosk/example')
-            ->assertOk()->assertInertia(fn ($page) => $page->component('Example::Kiosk', false));
+            ->assertOk()->assertInertia(fn ($page) => $page->component('Example::Index', false)
+            ->where('surface.layout', 'Kiosk::KioskLayout'));
     }
 }

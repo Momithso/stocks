@@ -1,9 +1,12 @@
 @extends('loans::pdf.layout')
 
-@section('title', 'Materialliste')
+@section('title', ($doc['supplement'] ?? false) ? 'Materialliste Nachtrag' : 'Materialliste')
 
 @section('content')
-    <h1>Materialliste</h1>
+    <h1>Materialliste{{ ($doc['supplement'] ?? false) ? ' – Nachtrag' : '' }}</h1>
+    @if ($doc['supplement'] ?? false)
+        <p class="muted">Nachträglich ausgegebener Rest der Buchung; es gilt der bei der ersten Ausgabe unterschriebene Leihvertrag.</p>
+    @endif
     @include('loans::pdf.persons')
     @include('loans::pdf.positions', ['positions' => $doc['positions']])
 

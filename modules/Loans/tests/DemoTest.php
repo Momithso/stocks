@@ -8,6 +8,7 @@ use App\Models\ReservedNumber;
 use App\Support\Demo\DemoGenerator;
 use App\Support\Demo\TestSheet;
 use App\Support\Settings;
+use Modules\Loans\Actions\IssueLoan;
 use Modules\Loans\Actions\StowItem;
 use Modules\Loans\Enums\LoanKind;
 use Modules\Loans\Enums\LoanStatus;
@@ -42,6 +43,14 @@ class DemoTest extends LoansTestCase
         $this->assertTrue(Contact::whereNull('council_id')->exists() && Contact::whereNotNull('council_id')->exists());
         $this->assertTrue(Loan::where('status', LoanStatus::ClosedWithDefects)->whereNotNull('defects_closed_at')->exists());
         $this->assertTrue(Loan::where('status', LoanStatus::Issued)->whereNotNull('returned_at')->exists() || Loan::where('status', LoanStatus::Issued)->whereHas('loanItems', fn ($query) => $query->whereNotNull('returned_at'))->exists(), 'partial return');
+
+        // a partial issue with a rest that may still leave, and a defect noted at the issue
+        $this->assertTrue(Loan::where('status', LoanStatus::Issued)->whereHas('positions', fn ($query) => $query->whereNull('issued_at'))->exists(), 'Teilausgabe');
+        $this->assertTrue(LoanItem::whereNotNull('issue_state')->whereNotNull('issued_at')->exists(), 'Mangel bei der Ausgabe');
+
+        // a confirmed loan that was not picked up, and an overdue loan whose rest missed its time
+        $this->assertTrue(Loan::notPickedUp()->exists(), 'nicht abgeholt');
+        $this->assertTrue(Loan::where('status', LoanStatus::Issued)->get()->contains(fn (Loan $loan) => IssueLoan::restExpired($loan)), 'Rest nicht abgeholt');
 
         // a draft that collides with a confirmed loan
         $collides = Loan::where('status', LoanStatus::Draft)->get()->contains(fn (Loan $loan) => app(Availability::class)->problems($loan) !== []);

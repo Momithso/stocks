@@ -7,12 +7,14 @@ use App\Http\Controllers\Inventory\ItemPhotoController;
 use App\Models\ItemCondition;
 use App\Models\ItemPhoto;
 use App\Models\ItemUnit;
+use App\Support\Surface;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 use Modules\Loans\Actions\ReturnLoan;
+use Modules\Loans\Enums\LoanStatus;
 use Modules\Loans\Enums\ReturnState;
 use Modules\Loans\Enums\SignatureRole;
 use Modules\Loans\Models\Loan;
@@ -31,12 +33,21 @@ class ReturnController extends Controller
     /**
      * Display the open rows to tick off.
      */
-    public function show(Loan $loan, string $mode): Response
+    public function show(Loan $loan, string $mode): Response|RedirectResponse
     {
         $inspect = $mode === 'inspect';
+        // nothing to take back or to inspect (any more): back to the loan, with the reason
+        if ($loan->status !== ($inspect ? LoanStatus::ReturnedUnchecked : LoanStatus::Issued)) {
+            $message = "{$loan->number} ist {$loan->status->label()}, ".($inspect ? 'eine Prüfung ist nicht offen.' : 'zurücknehmen geht nur, solange sie ausgegeben ist.');
+
+            return redirect(Surface::link('loans.show', $loan) ?? Surface::route('loans.index'))->with('warning', $message);
+        }
         $loan->load(['responsible', 'responsibleUser']);
-        // boxes whose contents must be ticked one by one (they came back unchecked before)
-        $uncheckedBoxes = LoanItem::whereNotNull('returned_at')->whereNull('inspected_at')->pluck('item_id')->all();
+        // boxes of this loan whose contents must be ticked one by one (they came back unchecked before)
+        $uncheckedBoxes = LoanItem::whereIn('item_id', $loan->loanItems()->select('item_id'))
+            ->whereNotNull('returned_at')->whereNull('inspected_at')
+            ->whereHas('item', fn ($query) => $query->where('is_container', true))
+            ->pluck('item_id')->all();
 
         return Inertia::render('Loans::Loans/Return', [
             'mode' => $mode,
@@ -51,6 +62,8 @@ class ReturnController extends Controller
                 'consumable' => $row->isBulk() && ItemUnit::isConsumable($row->item->unit),
                 'condition_id' => $row->physicalItem()->condition_id,
                 'single_check' => $inspect || in_array($row->item_id, $uncheckedBoxes, true),
+                // documented when it left, so nobody answers for it at the return
+                'issue_defect' => $row->issueDefect(),
             ]),
             'returner' => $loan->responsibleName(),
             'conditions' => ItemCondition::options(),
@@ -116,7 +129,7 @@ class ReturnController extends Controller
         $validated = $this->validateSignatures($request, $loan);
         $this->returnLoan->complete($request->user(), $loan, $validated['signatures'] ?? [], (bool) ($validated['on_paper'] ?? false), $validated['returner'], $request->userAgent());
 
-        return to_route('loans.show', $loan)->with('success', 'Die Rückgabe ist gebucht.');
+        return Surface::finish(to_route('loans.show', $loan)->with('success', 'Die Rückgabe ist gebucht.'));
     }
 
     /**
@@ -127,7 +140,7 @@ class ReturnController extends Controller
         $validated = $this->validateSignatures($request, $loan);
         $this->returnLoan->acceptUnchecked($request->user(), $loan, $validated['signatures'] ?? [], (bool) ($validated['on_paper'] ?? false), $validated['returner'], $request->userAgent());
 
-        return to_route('loans.show', $loan)->with('success', 'Angenommen, ungeprüft. Die Prüfung steht unter Verleih › Rückgaben.');
+        return Surface::finish(to_route('loans.show', $loan)->with('success', 'Angenommen, ungeprüft. Die Prüfung steht unter Verleih › Rückgaben.'));
     }
 
     /**
@@ -137,7 +150,7 @@ class ReturnController extends Controller
     {
         $this->returnLoan->completeInspection($request->user(), $loan);
 
-        return to_route('loans.show', $loan)->with('success', 'Die Prüfung ist abgeschlossen.');
+        return Surface::finish(to_route('loans.show', $loan)->with('success', 'Die Prüfung ist abgeschlossen.'));
     }
 
     /**

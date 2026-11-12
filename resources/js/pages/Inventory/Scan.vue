@@ -23,7 +23,7 @@
           'w-full transition-[height] duration-300 lg:aspect-video lg:h-auto',
           hasResult
             ? 'h-[36dvh]'
-            : 'h-[calc(100dvh-14rem-var(--bottom-bar)-env(safe-area-inset-bottom))]',
+            : 'h-[calc(100dvh-14rem-var(--bottom-bar,0px)-env(safe-area-inset-bottom))]',
         ]"
         :autostart="autostart"
         @scan="scanned"
@@ -71,6 +71,10 @@
         </button>
       </UiAlert>
       <UiAlert v-if="error" type="error">{{ error }}</UiAlert>
+      <InventoryReservedConfirm
+        :message="reserved?.message"
+        @confirm="reserved?.retry()"
+      />
 
       <!-- the card of the last scan -->
       <UiCard v-if="card?.type === 'item'">
@@ -172,11 +176,13 @@
             variant="secondary"
             icon="tag"
             size="md"
-            :href="`/labels/print?items=${card.id}`"
+            :href="url(`/labels/print?items=${card.id}`)"
           >
             Etikett
           </UiButton>
+          <!-- no href on surfaces without the detail page, e.g. the kiosk -->
           <UiButton
+            v-if="card.href"
             variant="secondary"
             icon="arrow-up-right-from-square"
             size="md"
@@ -209,11 +215,12 @@
             variant="secondary"
             icon="tag"
             size="md"
-            :href="`/labels/print?locations=${card.id}`"
+            :href="url(`/labels/print?locations=${card.id}`)"
           >
             Etikett
           </UiButton>
           <UiButton
+            v-if="card.href"
             variant="secondary"
             icon="arrow-up-right-from-square"
             size="md"
@@ -228,7 +235,7 @@
         <p class="font-mono text-lg font-semibold">{{ card.number }}</p>
         <p class="text-sm text-ink-muted">{{ card.message }}</p>
         <UiButton
-          v-if="can('inventory.edit')"
+          v-if="can('inventory.edit') && card.href"
           class="mt-4"
           icon="plus"
           size="md"
@@ -302,7 +309,7 @@ type ScannedItem = {
   consumable: boolean;
   can_merge: boolean;
   split_from: Place | null;
-  href: string;
+  href: string | null;
   notices: ItemNotice[];
 };
 type ScannedLocation = {
@@ -313,13 +320,13 @@ type ScannedLocation = {
   name: string | null;
   full_code: string;
   items_count: number;
-  href: string;
+  href: string | null;
 };
 type ScannedReserved = {
   type: "reserved";
   number: string;
   message: string;
-  href: string;
+  href: string | null;
 };
 type Scanned = ScannedItem | ScannedLocation | ScannedReserved;
 
@@ -331,6 +338,7 @@ type Scanned = ScannedItem | ScannedLocation | ScannedReserved;
 defineProps<{ conditions: Option[] }>();
 
 const { can } = usePermissions();
+const { url } = useSurface();
 
 const card = ref<Scanned | null>(null);
 const error = ref<string | null>(null);
@@ -370,7 +378,7 @@ const rememberCamera = (on: boolean) => {
 
 const lookup = async (code: string): Promise<Scanned | null> => {
   const response = await fetch(
-    `/inventory/lookup?code=${encodeURIComponent(code)}`,
+    url(`/inventory/lookup?code=${encodeURIComponent(code)}`),
     {
       headers: { Accept: "application/json" },
     },
@@ -395,20 +403,33 @@ const show = async (code: string) => {
 };
 
 // a move: by the next scan (mode "move") or to the place of mode "here"
+// a split of a booked item asks first ("Ja, trotzdem" sends it again confirmed)
+const reserved = ref<{ message: string; retry: () => void } | null>(null);
 const move = (
   itemId: number,
   targetCode: string,
   quantity: number | null,
   onSuccess?: () => void,
+  confirmed = false,
 ) =>
   router.post(
-    "/inventory/move",
-    { item_id: itemId, target_code: targetCode, quantity },
+    url("/inventory/move"),
+    { item_id: itemId, target_code: targetCode, quantity, confirmed },
     {
       preserveScroll: true,
       preserveState: true,
+      onStart: () => {
+        reserved.value = null;
+      },
       onSuccess,
       onError: (errors) => {
+        if (errors.confirm) {
+          reserved.value = {
+            message: errors.confirm,
+            retry: () => move(itemId, targetCode, quantity, onSuccess, true),
+          };
+          return;
+        }
         error.value =
           errors.target_code ??
           errors.target ??

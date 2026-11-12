@@ -1,8 +1,6 @@
 <?php
 
 use App\Http\Middleware\ApplyMailSettings;
-use App\Http\Middleware\EnsureKioskDevice;
-use App\Http\Middleware\EnsureKioskUnlocked;
 use App\Http\Middleware\EnsureModuleActive;
 use App\Http\Middleware\EnsureSetupCompleted;
 use App\Http\Middleware\EnsureUserIsActive;
@@ -36,8 +34,6 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'module' => EnsureModuleActive::class,
-            'kiosk.device' => EnsureKioskDevice::class,
-            'kiosk' => EnsureKioskUnlocked::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

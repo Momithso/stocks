@@ -39,6 +39,7 @@
   },
   "autoload-dev": {
     "psr-4": {
+      "Modules\\Kiosk\\Tests\\": "modules/Kiosk/tests/",
       "Modules\\Loans\\Tests\\": "modules/Loans/tests/",
       "Tests\\": "tests/"
     }

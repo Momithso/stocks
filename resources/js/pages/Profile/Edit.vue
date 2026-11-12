@@ -49,7 +49,7 @@
     </UiCard>
 
     <UiCard
-      v-if="canUseKiosk"
+      v-if="showPin"
       title="Kiosk-PIN"
       :description="
         hasPin
@@ -86,7 +86,7 @@
 import { computed } from "vue";
 import { useForm, usePage } from "@inertiajs/vue3";
 
-defineProps<{ hasPin: boolean; canUseKiosk: boolean; pinLength: number }>();
+defineProps<{ hasPin: boolean; showPin: boolean; pinLength: number }>();
 
 const page = usePage<SharedProps>();
 const user = computed(() => page.props.auth!.user);

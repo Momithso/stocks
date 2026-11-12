@@ -60,12 +60,14 @@ class StowItem
      */
     public function handle(User $actor, LoanItem $row, ?string $code): string
     {
-        if (! self::pending()->whereKey($row->id)->exists()) {
-            throw ValidationException::withMessages(['code' => 'Die Position wartet nicht aufs Einräumen.']);
-        }
-        $row->loadMissing(['item', 'issuedItem', 'loan']);
-
         return DB::transaction(function () use ($actor, $row, $code) {
+            // locked and checked again, so a second tap does not put it back twice
+            LoanItem::whereKey($row->id)->lockForUpdate()->first();
+            if (! self::pending()->whereKey($row->id)->exists()) {
+                throw ValidationException::withMessages(['code' => 'Die Position wartet nicht aufs Einräumen.']);
+            }
+            $row->refresh()->load(['item', 'issuedItem', 'loan']);
+
             $returned = $row->returned_quantity ?? $row->quantity;
 
             // a split off part: the quantity that came back goes to the origin

@@ -39,7 +39,9 @@ Alle Module außer dem Beispielmodul sind eingeschaltet.
 
 **Kern (Inventar und Etiketten, `App\Support\Demo\InventoryDemo`):** 60 Standorte auf allen vier Ebenen (2 Adressen, 6 Räume, 16 Lagerplätze, 36 Fächer), Kategorien mit Unterkategorien, 30 Boxen (drei davon in anderen Boxen) und rund 400 Gegenstände. Pflichtfälle, je mindestens zweimal: Einzelstück, Mengenartikel, Verbrauchsmaterial, Box, Box in Box, abgeteilter Teil, defekt (mit Zustandswechsel), ausgemustert, ohne Platz, nicht am Stammplatz, ohne Etikett (jeder zehnte), mit Hinweis fürs Etikett, mit Fotos, reservierte Nummern. Fotos sind erzeugte farbige Bilder mit Text; ist S3 nicht erreichbar, fehlen sie einfach.
 
-**Verleih (`Modules\Loans\Support\LoansDemo`):** 80 Kontakte (vollständige und unvollständige, privat und je Fachschaft), 12 Veranstaltungen und 120 Buchungen: 40 abgeschlossen, 6 mit Mängeln (ein Teil davon abgeschlossen), 6 storniert, 4 ungeprüft angenommen, 14 ausgegeben (davon überfällige, Eigenbedarf und eine Teilrückgabe), 30 bestätigt (drei heute abzuholen) und 20 Entwürfe (ein Teil kollidiert mit einer bestätigten Buchung, andere merken Gegenstände vor). Dazu Box-Kontrollen per Pack-PIN und Gegenstände, die zurück, aber noch nicht eingeräumt sind.
+**Verleih (`Modules\Loans\Support\LoansDemo`):** 80 Kontakte (vollständige und unvollständige, privat und je Fachschaft), 12 Veranstaltungen und 120 Buchungen: 40 abgeschlossen, 6 mit Mängeln (ein Teil davon abgeschlossen), 6 storniert, 4 ungeprüft angenommen, 14 ausgegeben (davon überfällige, Eigenbedarf, eine Teilrückgabe, eine Teilausgabe mit offenem Rest und einem Mangel bei der Ausgabe und eine überfällige Teilausgabe, deren Rest nicht abgeholt wurde), 30 bestätigt (drei heute abzuholen, eine nicht abgeholt) und 20 Entwürfe (ein Teil kollidiert mit einer bestätigten Buchung, andere merken Gegenstände vor). Dazu Box-Kontrollen per Pack-PIN und Gegenstände, die zurück, aber noch nicht eingeräumt sind.
+
+**Kiosk (`Modules\Kiosk\Support\KioskDemo`):** zwei gekoppelte Geräte, „Lager-Tablet“ (Android, druckt direkt) und „iPad Ausgabe“ (iPad, lädt das Etikett als Bild). Ihre Tokens kommen aus dem Startwert; die Kopplungs-Adressen und QR-Codes stehen unter Verwaltung › Einstellungen › Kiosk-Geräte. Am Kiosk entsperren alle Demo-Konten außer dem freien Mitglied mit der PIN 482915. Der Teil läuft als letzter und ändert deshalb keine Nummern des Testblatts.
 
 Jede Buchung läuft durch die Actions zu ihrer eigenen Zeit: Der Generator stellt die Uhr auf die Abholung und auf die Rückgabe (`Carbon::setTestNow`), so tragen Dokumente, Verlauf und Änderungsprotokoll echte Daten. Vergangene Buchungen teilen sich Gegenstände (sie belegen nichts mehr), laufende und künftige haben eigene.
 
@@ -68,7 +70,7 @@ Regel für alle Phasen (steht auch in `CLAUDE.md`): Jede Phase erweitert den Gen
 2. Der Teil implementiert `App\Support\Demo\DemoPart` und nimmt alle Zufälle aus dem `DemoContext` (`int`, `chance`, `pick`, `weighted`, `shuffle`), nie aus `rand()` oder Faker.
 3. Was spätere Teile brauchen, markiert er mit `tag()`; spätere Teile holen es mit `tagged()` oder `take()`.
 4. Pflichtfälle zuerst, dann Zufall bis zum Umfang. Für das Testblatt `label(Code, Name, wofür, was beim Scan passieren soll)`; insgesamt höchstens 24.
-5. `php artisan stocks:demo && php artisan stocks:demo-sheet` und das PDF mit einchecken. Die Tests in `tests/Feature/Demo` und `modules/Loans/tests/DemoTest.php` prüfen Umfang, Pflichtfälle, gleiche Nummern bei gleichem Startwert und dass es jeden Code des Blatts gibt.
+5. `php artisan stocks:demo && php artisan stocks:demo-sheet` und das PDF mit einchecken. Die Tests in `tests/Feature/Demo`, `modules/Loans/tests/DemoTest.php` und `modules/Kiosk/tests/KioskDemoTest.php` prüfen Umfang, Pflichtfälle, gleiche Nummern bei gleichem Startwert und dass es jeden Code des Blatts gibt.
 
 ## Code
 
@@ -78,5 +80,6 @@ Regel für alle Phasen (steht auch in `CLAUDE.md`): Jede Phase erweitert den Gen
 | Zufall, Tags, Etiketten | `app/Support/Demo/DemoContext.php` |
 | Inventar | `app/Support/Demo/InventoryDemo.php` |
 | Verleih | `modules/Loans/Support/LoansDemo.php` |
+| Kiosk | `modules/Kiosk/Support/KioskDemo.php` |
 | Testblatt | `app/Support/Demo/TestSheet.php`, `resources/views/pdf/demo-sheet.blade.php`, Download `App\Http\Controllers\Labels\DemoSheetController` |
 | Befehle | `routes/console.php` (`stocks:demo`, `stocks:demo-sheet`) |

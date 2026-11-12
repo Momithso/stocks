@@ -14,7 +14,8 @@
     <link rel="icon" href="{{ app(\App\Support\Branding::class)->url('favicon') }}">
 
     {{-- web app: added to the home screen it runs in full screen (App\Http\Controllers\WebAppController) --}}
-    <link rel="manifest" href="/manifest.webmanifest">
+    {{-- a surface (kiosk) brings its own web app, which starts on its own page --}}
+    <link rel="manifest" href="{{ \App\Support\Surface::current()['manifest'] ?? '/manifest.webmanifest' }}">
     <link rel="apple-touch-icon" href="/web-app/icon-180.png?v={{ pathinfo((string) app(\App\Support\Branding::class)->path('logo'), PATHINFO_FILENAME) ?: 'default' }}">
     <meta name="theme-color" content="{{ app(\App\Support\Settings::class)->get('organization.accent_color') }}">
     <meta name="mobile-web-app-capable" content="yes">

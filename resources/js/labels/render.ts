@@ -78,7 +78,9 @@ export const imageUrlOf = (
       return data.photo_url;
     case "image":
       return element.path
-        ? `/labels/images/${element.path.replace(/^labels\//, "")}`
+        ? useSurface().url(
+            `/labels/images/${element.path.replace(/^labels\//, "")}`,
+          )
         : null;
     default:
       return null;

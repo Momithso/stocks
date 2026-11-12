@@ -5,9 +5,13 @@ namespace Modules\Loans\Support;
 use App\Enums\ItemKind;
 use App\Models\Item;
 use App\Support\Settings;
+use Closure;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\ValidationException;
 use Modules\Loans\Enums\LoanStatus;
 use Modules\Loans\Models\Loan;
 use Modules\Loans\Models\LoanItem;
@@ -31,7 +35,33 @@ class Availability
      */
     private const NEXT_FREE_TRIES = 10;
 
+    /**
+     * Seconds a change waits for another one that reserves at the same time.
+     */
+    private const LOCK_WAIT = 10;
+
     public function __construct(private readonly Settings $settings) {}
+
+    /**
+     * Run a change that checks and then reserves (confirm, add a position, new time, extend,
+     * early pickup) one at a time, so two of them can not both see an item as free. A cache lock
+     * instead of row locks, because two drafts for the same item share no row.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $change
+     * @return T
+     *
+     * @throws ValidationException
+     */
+    public static function exclusively(Closure $change): mixed
+    {
+        try {
+            return Cache::lock('loans:reserve', self::LOCK_WAIT * 2)->block(self::LOCK_WAIT, $change);
+        } catch (LockTimeoutException) {
+            throw ValidationException::withMessages(['loan' => 'Gerade wird eine andere Buchung gespeichert. Bitte versuche es gleich noch einmal.']);
+        }
+    }
 
     /**
      * Check every position of a loan for its time.
@@ -259,8 +289,8 @@ class Availability
             ->where('loans.pickup_at', '<', $to->copy()->addHours($buffer))
             ->where(fn (Builder $query) => $query
                 ->where('loans.return_at', '>', $from->copy()->subHours($buffer))
-                // overdue loans hold their items until they are back
-                ->orWhere(fn (Builder $query) => $query->where('loans.status', LoanStatus::Issued)->where('loans.return_at', '<', now())))
+                // overdue loans hold what is out until it is back; a rest that never left is free
+                ->orWhere(fn (Builder $query) => $query->where('loans.status', LoanStatus::Issued)->where('loans.return_at', '<', now())->whereNotNull('loan_items.issued_at')))
             ->with('loan.creator', 'loan.responsible', 'loan.responsibleUser', 'loan.borrower');
     }
 

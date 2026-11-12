@@ -29,6 +29,7 @@ Route::prefix('loans')->name('loans.')->group(function () {
         Route::get('/stats', [LoanController::class, 'stats'])->name('stats');
         Route::get('/events', [EventController::class, 'index'])->name('events.index');
         Route::get('/events/{event}', [EventController::class, 'show'])->name('events.show');
+        Route::get('/{loan}/details', [LoanController::class, 'details'])->name('details');
     });
 
     Route::middleware('can:loans.manage')->group(function () {
@@ -68,6 +69,9 @@ Route::prefix('loans')->name('loans.')->group(function () {
         Route::post('/{loan}/issue/rows/{row}/uncheck', [IssueController::class, 'uncheck'])->name('issue.uncheck');
         Route::post('/{loan}/issue/responsible', [IssueController::class, 'responsible'])->name('issue.responsible');
         Route::post('/{loan}/issue/complete', [IssueController::class, 'complete'])->name('issue.complete');
+        Route::post('/{loan}/issue/rows/{row}/defect', [IssueController::class, 'defect'])->name('issue.defect');
+        Route::post('/{loan}/issue/rows/{row}/reset-defect', [IssueController::class, 'resetDefect'])->name('issue.reset-defect');
+        Route::post('/{loan}/issue/rows/{row}/drop', [IssueController::class, 'drop'])->name('issue.drop');
         Route::get('/{loan}/preview/{type}.pdf', [IssueController::class, 'preview'])->whereIn('type', ['contract', 'list'])->name('preview');
 
         // the same steps for the return and for the later inspection of what came back unchecked

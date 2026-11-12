@@ -87,6 +87,8 @@ import { router } from "@inertiajs/vue3";
 import { getJson } from "../http";
 import LoansScanInput from "./ScanInput.vue";
 
+const { url } = useSurface();
+
 type Check = {
   problem: string | null;
   conflicts: { id: number; number: string }[];
@@ -123,14 +125,16 @@ const find = () => {
     const text = search.value.trim();
     results.value = text
       ? ((await getJson<Result[]>(
-          `/loans/search-items?loan=${props.loanId}&search=${encodeURIComponent(text)}`,
+          url(
+            `/loans/search-items?loan=${props.loanId}&search=${encodeURIComponent(text)}`,
+          ),
         )) ?? [])
       : [];
   }, 250);
 };
 
 const add = (data: { item_id?: number; code?: string; quantity?: number }) =>
-  router.post(`/loans/${props.loanId}/positions`, data, {
+  router.post(url(`/loans/${props.loanId}/positions`), data, {
     preserveScroll: true,
     onSuccess: () => {
       search.value = "";

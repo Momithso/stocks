@@ -56,6 +56,8 @@
 import { reactive, ref } from "vue";
 import { sendJson, type Contact } from "../http";
 
+const { url } = useSurface();
+
 /**
  * Dialog to create or change a contact without leaving the page (json).
  */
@@ -85,8 +87,8 @@ const save = async () => {
   const result = await sendJson<Contact>(
     props.contact?.id ? "PUT" : "POST",
     props.contact?.id
-      ? `/loans/contacts/${props.contact.id}`
-      : "/loans/contacts",
+      ? url(`/loans/contacts/${props.contact.id}`)
+      : url("/loans/contacts"),
     { ...form },
   );
   processing.value = false;

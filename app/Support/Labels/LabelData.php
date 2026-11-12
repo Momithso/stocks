@@ -8,6 +8,7 @@ use App\Models\Item;
 use App\Models\Location;
 use App\Models\ReservedNumber;
 use App\Support\Settings;
+use App\Support\Surface;
 
 /**
  * Data of one label: the code for the short link and the values of the variables of the templates.
@@ -39,7 +40,7 @@ class LabelData
             'hint' => (string) $item->label_hint,
             'count' => $item->is_container ? (string) $item->contents()->active()->count() : '',
         ], [
-            'photo_url' => ($photo = $item->photos->first()) ? route('inventory.photos.show', $photo, absolute: false) : null,
+            'photo_url' => ($photo = $item->photos->first()) ? Surface::route('inventory.photos.show', $photo) : null,
             'printed_at' => $item->label_printed_at?->toIso8601String(),
         ]);
     }

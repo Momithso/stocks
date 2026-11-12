@@ -24,7 +24,11 @@
           :icon="['fas', 'box']"
           class="text-ink-muted"
         />
-        <UiLink :href="`/inventory/items/${item.id}`">{{ item.name }}</UiLink>
+        <!-- the kiosk has no item pages -->
+        <span v-if="kiosk">{{ item.name }}</span>
+        <UiLink v-else :href="`/inventory/items/${item.id}`">{{
+          item.name
+        }}</UiLink>
         <span class="font-mono text-xs text-ink-muted">{{ item.number }}</span>
         <UiBadge v-if="item.kind === 'bulk'"
           >{{ item.quantity }} {{ item.unit }}</UiBadge
@@ -51,6 +55,8 @@ defineProps({
   items: { type: Array as PropType<ContentsItem[]>, required: true },
   nested: { type: Boolean, default: false },
 });
+
+const { kiosk } = useSurface();
 
 const open = ref(new Set<number>());
 const toggle = (id: number) => {

@@ -2,6 +2,46 @@
 
 Warum Stocks so gebaut ist, wie es gebaut ist. Neue Einträge oben; jeder Eintrag mit Datum, Entscheidung, Grund und verworfener Alternative.
 
+## 2026-11-12 · Review von Phase 3 und 4
+
+**Doppelt gesendete Vorgänge laufen einmal.** Ausgabe, Rückgabe, Prüfung, Mängel abschließen, Einräumen und „Wieder da“ sperren ihre Zeile in der Transaktion und prüfen den Stand dort neu. Was erst prüft und dann reserviert, läuft nacheinander über eine Cache-Sperre (`Availability::exclusively()`), weil zwei Entwürfe für denselben Gegenstand keine gemeinsame Zeile haben. Grund: Doppeltipp am Tablet und wiederholte Anfragen ergaben zwei Verträge und doppelte Bewegungen. Verworfen: nur den Knopf in der Oberfläche sperren.
+
+**Nach der Ausgabe stehen Art, Personen und Zeitraum fest.** Änderbar bleiben Anlass, Notiz, Veranstaltung (Entscheidung von Maurice). Grund: Der Vertrag nennt die Person; eine nachträgliche Umstellung auf Eigenbedarf hätte die Rückgabe ohne Unterschrift erlaubt.
+
+**Unterschriebene Dokumente nur mit Ausgeben oder Verwalten.** Vertrag, Listen, Belege und Unterschriftsbilder sehen `loans.issue` und `loans.manage` (Entscheidung von Maurice). Grund: Sie enthalten Anschrift und Telefon, die `loans.view` schon auf der Seite nicht sieht.
+
+**Gebuchtes Material: Rückfrage statt Sperre.** Ausmustern, Verbrauchen, Abteilen und ein Schadenszustand fragen nach, wenn eine bestätigte Buchung oder ein Rest damit rechnet, und gehen nach „Ja, trotzdem“ durch (Entscheidung von Maurice). Die Rückfrage sitzt in den Controllern, nicht in den Actions, damit der Verleih seine eigenen Buchungen ohne Rückfrage bearbeitet. Verworfen: Sperre wie bei ausgegebenem Material, nur Anzeige.
+
+**Rest und nicht abgeholte Buchung geben nach dem Rückgabetermin frei.** Ein nie ausgegebener Rest und eine nie abgeholte bestätigte Buchung reservieren nach `return_at` nichts mehr; der Rest lässt sich dann nur streichen, die Buchung stornieren, beides oder ein neuer Zeitraum (Entscheidung von Maurice). „Nicht abgeholt“ ist kein neuer Status, sondern ergibt sich aus Status und Termin, wie „überfällig“. Überfällig ist eine Buchung nur, solange etwas draußen ist. Verworfen: automatisch streichen oder stornieren, weiter reservieren.
+
+**Pack-PIN: Wartezeit statt Sperre.** Fünf falsche PINs lassen das Feld der Box 15 Minuten warten, je Box und Adresse; die PIN muss niemand neu setzen (Entscheidung von Maurice). Grund: Die Dauersperre konnte jeder ohne Konto auslösen.
+
+**Kiosk: Koppeln meldet ab, Link bleibt wiederverwendbar.** Koppeln beendet eine normale Anmeldung im Browser des Tablets (Entscheidung von Maurice). Kein Abmelden beim Sperren und kein Einmal-Link: Am PC mit Kiosk im selben Browser soll die eigene Anmeldung bleiben, und ein Gerät neu zu koppeln bleibt einfach.
+
+**Prüfsumme bleibt, wie sie ist.** Sie liegt neben dem Inhalt und zeigt nur versehentliche Änderungen, keine absichtliche mit Datenbankzugriff. Für einen Verein reicht das; eine Signatur mit Schlüssel außerhalb der Datenbank wäre der nächste Schritt.
+
+## 2026-11-14 · Rückmeldungen zu Phase 4
+
+**Teilausgabe statt Pflicht zum vollständigen Abhaken.** Was bei der Ausgabe nicht abgehakt ist, bleibt als Rest; weniger Stück eines Mengenartikels teilen die Position. Der Rest wird später nachausgegeben (eigene Materialliste „Nachtrag“ mit Unterschriften, der Leihvertrag gilt weiter) oder gestrichen. Eine Teilausgabe ist kein Mangel. Grund: Oft wird in Etappen abgeholt oder etwas fehlt kurzfristig (Wunsch von Maurice). Jede Zeile weiß, wann und mit welcher Materialliste sie ging (`loan_items.issued_at`, `issue_document_id`). Verworfen: Rest verfällt automatisch, oder eine zweite Buchung für den Rest.
+
+**Mängel schon bei der Ausgabe.** Beschädigt, verschmutzt oder unvollständig wird an der Zeile vermerkt (mit Notiz und Fotos; beschädigt ändert den Zustand) und auf Wunsch zurückgehalten. Der Mangel steht auf der Materialliste und bei der Rückgabe, damit niemand für einen vorhandenen Mangel geradesteht. „Unvollständig“ gibt es seitdem auch bei der Rückgabe. Die Folgen eines Mangels für den Gegenstand liegen in einer Action (`RecordDefect`) für Ausgabe und Rückgabe.
+
+**Ausgabe und Rückgabe in Schritten, überall.** Ein Strahl oben zeigt die Schritte (Ausgabe: Material, Person, Dokumente, Unterschriften; Rückgabe: Material, Übersicht, Unterschriften); Unterschriften gibt es erst, wenn das Material abgehakt ist. Grund: klare Reihenfolge, niemand unterschreibt für Material, das noch nicht gezählt ist. Gilt für PC, Handy und Kiosk, weil es dieselben Seiten sind. Verworfen: alles auf einer Seite (bisher) und Schritte nur am Kiosk (zwei Abläufe).
+
+**Kiosk-Startseite nach Aufgaben.** Nach üblichen Selbstbedienungs-Terminals: eine Frage („Was möchtest du tun?“), eine Kachel je Aufgabe mit einem Satz und der Zahl, wie viel zu tun ist, gruppiert nach Bereich; „Zurück“ und „Startseite“ immer in der Kopfzeile. Verworfen: Kacheln nur mit Titel.
+
+## 2026-11-14 · Phase 4
+
+**Der Kiosk ist ein Modul.** Gerätekopplung, Sperrbildschirm, Kiosk-Sitzung und Geräteverwaltung liegen in `modules/Kiosk` und lassen sich ausschalten. Im Kern bleiben die PIN der Konten (Spalte, Regel, Zurücksetzen) und die Oberfläche als Begriff. Grund: Viele Fachschaften brauchen kein Tablet; der Gesamtplan zählt den Kiosk zu den Modulen. Verworfen: Kiosk weiter im Kern (Phase 0).
+
+**Eine Oberfläche statt eigener Kiosk-Seiten.** Der Kiosk nutzt dieselben Controller, Actions und Seiten wie PC und Handy, unter `/kiosk` und mit eigenem Layout. Welche Routen es dort gibt, steht je Modul in `routes/kiosk.php` (Liste des Erlaubten); Rechte gelten wie am PC. Seiten bauen ihre Adressen mit `url()` aus `useSurface()`, ein Test sucht feste Adressen. Grund: Jeder Vorgang hat so genau eine Umsetzung; eigene Kiosk-Seiten wären bei jeder Änderung nachzuziehen und liefen auseinander. Verworfen: eigene Kiosk-Controller und -Seiten je Vorgang (Phase 0, Beispielmodul), und alle Routen automatisch auf den Kiosk spiegeln (dann wären Einstellungen und Löschen am Tablet erreichbar).
+
+**Die Person am Kiosk ist für die Anfrage angemeldet.** Die Middleware `kiosk` setzt die entsperrende Person mit `Auth::setUser()` nur für diese Anfrage und vergisst sie danach; in der Sitzung steht weiter nur die Kiosk-Sitzung. So sehen Controller, `can:`, Actions und Änderungsprotokoll `$request->user()` wie am PC, und die PIN öffnet trotzdem nicht das übrige Stocks. Unter Octane setzt `FlushAuthenticationState` die Wächter ohnehin je Anfrage zurück. Verworfen: das Request-Attribut `kioskUser` in jedem Controller abfragen.
+
+**Nach einem Vorgang zur Startseite.** Ausgabe, Rückgabe und Prüfung enden über `Surface::finish()` auf `/kiosk/done`; dort geht der Kiosk zur Startseite oder sperrt (Einstellung `kiosk.lock_after_task`). Vorgabe seit den Rückmeldungen zu Phase 4: Startseite, weil oft mehrere Vorgänge hintereinander kommen (Wunsch von Maurice); vor fremder Nutzung schützt die Sperrzeit ohne Bedienung. Zuerst war sperren die Vorgabe. Die Sperrzeit ohne Bedienung ist einstellbar (30 bis 3600 Sekunden) und steht als Restzeit in der Kopfzeile.
+
+**Plattform je Gerät statt Browsererkennung.** Ein Gerät ist Android-Tablet, iPad, PC oder anderes Gerät. Danach richten sich Direktdruck (iPad: nur Bild für die Niimbot-App) und der Hinweis zum Vollbild. Grund: Geräte stehen fest an ihrem Platz, die Angabe ist zuverlässiger als die Kennung des Browsers. „Anderes Gerät“ lässt den Browser entscheiden.
+
 ## 2026-11-11 · Rückmeldungen zu Phase 3
 
 **Mailserver in den Einstellungen statt in der `.env`.** Wer Stocks betreibt, soll den Mailserver ohne Zugang zum Server ändern können. Das Passwort liegt mit `APP_KEY` verschlüsselt in `settings`, die Umgebung bleibt als Rückfall. Der Status im Menü kommt aus dem Cache (5 Minuten), damit keine Seite auf den Mailserver wartet. Verworfen: nur `.env` (Wunsch von Maurice), Status bei jedem Seitenaufruf prüfen (zu langsam).
@@ -66,7 +106,7 @@ Warum Stocks so gebaut ist, wie es gebaut ist. Neue Einträge oben; jeder Eintra
 
 **Kein Check-Constraint für „Standort oder Box“.** Die Actions setzen Ort und Stammplatz nur über `Item::setPlace()`/`setHome()`, die immer einen der beiden Werte leeren. Grund: Laravel legt Check-Constraints nicht an, und SQLite (Tests) kann sie nachträglich nicht hinzufügen. Verworfen: rohes SQL je Datenbank.
 
-**Kategorien direkt im Controller.** Wie bei Kiosk-Geräten: Anlegen, Ändern, Löschen mit je einer Regel, keine Actions.
+**Kategorien direkt im Controller.** Wie bei Kiosk-Geräten (seit Phase 4 im Modul Kiosk): Anlegen, Ändern, Löschen mit je einer Regel, keine Actions.
 
 **Ein Endpunkt fürs Umlagern.** Scan-Seite und Dialog auf der Detailseite schicken beide Gegenstand und Ziel-Code an `POST /inventory/move`. Der Server löst den Code auf (`CodeLookup`), so funktionieren Handscanner, Tippen und Vorschläge gleich.
 

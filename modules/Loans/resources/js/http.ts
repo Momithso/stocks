@@ -83,6 +83,8 @@ export type LoanSummary = {
   pickup_at: string;
   return_at: string;
   overdue_days: number;
+  // confirmed, but the return time passed without a pickup
+  not_picked_up: boolean;
   responsible: string | null;
 };
 

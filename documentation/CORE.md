@@ -1,6 +1,6 @@
 # Kern
 
-Der Kern von Stocks verwaltet Konten, Rollen, Module, Einstellungen und Kiosk-Geräte. Fachliche Funktionen wie Inventar und Verleih kommen ab Phase 1 dazu; sie hängen sich über die Erweiterungspunkte in [MODULES.md](MODULES.md) ein.
+Der Kern von Stocks verwaltet Konten, Rollen, Module und Einstellungen. Fachliche Funktionen wie Inventar und Verleih kommen ab Phase 1 dazu; sie hängen sich über die Erweiterungspunkte in [MODULES.md](MODULES.md) ein.
 
 ## Inhalt
 
@@ -21,9 +21,9 @@ Der Kern von Stocks verwaltet Konten, Rollen, Module, Einstellungen und Kiosk-Ge
 |---|---|
 | `app/Actions` | Ein fachlicher Vorgang je Klasse, Methode `handle()`. Hier stehen die Regeln. |
 | `app/Http/Controllers` | Nehmen die Anfrage an, prüfen die Eingaben mit `validate()`, rufen eine Action, geben die Seite oder eine Weiterleitung zurück. |
-| `app/Http/Middleware` | Einrichtung, deaktivierte Konten, Module, Kiosk |
+| `app/Http/Middleware` | Einrichtung, deaktivierte Konten, Module |
 | `app/Models` | Eloquent-Modelle. Jedes Modell mit fachlicher Bedeutung wird auditiert. |
-| `app/Support` | Bausteine ohne Fachbezug: Modul-Registry, Erweiterungspunkte, Einstellungen, Tabellen, Rechte-Regel, Kiosk-Sitzung, QR-Codes |
+| `app/Support` | Bausteine ohne Fachbezug: Modul-Registry, Erweiterungspunkte, Oberflächen (`Surface`), Einstellungen, Tabellen, Rechte-Regel, QR-Codes |
 | `modules/` | Module, siehe [MODULES.md](MODULES.md) |
 | `resources/js/components/ui` | Designsystem, siehe `/styleguide` |
 | `resources/js/pages` | Inertia-Seiten des Kerns |
@@ -38,7 +38,7 @@ Rechte werden in Routen mit `can:<recht>` geprüft. Regeln, die über ein einzel
 - Passwörter: mindestens 12 Zeichen. Mit `CHECK_LEAKED_PASSWORDS=true` werden zusätzlich bekannte geleakte Passwörter abgelehnt (Abfrage bei haveibeenpwned.com).
 - „Passwort vergessen“ nutzt den Passwort-Broker von Laravel. Die Antwort ist immer gleich, ob es die Adresse gibt oder nicht.
 - Deaktivierte Konten können sich nicht anmelden; eine laufende Sitzung endet bei der nächsten Anfrage (`EnsureUserIsActive`).
-- Im Profil ändert jede Person Name, Passwort (mit dem aktuellen Passwort) und Kiosk-PIN.
+- Im Profil ändert jede Person Name, Passwort (mit dem aktuellen Passwort) und, wenn das Modul Kiosk an ist und sie `kiosk.use` hat, die Kiosk-PIN. Die PIN selbst (Spalte `users.pin`, Regel `App\Rules\KioskPin`, Zurücksetzen in der Kontenverwaltung) bleibt im Kern.
 
 ## Rollen und Rechte
 
@@ -53,11 +53,10 @@ Der Code prüft nur Rechte, nie Rollennamen. Rechte heißen `bereich.tätigkeit`
 | `roles.manage` | Rollen anlegen, ändern, löschen und zuweisen |
 | `modules.manage` | Module ein- und ausschalten |
 | `settings.manage` | Einstellungen ändern, Styleguide |
-| `kiosk.devices.manage` | Kiosk-Geräte koppeln und sperren |
-| `kiosk.use` | Am Kiosk mit PIN anmelden |
 | `audit.view` | Änderungsprotokoll lesen |
 | `inventory.*`, `locations.manage`, `inventory.options.manage` | Inventar, siehe [INVENTORY.md](INVENTORY.md#rechte) |
 | `labels.print`, `labels.manage` | Etiketten und Drucker, siehe [LABELS.md](LABELS.md#rechte) |
+| `kiosk.use`, `kiosk.devices.manage` | Kiosk, siehe [KIOSK.md](KIOSK.md#rechte) |
 | `loans.*` | Modul Verleih, siehe [LOANS.md](LOANS.md#rechte) |
 
 **Admin** ist eine Systemrolle: Sie hat immer alle Rechte, auch die später hinzugefügter Module (`stocks:sync`), und lässt sich weder ändern noch löschen. Die übrigen Startrollen (`config/stocks.php`) entstehen einmal bei der Einrichtung und sind danach frei änderbar. Module geben ihnen eigene Rechte über `start_roles` in der `module.json` mit.
@@ -97,13 +96,7 @@ Module bringen eigene Schlüssel mit (`Settings::addDefaults()`, Präfix = Modul
 
 ## Kiosk
 
-Ein Tablet wird zum Kiosk, wenn es einmal die Kopplungs-Adresse eines Kiosk-Geräts öffnet (Verwaltung → Kiosk-Geräte, QR-Code). Danach speichert es ein Cookie mit Geräte-ID und Token (400 Tage, nur für `/kiosk`). Ein neues Token oder Löschen sperrt das Tablet sofort aus. Der Aufbau stammt aus dem Strichlistensystem von Portals.
-
-- `/kiosk` zeigt alle aktiven Konten mit `kiosk.use`. Antippen, PIN eingeben (`config('kiosk.pin_length')`, sechs Ziffern).
-- Die Kiosk-Sitzung (`App\Support\Kiosk\KioskSession`) ist von der normalen Anmeldung getrennt. Sie endet nach `kiosk.session_timeout` Sekunden ohne Aktivität, beim Sperren und wenn das Konto deaktiviert wird oder `kiosk.use` verliert.
-- Falsche PINs sind je Person (`kiosk.pin_max_attempts` pro Minute) und je Gerät (`kiosk.device_max_failed_pins` in `kiosk.device_lock_seconds`) begrenzt, weil alle Tablets dieselbe IP-Adresse haben können.
-- Die PIN wird gehasht gespeichert und nirgends ausgeliefert. Leicht zu erratende PINs (gleiche Ziffern, auf- oder absteigende Folgen, `kiosk.trivial_pins`) werden abgelehnt (`App\Rules\KioskPin`).
-- Kiosk-Routen von Modulen nutzen die Middleware `kiosk.device` und `kiosk`; die entsperrende Person ist das Request-Attribut `kioskUser`.
+Der Kiosk ist seit Phase 4 das Modul `modules/Kiosk`, beschrieben in [KIOSK.md](KIOSK.md). Der Kern kennt dafür nur die **Oberfläche** (`App\Support\Surface`): ein Request-Attribut, das sagt, auf welcher Oberfläche eine Seite läuft (Präfix der Adressen, Layout, Ziel nach einem Vorgang). Ohne Oberfläche ist es der PC oder das Handy. Controller fragen `Surface::route()`, `Surface::link()` und `Surface::finish()`, Seiten bauen ihre Adressen mit `url()` aus `useSurface()`. Welche Routen eine Oberfläche hat, melden der Kern und die Module mit eigenen Routendateien beim Erweiterungspunkt `SurfaceRoutes` an ([MODULES.md](MODULES.md)).
 
 ## Änderungsprotokoll
 
@@ -111,7 +104,7 @@ Ein Tablet wird zum Kiosk, wenn es einmal die Kopplungs-Adresse eines Kiosk-Ger�
 
 ## Oberfläche
 
-- **Layouts:** `AppLayout` (Seitenleiste am PC, Leiste unten am Handy), `AuthLayout` (Anmeldung, Einrichtung), `KioskLayout`. Das Layout ergibt sich aus dem Seitennamen (`resources/js/app.ts`).
+- **Layouts:** `AppLayout` (Seitenleiste am PC, Leiste unten am Handy), `AuthLayout` (Anmeldung, Einrichtung). Das Layout ergibt sich aus dem Seitennamen (`resources/js/app.ts`); Seiten ohne eigene Regel bekommen `SurfaceLayout`, das das Layout der Oberfläche nimmt (am Kiosk `Kiosk::KioskLayout` aus dem Modul) und sonst `AppLayout`.
 - **Menü:** kommt vom Server (`App\Support\Extensions\Navigation`), gruppiert nach Aufgabe: Übersicht, Inventar, Verleih, Verwaltung. Höchstens zwei Ebenen; Einträge ohne Recht und leere Bereiche erscheinen nicht. Am Handy zeigt die untere Leiste die Einträge mit `mobile: true` (höchstens vier) und „Mehr“.
 - **Farben:** Tokens als CSS-Variablen in `resources/css/app.css` (`page`, `surface`, `surface-muted`, `line`, `ink`, `ink-muted`, `accent`, `accent-hover`). Komponenten nutzen nur diese Namen.
 - **Komponenten:** `resources/js/components/ui`, automatisch als `Ui…` registriert. Alle stehen auf `/styleguide`.
@@ -128,7 +121,6 @@ Ein Tablet wird zum Kiosk, wenn es einmal die Kopplungs-Adresse eines Kiosk-Ger�
 | `roles`, `permissions` und Zwischentabellen | `spatie/laravel-permission`; `roles` hat zusätzlich `description` und `is_system` |
 | `modules` | Schalter je Modul |
 | `settings` | Einstellungen (JSON-Wert) |
-| `kiosk_devices` | Gekoppelte Tablets, Token verschlüsselt |
 | `audits` | Änderungsprotokoll |
 | `cache`, `cache_locks`, `jobs`, `failed_jobs` | Laravel-Betrieb |
 
@@ -139,8 +131,7 @@ Ein Tablet wird zum Kiosk, wenn es einmal die Kopplungs-Adresse eines Kiosk-Ger�
 | Einrichtung | `/setup` |
 | Anmeldung | `/login`, `/logout`, `/forgot-password`, `/reset-password/{token}`, `/invitation/{token}` |
 | Angemeldet | `/dashboard`, `/profile`, `/styleguide` |
-| Verwaltung | `/admin/users`, `/admin/roles`, `/admin/modules`, `/admin/kiosk-devices`, `/admin/settings`, `/admin/audit-log` |
-| Kiosk | `/kiosk/pair/{device}`, `/kiosk`, `/kiosk/unlock`, `/kiosk/home`, `/kiosk/logout` |
+| Verwaltung | `/admin/users`, `/admin/roles`, `/admin/modules`, `/admin/settings`, `/admin/audit-log` |
 
 `php artisan route:list --except-vendor` zeigt alle Routen mit Namen.
 
@@ -150,4 +141,4 @@ Ein Tablet wird zum Kiosk, wenn es einmal die Kopplungs-Adresse eines Kiosk-Ger�
 php artisan test --compact
 ```
 
-Die Tests laufen mit SQLite im Speicher (`phpunit.xml.dist`). `tests/TestCase.php` richtet vor jedem Test eine Instanz mit den Startrollen ein und bietet `admin()`, `userWithRoles()`, `userWithPermissions()` und `activateModule()`. Tests von Modulen liegen in `modules/<Modul>/tests`.
+Die Tests laufen mit SQLite im Speicher (`phpunit.xml.dist`). `tests/TestCase.php` richtet vor jedem Test eine Instanz mit den Startrollen ein und bietet `admin()`, `userWithRoles()`, `userWithPermissions()`, `activateModule()` und `deactivateModule()`. `tests/Feature/SurfacePathsTest.php` prüft, dass Seiten, die auch am Kiosk laufen, keine festen Adressen enthalten. Tests von Modulen liegen in `modules/<Modul>/tests`.

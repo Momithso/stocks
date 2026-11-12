@@ -4,6 +4,7 @@ namespace Modules\Loans\Actions;
 
 use App\Enums\ItemKind;
 use App\Models\Item;
+use Closure;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Modules\Loans\Enums\LoanStatus;
@@ -37,9 +38,13 @@ class ChangePositions
             if ($position->item->is_container && $item->isInside($position->item)) {
                 throw ValidationException::withMessages(['item' => "{$item->number} liegt in {$position->item->number}, die Box ist schon in der Buchung."]);
             }
+            // the other way round: the box would bring a position along a second time
+            if ($item->is_container && $position->item->isInside($item)) {
+                throw ValidationException::withMessages(['item' => "In {$item->number} liegt {$position->item->number}, das schon in der Buchung ist. Nimm es erst heraus, dann kommt es mit der Box."]);
+            }
         }
 
-        return DB::transaction(function () use ($loan, $item, $quantity, $positions) {
+        return $this->reserving($loan, fn () => DB::transaction(function () use ($loan, $item, $quantity, $positions) {
             $position = $positions->firstWhere('item_id', $item->id);
             if ($position && $item->kind !== ItemKind::Bulk) {
                 throw ValidationException::withMessages(['item' => "{$item->number} ist schon in der Buchung."]);
@@ -52,7 +57,7 @@ class ChangePositions
             $this->ensureFree($loan, $position);
 
             return $position;
-        });
+        }));
     }
 
     /**
@@ -65,10 +70,24 @@ class ChangePositions
         $this->ensureOpen($loan);
         $this->ensureQuantity($position->item, $quantity);
 
-        DB::transaction(function () use ($loan, $position, $quantity) {
+        $this->reserving($loan, fn () => DB::transaction(function () use ($loan, $position, $quantity) {
             $position->update(['quantity' => $quantity]);
             $this->ensureFree($loan, $position);
-        });
+        }));
+    }
+
+    /**
+     * A confirmed loan reserves what it takes: one change at a time (Availability::exclusively()).
+     * A draft reserves nothing and needs no lock.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $change
+     * @return T
+     */
+    private function reserving(Loan $loan, Closure $change): mixed
+    {
+        return $loan->status === LoanStatus::Confirmed ? Availability::exclusively($change) : $change();
     }
 
     /**

@@ -19,7 +19,8 @@ modules/Example/
 ├─ ExampleServiceProvider.php   verbindet das Modul mit dem Kern
 ├─ Http/                        Controller (später auch Actions/, Models/)
 ├─ database/migrations/
-├─ routes/web.php
+├─ routes/web.php              Routen am PC und Handy
+├─ routes/kiosk.php            Routen, die es auch am Kiosk gibt (optional)
 ├─ resources/js/pages/          Seiten, im Controller "Example::Index"
 ├─ resources/js/components/     Komponenten, z. B. Dashboard-Kacheln
 ├─ resources/js/icons.ts        genutzte Font-Awesome-Icons
@@ -69,14 +70,15 @@ PHP-Klassen liegen im Namensraum `Modules\<Modul>` (`composer.json`: `"Modules\\
 Im `boot()` des Service Providers:
 
 ```php
-public function boot(Navigation $navigation, DashboardTiles $dashboardTiles): void
+public function boot(Navigation $navigation, DashboardTiles $dashboardTiles, SurfaceRoutes $surfaceRoutes): void
 {
     $this->loadMigrationsFrom(__DIR__.'/database/migrations');
 
     Route::middleware(['web', 'auth', 'module:'.self::KEY])->group(__DIR__.'/routes/web.php');
+    $surfaceRoutes->add('kiosk', __DIR__.'/routes/kiosk.php', self::KEY);
 
     $navigation->add('overview', 'Beispiel', 'example.index', 'flask', 'example.view', self::KEY);
-    $navigation->addKioskTile('Beispiel', 'example.kiosk', 'flask', 'example.view', self::KEY);
+    $navigation->addKioskTile('Beispiel', 'kiosk.example.index', 'flask', 'example.view', self::KEY);
     $dashboardTiles->add('Example::DashboardTile', 'example.view', self::KEY);
 }
 ```
@@ -85,7 +87,8 @@ public function boot(Navigation $navigation, DashboardTiles $dashboardTiles): vo
 |---|---|---|
 | Menü | `Navigation::add()` | Eintrag in Bereich `overview`, `inventory`, `loans` oder `admin`; `mobile: true` für die untere Leiste am Handy; `group: 'settings'` legt ihn in das aufklappbare Untermenü **Einstellungen**; `badge:` eine Closure, die `['text' => …, 'variant' => …]` oder `null` liefert (läuft bei jeder Seite, also nur Gespeichertes oder Gecachtes lesen) |
 | Untermenü | `Navigation::addGroup()` | aufklappbare Gruppe in einem Bereich, z. B. `settings` im Bereich `admin` für selten genutzte Seiten |
-| Kiosk | `Navigation::addKioskTile()` | Kachel auf der Kiosk-Startseite; die Route braucht `kiosk.device` und `kiosk` |
+| Oberfläche | `SurfaceRoutes::add('kiosk', Datei, Modul)` | Routendatei mit den Routen des Moduls, die es auch am Kiosk gibt (Liste des Erlaubten); siehe [KIOSK.md](KIOSK.md#seiten-für-den-kiosk-freigeben) |
+| Kiosk-Kachel | `Navigation::addKioskTile()` | Kachel auf der Kiosk-Startseite; die Route ist eine Kiosk-Route (`kiosk.…`), `parameters:` hängt Abfrageparameter an |
 | Dashboard | `DashboardTiles::add()` | Vue-Komponente `<Modul>::<Komponente>` aus `resources/js/components` |
 | Protokoll | `AuditSubjects::register()` | Modelle mit dem Interface `AuditSubject` erscheinen lesbar im Protokoll |
 | Einstellungen | `Settings::addDefaults()` und `Navigation::add(..., group: 'settings')` | eigene Schlüssel mit Präfix des Moduls und eine eigene Seite unter Verwaltung › Einstellungen; `Settings::module('<key>')` liefert alle Werte des Moduls |
@@ -104,11 +107,13 @@ Ein Modul sagt über eine Klasse mit dem Interface `App\Support\Extensions\ItemI
 | `text` | Satz für die Seite des Gegenstands und die Scan-Karte; leer, wenn der Hinweis nur eine Aktion bringt |
 | `badge` | kurzer Text für die Gegenstandsliste, `null` für keinen |
 | `variant` | `info`, `warning` oder `danger` |
-| `href` | Link zu mehr, z. B. zur Buchung |
+| `href` | Link zu mehr, z. B. zur Buchung; `null` auf einer Oberfläche ohne diese Seite (`Surface::link()`) |
 | `lock` | `true`: Umlagern, Teilen und Ausmustern sind gesperrt, solange der Hinweis gilt; der Text nennt den Grund |
-| `actions` | Knöpfe auf der Scan-Karte (`title`, `href`, `icon`) |
+| `actions` | Knöpfe auf der Scan-Karte (`title`, `href`, `icon`); nur Aktionen, deren Seite es auf der Oberfläche gibt |
 
 Der Kern fragt die Hinweise für eine ganze Seite der Liste auf einmal ab (`Table::prepareRows()`). Für Sperren ruft er `ItemExtensions::lockOf()` mit `$user = null`; der Provider kann dann alles außer der Sperre weglassen. Ein Modul, das einen Gegenstand selbst wegnimmt (Ausgabe), nutzt `MoveItem::takeAway()`, das keine Sperren prüft.
+
+`reservations(Item $item)` nennt Buchungen, die später mit dem Gegenstand rechnen, als Sätze (z. B. „B-2026-0042, ab 14.11., 16:00 Uhr.“). Ausmustern, Verbrauchen, Abteilen und ein Zustand, der als Schaden gilt, fragen dann vorher nach: Die Controller rufen `ItemExtensions::ensureConfirmed()`, das ohne `confirmed` mit dem Fehler `confirm` abbricht; die Seite zeigt ihn mit „Ja, trotzdem“ (`InventoryReservedConfirm`) und schickt den Vorgang bestätigt noch einmal. Die Actions selbst prüfen das nicht, damit Module wie der Verleih ihre eigenen Buchungen ohne Rückfrage bearbeiten.
 
 ### Öffentliche Box-Seite
 
@@ -116,7 +121,8 @@ Eine Klasse mit `App\Support\Extensions\PublicBoxSection` liefert für eine Box 
 
 ## Frontend
 
-- Seiten heißen im Controller `<Modul>::<Seite>` und liegen in `modules/<Modul>/resources/js/pages`. Seiten mit `Kiosk` im Namen bekommen das Kiosk-Layout.
+- Seiten heißen im Controller `<Modul>::<Seite>` und liegen in `modules/<Modul>/resources/js/pages`. Das Layout kommt von der Oberfläche: am Kiosk das Kiosk-Layout, sonst `AppLayout`.
+- Seiten und Komponenten, die auch am Kiosk laufen, bauen jede Adresse mit `url()` aus `useSurface()` (`url(\`/loans/${id}/issue\`)`), auch für `fetch`. Links auf Seiten, die der Kiosk nicht hat, blenden sie dort mit `kiosk` aus.
 - Modulseiten nutzen die Komponenten des Kerns (`UiButton`, `UiCard` …) ohne Import.
 - Icons, die das Modul nutzt, stehen in `resources/js/icons.ts` des Moduls.
 - In Tests prüft `assertInertia()` nur Seiten des Kerns auf Existenz; für Modulseiten `component('Example::Index', false)` verwenden.
@@ -129,5 +135,7 @@ Eine Klasse mit `App\Support\Extensions\PublicBoxSection` liefert für eine Box 
 4. `composer dump-autoload` und `php artisan migrate && php artisan stocks:sync` ausführen.
 5. Unter Verwaltung → Module einschalten und einer Rolle die Rechte geben.
 6. Die README des Moduls schreiben: Abläufe, Tabellen, Routen, Rechte.
+
+Ein Modul mit eigenen Layouts legt sie in `resources/js/layouts/`; eine Oberfläche nennt ihr Layout als `<Modul>::<Layout>`.
 
 Tests mit einer gemeinsamen Basisklasse im Modul brauchen einen Eintrag unter `autoload-dev` in `composer.json` (`"Modules\\Loans\\Tests\\": "modules/Loans/tests/"`), weil der Ordner `tests` klein geschrieben ist.

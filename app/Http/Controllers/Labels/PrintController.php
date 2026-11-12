@@ -14,6 +14,7 @@ use App\Support\Branding;
 use App\Support\Labels\LabelData;
 use App\Support\Labels\ShortLink;
 use App\Support\Settings;
+use App\Support\Surface;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -47,8 +48,26 @@ class PrintController extends Controller
             'baseUrlConfirmed' => $links->isConfirmed(),
             // a separate logo for print can replace the screen logo (e.g. a dark one instead of a white one)
             'logoUrl' => $branding->url($branding->printKind()),
-            'back' => $request->headers->get('referer'),
+            'back' => $this->back($request),
         ]);
+    }
+
+    /**
+     * Target of "Zurück": the page before. On a surface (kiosk) only a page of that surface,
+     * otherwise its scan page, so "Zurück" never leaves the kiosk.
+     */
+    private function back(Request $request): ?string
+    {
+        $referer = $request->headers->get('referer');
+        $surface = Surface::current();
+
+        if (! $surface) {
+            return $referer;
+        }
+
+        $path = $referer ? (parse_url($referer, PHP_URL_PATH) ?? '') : '';
+
+        return str_starts_with($path, $surface['base'].'/') ? $referer : Surface::link('inventory.scan');
     }
 
     /**

@@ -14,6 +14,7 @@ use Modules\Loans\Actions\SaveLoan;
 use Modules\Loans\Enums\LoanKind;
 use Modules\Loans\Models\Contact;
 use Modules\Loans\Models\Loan;
+use Modules\Loans\Models\LoanItem;
 use Tests\TestCase;
 
 /**
@@ -108,14 +109,30 @@ abstract class LoansTestCase extends TestCase
      */
     protected function issued(array $items, ?Carbon $pickup = null, ?Carbon $return = null, ?User $issuer = null): Loan
     {
-        $loan = $this->confirmed($items, $pickup ?? now()->subHour(), $return);
+        $pickup ??= now()->subHour();
+        $loan = $this->confirmed($items, $pickup, $return);
         $issuer ??= $this->admin();
         $issue = app(IssueLoan::class);
+
+        // an overdue loan was issued in its time, not after it
+        $travel = $loan->return_at->isPast();
+        if ($travel) {
+            $this->travelTo($pickup);
+        }
         $issue->prepare($loan);
         foreach ($loan->positions as $position) {
-            $issue->check($issuer, $loan, null, $position->id);
+            // a box that came back unchecked: its contents one by one, the box comes along
+            $rows = $position->isUncheckedBox() && $position->children()->exists()
+                ? LoanItem::whereIn('id', $position->descendantIds())->whereDoesntHave('children')->get()
+                : [$position];
+            foreach ($rows as $row) {
+                $issue->check($issuer, $loan, null, $row->id);
+            }
         }
         $issue->complete($issuer, $loan, ['responsible' => self::SIGNATURE, 'issuer' => self::SIGNATURE], false, null, 'PHPUnit');
+        if ($travel) {
+            $this->travelBack();
+        }
 
         return $loan->refresh();
     }

@@ -22,18 +22,17 @@ class ConfirmLoan
      */
     public function handle(Loan $loan): void
     {
-        if ($loan->status !== LoanStatus::Draft) {
-            throw ValidationException::withMessages(['loan' => 'Nur ein Entwurf lässt sich bestätigen.']);
-        }
+        // one at a time, so two drafts can not be confirmed for the same item at once
+        Availability::exclusively(fn () => DB::transaction(function () use ($loan) {
+            $loan->lockForTask();
+            if ($loan->status !== LoanStatus::Draft) {
+                throw ValidationException::withMessages(['loan' => 'Nur ein Entwurf lässt sich bestätigen.']);
+            }
 
-        $messages = $this->responsibleProblems($loan);
-        if (! $loan->positions()->exists()) {
-            $messages[] = 'Die Buchung hat noch keine Positionen.';
-        }
-
-        DB::transaction(function () use ($loan, $messages) {
-            // locks the loans of the items, so two drafts can not be confirmed for the same item at once
-            Loan::reserving()->lockForUpdate()->pluck('id');
+            $messages = $this->responsibleProblems($loan);
+            if (! $loan->positions()->exists()) {
+                $messages[] = 'Die Buchung hat noch keine Positionen.';
+            }
             $messages = [...$messages, ...$this->availability->problems($loan)];
             if ($messages) {
                 throw ValidationException::withMessages(['loan' => implode(' ', $messages)]);
@@ -43,9 +42,8 @@ class ConfirmLoan
                 'status' => LoanStatus::Confirmed,
                 'confirmed_at' => now(),
                 'pack_pin' => self::randomPin(),
-                'pin_attempts' => 0,
             ])->save();
-        });
+        }));
     }
 
     /**

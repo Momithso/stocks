@@ -54,9 +54,9 @@ class Loan extends Model implements Auditable, AuditSubject
     use \OwenIt\Auditing\Auditable;
 
     /**
-     * Wrong pack pins until the pin is locked.
+     * Cache of isOverdue(): something of the loan is out.
      */
-    public const MAX_PIN_ATTEMPTS = 5;
+    private ?bool $isOut = null;
 
     /**
      * Fields set by the form. Status, number and the times of the steps are set by the actions.
@@ -197,20 +197,52 @@ class Loan extends Model implements Auditable, AuditSubject
     }
 
     /**
-     * Issued loans whose return time has passed.
+     * Issued loans whose return time has passed and that still have something out. The rest of a
+     * partial issue that never left does not make a loan overdue.
      */
     #[Scope]
     protected function overdue(Builder $query): void
     {
-        $query->where('status', LoanStatus::Issued)->where('return_at', '<', now());
+        $query->where('status', LoanStatus::Issued)->where('return_at', '<', now())
+            ->whereHas('loanItems', fn (Builder $query) => $query->whereNotNull('issued_at')->whereNull('returned_at'));
     }
 
     /**
-     * Check if the loan is issued and its return time has passed.
+     * Confirmed loans whose return time has passed without a pickup ("nicht abgeholt").
+     */
+    #[Scope]
+    protected function notPickedUp(Builder $query): void
+    {
+        $query->where('status', LoanStatus::Confirmed)->where('return_at', '<', now());
+    }
+
+    /**
+     * Check if the loan is issued, its return time has passed and something is still out.
      */
     public function isOverdue(): bool
     {
-        return $this->status === LoanStatus::Issued && $this->return_at->isPast();
+        return $this->status === LoanStatus::Issued && $this->return_at->isPast()
+            && ($this->isOut ??= $this->loanItems()->whereNotNull('issued_at')->whereNull('returned_at')->exists());
+    }
+
+    /**
+     * Check if the loan is confirmed and its return time has passed without a pickup. It holds
+     * nothing any more and waits to be cancelled (or to get a new time).
+     */
+    public function isNotPickedUp(): bool
+    {
+        return $this->status === LoanStatus::Confirmed && $this->return_at->isPast();
+    }
+
+    /**
+     * Lock the row of the loan until the end of the transaction and load its current state, so a
+     * task sent twice (double tap, repeated request) runs only once. Call it inside DB::transaction().
+     */
+    public function lockForTask(): void
+    {
+        $fresh = self::whereKey($this->id)->lockForUpdate()->firstOrFail();
+        $this->setRawAttributes($fresh->getAttributes(), true);
+        $this->isOut = null;
     }
 
     /**
@@ -235,14 +267,6 @@ class Loan extends Model implements Auditable, AuditSubject
     public function isInternal(): bool
     {
         return $this->kind === LoanKind::Internal;
-    }
-
-    /**
-     * Check if the pack pin is locked after too many wrong tries.
-     */
-    public function isPinLocked(): bool
-    {
-        return $this->pin_attempts >= self::MAX_PIN_ATTEMPTS;
     }
 
     /**
@@ -273,8 +297,9 @@ class Loan extends Model implements Auditable, AuditSubject
             'number' => $this->number,
             'title' => $this->title(),
             'status' => $this->status->value,
-            'status_label' => $this->status->label(),
-            'status_variant' => $this->status->variant(),
+            'status_label' => $this->isNotPickedUp() ? 'Nicht abgeholt' : $this->status->label(),
+            'status_variant' => $this->isNotPickedUp() ? 'danger' : $this->status->variant(),
+            'not_picked_up' => $this->isNotPickedUp(),
             'kind' => $this->kind->value,
             'pickup_at' => $this->pickup_at->toIso8601String(),
             'return_at' => $this->return_at->toIso8601String(),

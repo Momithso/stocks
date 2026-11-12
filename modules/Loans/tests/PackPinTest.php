@@ -38,20 +38,22 @@ class PackPinTest extends LoansTestCase
         $this->actingAs($this->admin())->get("/loans/{$loan->id}/issue")->assertInertia(fn ($page) => $page->where('rows.0.box_checks.0', fn ($text) => str_starts_with($text, 'kontrolliert von Kim')));
     }
 
-    public function test_five_wrong_pins_lock_the_pin_until_a_new_one_is_set(): void
+    public function test_five_wrong_pins_make_the_box_wait_but_never_lock_the_pin(): void
     {
         $box = $this->item(['is_container' => true]);
         $loan = $this->confirmed([$box]);
         $wrong = $loan->pack_pin === '000000' ? '111111' : '000000';
 
         for ($try = 0; $try < 5; $try++) {
-            $this->post("/s/{$box->number}/pack-pin", ['pin' => $wrong])->assertSessionHasErrors('pin');
+            $this->post("/s/{$box->number}/pack-pin", ['pin' => $wrong])->assertSessionHasErrors(['pin' => 'Die Pack-PIN stimmt nicht.']);
         }
-        $this->post("/s/{$box->number}/pack-pin", ['pin' => $loan->pack_pin])->assertSessionHasErrors(['pin' => 'Die Pack-PIN ist nach zu vielen Fehlversuchen gesperrt. Jemand vom FSR muss sie neu setzen.']);
+        $this->post("/s/{$box->number}/pack-pin", ['pin' => $loan->pack_pin])->assertSessionHasErrors(['pin' => 'Zu viele falsche PINs. Versuche es in 15 Minuten noch einmal.']);
 
-        $this->actingAs($this->admin())->post("/loans/{$loan->id}/pin", ['pin' => '246810'])->assertSessionHasNoErrors();
-        auth()->logout();
-        $this->post("/s/{$box->number}/pack-pin", ['pin' => '246810'])->assertSessionHasNoErrors();
+        // another address is not affected, and after the wait the same pin works again
+        $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.2'])->post("/s/{$box->number}/pack-pin", ['pin' => $loan->pack_pin])->assertSessionHasNoErrors();
+        $this->withServerVariables(['REMOTE_ADDR' => '127.0.0.1']);
+        $this->travel(16)->minutes();
+        $this->post("/s/{$box->number}/pack-pin", ['pin' => $loan->pack_pin])->assertSessionHasNoErrors();
     }
 
     public function test_the_pin_opens_only_boxes_of_its_loan(): void

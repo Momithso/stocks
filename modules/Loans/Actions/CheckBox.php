@@ -4,6 +4,7 @@ namespace Modules\Loans\Actions;
 
 use App\Models\Item;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use Modules\Loans\Enums\LoanStatus;
 use Modules\Loans\Models\Loan;
@@ -13,7 +14,7 @@ use Modules\Loans\Models\LoanItem;
 /**
  * Check of a box with the pack pin on the public page of the box, without an account. The pin of a
  * loan opens only the boxes of this loan and only while it is confirmed or issued. Five wrong pins
- * lock the pin of every loan the box is in, until a member sets a new one.
+ * from one address make the pin field of the box wait 15 minutes.
  */
 class CheckBox
 {
@@ -29,31 +30,48 @@ class CheckBox
     }
 
     /**
-     * Find the position of the box in the loan the pin belongs to.
+     * Wrong pins at a box from one address until the pin field of that box waits.
+     */
+    public const MAX_ATTEMPTS = 5;
+
+    /**
+     * Seconds the pin field of a box waits after too many wrong pins.
+     */
+    public const LOCK_SECONDS = 15 * 60;
+
+    /**
+     * Find the position of the box in the loan the pin belongs to. Wrong pins are limited per box
+     * and address for a while; the pins themselves are never locked, so nobody without an account
+     * can lock out the people packing.
      *
      * @throws ValidationException
      */
-    public function unlock(Item $box, string $pin): LoanItem
+    public function unlock(Item $box, string $pin, string $ip): LoanItem
     {
-        $positions = self::positionsOf($box)->with('loan')->get();
-        $open = $positions->reject(fn (LoanItem $position) => $position->loan->isPinLocked());
+        $key = "pack-pin:{$box->id}:{$ip}";
+        if (RateLimiter::tooManyAttempts($key, self::MAX_ATTEMPTS)) {
+            throw ValidationException::withMessages(['pin' => 'Zu viele falsche PINs. Versuche es in '.ceil(RateLimiter::availableIn($key) / 60).' Minuten noch einmal.']);
+        }
 
-        $match = $open->first(fn (LoanItem $position) => $position->loan->pack_pin !== null && hash_equals($position->loan->pack_pin, $pin));
-        if ($match) {
-            $match->loan->forceFill(['pin_attempts' => 0])->save();
+        if ($match = self::match($box, $pin)) {
+            RateLimiter::clear($key);
 
             return $match;
         }
 
-        // counted without a transaction: the exception below must not undo the count
-        foreach ($open as $position) {
-            $position->loan->increment('pin_attempts');
-        }
-        $locked = $open->every(fn (LoanItem $position) => $position->loan->isPinLocked());
+        RateLimiter::hit($key, self::LOCK_SECONDS);
 
-        throw ValidationException::withMessages(['pin' => $locked
-            ? 'Die Pack-PIN ist nach zu vielen Fehlversuchen gesperrt. Jemand vom FSR muss sie neu setzen.'
-            : 'Die Pack-PIN stimmt nicht.']);
+        throw ValidationException::withMessages(['pin' => 'Die Pack-PIN stimmt nicht.']);
+    }
+
+    /**
+     * Position of the box in the loan of the pin, without counting a wrong pin (e.g. the pin kept
+     * in the session when the page is shown).
+     */
+    public static function match(Item $box, string $pin): ?LoanItem
+    {
+        return self::positionsOf($box)->with('loan')->get()
+            ->first(fn (LoanItem $position) => $position->loan->pack_pin !== null && hash_equals($position->loan->pack_pin, $pin));
     }
 
     /**
@@ -63,9 +81,9 @@ class CheckBox
      *
      * @throws ValidationException
      */
-    public function store(Item $box, string $pin, string $name, array $ticks, int $total): LoanBoxCheck
+    public function store(Item $box, string $pin, string $ip, string $name, array $ticks, int $total): LoanBoxCheck
     {
-        $position = $this->unlock($box, $pin);
+        $position = $this->unlock($box, $pin, $ip);
 
         return $position->boxChecks()->create([
             'name' => $name,

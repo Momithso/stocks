@@ -29,13 +29,15 @@ class ResolveMissing
      */
     public function found(User $actor, LoanItem $row): string
     {
-        if (! LoanItem::whereKey($row->id)->stillMissing()->exists()) {
-            throw ValidationException::withMessages(['row' => 'Das wird nicht mehr vermisst.']);
-        }
-        $row->loadMissing(['missingItem', 'issuedItem', 'loan']);
-        $item = $row->missingItem;
+        return DB::transaction(function () use ($actor, $row) {
+            // locked and checked again, so a second tap does not book it twice
+            LoanItem::whereKey($row->id)->lockForUpdate()->first();
+            if (! LoanItem::whereKey($row->id)->stillMissing()->exists()) {
+                throw ValidationException::withMessages(['row' => 'Das wird nicht mehr vermisst.']);
+            }
+            $row->refresh()->load(['missingItem', 'issuedItem', 'loan']);
+            $item = $row->missingItem;
 
-        return DB::transaction(function () use ($actor, $row, $item) {
             $row->forceFill(['missing_resolution' => 'found', 'missing_resolved_at' => now()])->save();
 
             $message = "{$item->number} ist wieder da. Unter Rückgaben einräumen.";
@@ -55,13 +57,14 @@ class ResolveMissing
     }
 
     /**
-     * The defects of the loan close when nothing is missing any more and nothing was damaged or dirty.
+     * The defects of the loan close when nothing is missing any more and there was no other
+     * defect (damaged, dirty, incomplete), the same states that close a loan with defects.
      */
     private function closeWhenSettled(LoanItem $row): void
     {
         $loan = $row->loan;
         $open = $loan->loanItems()->stillMissing()->exists()
-            || $loan->loanItems()->whereIn('return_state', [ReturnState::Damaged, ReturnState::Dirty])->exists();
+            || $loan->loanItems()->whereNotNull('return_state')->whereNotIn('return_state', [ReturnState::Ok, ReturnState::Missing])->exists();
         if ($loan->status === LoanStatus::ClosedWithDefects && $loan->defects_closed_at === null && ! $open) {
             $loan->forceFill(['defects_closed_at' => now(), 'defects_note' => 'Alles Fehlende ist wieder da.'])->save();
         }

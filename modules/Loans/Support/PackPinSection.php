@@ -4,7 +4,6 @@ namespace Modules\Loans\Support;
 
 use App\Models\Item;
 use App\Support\Extensions\PublicBoxSection;
-use Illuminate\Validation\ValidationException;
 use Modules\Loans\Actions\CheckBox;
 use Modules\Loans\Http\PackPinController;
 use Modules\Loans\Models\LoanBoxCheck;
@@ -16,8 +15,6 @@ use Modules\Loans\Models\LoanBoxCheck;
  */
 class PackPinSection implements PublicBoxSection
 {
-    public function __construct(private readonly CheckBox $checkBox) {}
-
     /**
      * {@inheritDoc}
      */
@@ -28,13 +25,10 @@ class PackPinSection implements PublicBoxSection
         }
 
         $pin = session(PackPinController::sessionKey($box));
-        $position = null;
-        if ($pin !== null) {
-            try {
-                $position = $this->checkBox->unlock($box, $pin);
-            } catch (ValidationException) {
-                session()->forget(PackPinController::sessionKey($box));
-            }
+        // a pin kept from before that no longer fits (new pin, loan over) is dropped
+        $position = $pin !== null ? CheckBox::match($box, $pin) : null;
+        if ($pin !== null && $position === null) {
+            session()->forget(PackPinController::sessionKey($box));
         }
 
         return [

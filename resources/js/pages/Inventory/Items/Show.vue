@@ -414,7 +414,7 @@
 
   <!-- move -->
   <UiModal v-if="moveOpen" title="Umlagern" @close="moveOpen = false">
-    <form class="space-y-5" @submit.prevent="move">
+    <form class="space-y-5" @submit.prevent="move()">
       <InventoryPlaceInput
         v-model="moveForm.target_code"
         label="Ziel"
@@ -434,6 +434,11 @@
         v-model="moveForm.note"
         label="Notiz"
         :error="moveForm.errors.note"
+      />
+      <InventoryReservedConfirm
+        :message="moveForm.errors.confirm"
+        :processing="moveForm.processing"
+        @confirm="move(true)"
       />
       <UiButton type="submit" class="w-full" :disabled="moveForm.processing">
         Umlagern
@@ -478,7 +483,7 @@
 
   <!-- retire -->
   <UiModal v-if="retireOpen" title="Ausmustern" @close="retireOpen = false">
-    <form class="space-y-5" @submit.prevent="retire">
+    <form class="space-y-5" @submit.prevent="retire()">
       <UiInput
         v-if="item.kind === 'bulk'"
         v-model="retireForm.quantity"
@@ -505,6 +510,11 @@
         v-model="retireForm.note"
         label="Notiz"
         :error="retireForm.errors.note"
+      />
+      <InventoryReservedConfirm
+        :message="retireForm.errors.confirm"
+        :processing="retireForm.processing"
+        @confirm="retire(true)"
       />
       <UiButton
         type="submit"
@@ -664,10 +674,11 @@ const moveForm = useForm({
   quantity: props.item.quantity as number | null,
   note: "",
 });
-const move = () =>
+// confirmed: asked before and answered "Ja, trotzdem" (the item is booked)
+const move = (confirmed = false) =>
   // the id is taken when sending, the page can show another item by now
   moveForm
-    .transform((data) => ({ ...data, item_id: props.item.id }))
+    .transform((data) => ({ ...data, item_id: props.item.id, confirmed }))
     .post("/inventory/move", {
       preserveScroll: true,
       onSuccess: () => {
@@ -746,15 +757,17 @@ const isPartialRetire = computed(
     props.item.kind === "bulk" &&
     Number(retireForm.quantity) < props.item.quantity,
 );
-const retire = () =>
-  retireForm.post(`/inventory/items/${props.item.id}/retire`, {
-    preserveScroll: true,
-    onSuccess: () => {
-      retireOpen.value = false;
-      retireForm.note = "";
-      retireForm.quantity = props.item.quantity;
-    },
-  });
+const retire = (confirmed = false) =>
+  retireForm
+    .transform((data) => ({ ...data, confirmed }))
+    .post(`/inventory/items/${props.item.id}/retire`, {
+      preserveScroll: true,
+      onSuccess: () => {
+        retireOpen.value = false;
+        retireForm.note = "";
+        retireForm.quantity = props.item.quantity;
+      },
+    });
 
 // delete a wrong entry of the history
 const deletingEntry = ref<Props["history"][number] | null>(null);

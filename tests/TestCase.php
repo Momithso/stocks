@@ -76,6 +76,15 @@ abstract class TestCase extends BaseTestCase
     }
 
     /**
+     * Switch a module off again.
+     */
+    protected function deactivateModule(string $key): void
+    {
+        Module::where('key', $key)->update(['active' => false]);
+        app(ModuleRegistry::class)->flush();
+    }
+
+    /**
      * Enable model auditing, which is disabled for console runs (and therefore PHPUnit) by default.
      */
     protected function enableModelAuditing(): void

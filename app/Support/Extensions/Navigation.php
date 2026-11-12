@@ -41,7 +41,7 @@ class Navigation
     private array $groups = [];
 
     /**
-     * @var list<array{title: string, route: string, icon: string, permission: string|null, module: string|null, order: int}>
+     * @var list<array{title: string, route: string, icon: string, permission: string|null, module: string|null, order: int, parameters: array<string, mixed>, description: string|null, section: string, badge: Closure|null}>
      */
     private array $kioskTiles = [];
 
@@ -86,11 +86,27 @@ class Navigation
     }
 
     /**
-     * Add a tile to the kiosk home page. The route must be a kiosk route (middleware "kiosk").
+     * Add a tile to the kiosk home page. The route must be a kiosk route (see
+     * App\Support\Extensions\SurfaceRoutes); the parameters are passed to it. Tiles are grouped
+     * by section ("Verleih", "Lager"); the description says in one line what happens, the badge
+     * how much there is to do (e.g. "3 heute"), like the badge of the menu.
+     *
+     * @param  array<string, mixed>  $parameters
+     * @param  Closure(): (array{text: string, variant: string}|null)|null  $badge
      */
-    public function addKioskTile(string $title, string $route, string $icon, ?string $permission = null, ?string $module = null, int $order = 100): void
-    {
-        $this->kioskTiles[] = compact('title', 'route', 'icon', 'permission', 'module', 'order');
+    public function addKioskTile(
+        string $title,
+        string $route,
+        string $icon,
+        ?string $permission = null,
+        ?string $module = null,
+        int $order = 100,
+        array $parameters = [],
+        ?string $description = null,
+        string $section = 'Lager',
+        ?Closure $badge = null,
+    ): void {
+        $this->kioskTiles[] = compact('title', 'route', 'icon', 'permission', 'module', 'order', 'parameters', 'description', 'section', 'badge');
     }
 
     /**
@@ -145,12 +161,19 @@ class Navigation
     /**
      * Get the kiosk tiles of a user that unlocked the kiosk.
      *
-     * @return list<array{title: string, href: string, icon: string}>
+     * @return list<array{title: string, href: string, icon: string, description: string|null, section: string, badge: array{text: string, variant: string}|null}>
      */
     public function kioskTilesForUser(User $user): array
     {
         return array_map(
-            fn (array $tile) => ['title' => $tile['title'], 'href' => route($tile['route'], absolute: false), 'icon' => $tile['icon']],
+            fn (array $tile) => [
+                'title' => $tile['title'],
+                'href' => route($tile['route'], $tile['parameters'], absolute: false),
+                'icon' => $tile['icon'],
+                'description' => $tile['description'],
+                'section' => $tile['section'],
+                'badge' => $tile['badge'] ? ($tile['badge'])() : null,
+            ],
             $this->visible($this->kioskTiles, $user),
         );
     }
