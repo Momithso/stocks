@@ -40,6 +40,75 @@
         </div>
       </UiCard>
 
+      <UiCard
+        title="Verleihseite und Nachrichten"
+        description="Seite für Entleiher ohne Konto, E-Mails und Push."
+      >
+        <div class="grid gap-5 sm:grid-cols-2">
+          <UiInput
+            v-model="form.loans.page_days_after_close"
+            label="Link gilt nach Abschluss noch (Tage)"
+            type="number"
+            min="1"
+            max="365"
+            hint="Während der Leihe läuft der Link nie ab."
+            :error="form.errors['loans.page_days_after_close']"
+          />
+          <UiInput
+            v-model="form.loans.overdue_days"
+            label="Überfällig-Nachrichten nach (Tagen)"
+            placeholder="1, 3, 7"
+            hint="Ab der zweiten Stufe auch an die Beteiligten im FSR."
+            :error="form.errors['loans.overdue_days']"
+          />
+          <UiInput
+            v-model="form.loans.remind_pickup_hours"
+            label="Erinnerung vor der Abholung (Stunden)"
+            type="number"
+            min="0"
+            max="336"
+            hint="0 schaltet sie aus."
+            :error="form.errors['loans.remind_pickup_hours']"
+          />
+          <UiInput
+            v-model="form.loans.remind_return_hours"
+            label="Erinnerung vor der Rückgabe (Stunden)"
+            type="number"
+            min="0"
+            max="336"
+            hint="0 schaltet sie aus."
+            :error="form.errors['loans.remind_return_hours']"
+          />
+          <UiTextarea
+            v-model="form.loans.pickup_place"
+            label="Abholort"
+            class="sm:col-span-2"
+            :rows="2"
+            hint="Steht auf der Verleihseite und in den Nachrichten. Leer: die Anschrift der Organisation."
+            :error="form.errors['loans.pickup_place']"
+          />
+        </div>
+        <details class="mt-5">
+          <summary class="cursor-pointer text-sm font-medium">
+            Zusatztexte der E-Mails
+          </summary>
+          <p class="mt-2 text-sm text-ink-muted">
+            Erscheint unter dem festen Text der jeweiligen Mail. Variablen:
+            {number}, {pickup}, {return}, {responsible}.
+          </p>
+          <div class="mt-3 grid gap-4">
+            <UiTextarea
+              v-for="message in mailTexts"
+              :key="message.type"
+              v-model="form.loans.mail_texts[message.type]"
+              :label="message.label"
+              :rows="2"
+              :error="form.errors[`loans.mail_texts.${message.type}`]"
+            />
+          </div>
+        </details>
+      </UiCard>
+
       <UiCard title="Leihvertrag">
         <template #actions>
           <UiButton
@@ -175,6 +244,8 @@ const props = defineProps<{
   variables: { name: string; label: string }[];
   example: string;
   councils: Council[];
+  // messages with an extra text of their own
+  mailTexts: { type: string; label: string }[];
 }>();
 
 // nested like the keys on the server ("loans.lender"), so errors land at their field
@@ -185,6 +256,28 @@ const form = useForm({
     buffer_hours: Number(props.settings["loans.buffer_hours"] ?? 0),
     number_prefix: String(props.settings["loans.number_prefix"] ?? "B"),
     contract_template: String(props.settings["loans.contract_template"] ?? ""),
+    page_days_after_close: Number(
+      props.settings["loans.page_days_after_close"] ?? 30,
+    ),
+    remind_pickup_hours: Number(
+      props.settings["loans.remind_pickup_hours"] ?? 24,
+    ),
+    remind_return_hours: Number(
+      props.settings["loans.remind_return_hours"] ?? 24,
+    ),
+    overdue_days: String(props.settings["loans.overdue_days"] ?? "1, 3, 7"),
+    pickup_place: String(props.settings["loans.pickup_place"] ?? ""),
+    mail_texts: Object.fromEntries(
+      props.mailTexts.map((message) => [
+        message.type,
+        (
+          props.settings["loans.mail_texts"] as unknown as Record<
+            string,
+            string
+          > | null
+        )?.[message.type] ?? "",
+      ]),
+    ) as Record<string, string>,
   },
   reset_text: false,
 });

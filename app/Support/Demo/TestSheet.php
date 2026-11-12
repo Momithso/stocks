@@ -29,13 +29,14 @@ class TestSheet
     /**
      * Labels of the sheet with their qr codes.
      *
-     * @return list<array{code: string, name: string, purpose: string, expect: string, qr: string}>
+     * @return list<array{code: string, name: string, purpose: string, expect: string, url?: string, qr: string}>
      */
     public function labels(): array
     {
         return array_map(fn (array $label) => [
             ...$label,
-            'qr' => 'data:image/svg+xml;base64,'.base64_encode(QrCode::svg($this->links->url($label['code']), 200)),
+            // a label with its own address (borrower page) carries that, the others a short link
+            'qr' => 'data:image/svg+xml;base64,'.base64_encode(QrCode::svg($label['url'] ?? $this->links->url($label['code']), 200)),
         ], array_slice($this->settings->get('demo.labels') ?? [], 0, self::LABELS));
     }
 

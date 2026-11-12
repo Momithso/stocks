@@ -1,7 +1,7 @@
 <template>
   <UiPageHeader
-    title="E-Mail"
-    description="Mailserver und Absender für alle E-Mails von Stocks."
+    title="Benachrichtigungen"
+    description="Mailserver und Absender für alle E-Mails von Stocks, Warteschlange und Push."
   />
 
   <div class="grid gap-6 lg:grid-cols-3">
@@ -97,7 +97,7 @@
         </UiAlert>
         <p class="mt-2 text-xs text-ink-muted">
           Geprüft <UiDateTime :value="status.checked_at" />. Das Menü zeigt den
-          Stand unter Einstellungen › E-Mail.
+          Stand unter Einstellungen › Benachrichtigungen.
         </p>
         <UiButton
           variant="secondary"
@@ -130,6 +130,44 @@
           >
         </form>
       </UiCard>
+
+      <UiCard title="Warteschlange">
+        <p class="text-sm">
+          Benachrichtigungen gehen über die Warteschlange (Dienst „queue“).
+          <template v-if="failedJobs"
+            ><strong>{{ failedJobs }}</strong>
+            {{ failedJobs === 1 ? "Auftrag ist" : "Aufträge sind" }}
+            fehlgeschlagen.</template
+          >
+          <template v-else>Nichts ist fehlgeschlagen.</template>
+        </p>
+        <UiButton
+          v-if="failedJobs"
+          variant="secondary"
+          size="sm"
+          icon="rotate"
+          class="mt-3"
+          @click="
+            router.post('/admin/mail/retry', {}, { preserveScroll: true })
+          "
+          >Erneut versuchen</UiButton
+        >
+      </UiCard>
+
+      <UiCard title="Push">
+        <UiAlert :type="push.enabled ? 'success' : 'info'">
+          <template v-if="push.enabled"
+            >Push ist eingerichtet. {{ push.devices }}
+            {{ push.devices === 1 ? "Gerät hat" : "Geräte haben" }} Push
+            eingeschaltet.</template
+          >
+          <template v-else
+            >Push ist aus: VAPID_PUBLIC_KEY und VAPID_PRIVATE_KEY fehlen in der
+            .env. Erzeugen mit „php artisan webpush:vapid“, siehe
+            SETUP.md.</template
+          >
+        </UiAlert>
+      </UiCard>
     </div>
   </div>
 </template>
@@ -153,6 +191,8 @@ const props = defineProps<{
   status: { ok: boolean | null; message: string; checked_at: string };
   environment: { mailer: string; from: string | null };
   testAddress: string;
+  failedJobs: number;
+  push: { enabled: boolean; devices: number };
 }>();
 
 const encryptions: Option[] = [

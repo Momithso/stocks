@@ -8,6 +8,7 @@ Der Kern von Stocks verwaltet Konten, Rollen, Module und Einstellungen. Fachlich
 - [Anmeldung und Konten](#anmeldung-und-konten)
 - [Rollen und Rechte](#rollen-und-rechte)
 - [Einstellungen](#einstellungen)
+- [Benachrichtigungen](#benachrichtigungen)
 - [Kiosk](#kiosk)
 - [Änderungsprotokoll](#änderungsprotokoll)
 - [Oberfläche](#oberfläche)
@@ -80,19 +81,24 @@ Der Code prüft nur Rechte, nie Rollennamen. Rechte heißen `bereich.tätigkeit`
 | `organization.accent_color` | Akzentfarbe, wird in `app.blade.php` als CSS-Variable gesetzt |
 | `organization.logo_path`, `organization.favicon_path`, `organization.print_logo_path` | Logo, Favicon und Druck-Logo auf S3, siehe unten |
 | `organization.address` | Anschrift, eine Zeile je Adresszeile; Briefkopf der Box-Inhaltsliste |
+| `organization.phone` | zentrale Telefonnummer (seit Phase 5), z. B. auf der Verleihseite; Konten haben keine Telefonnummer |
 | `legal.imprint_url`, `legal.privacy_url`, `legal.contact_email` | Rechtliche Links |
 | `mail.from_name`, `mail.from_address` | Absender aller E-Mails; ohne Adresse gilt `MAIL_FROM_ADDRESS` |
 | `mail.host`, `mail.port`, `mail.username`, `mail.password`, `mail.encryption` | Mailserver (SMTP); das Passwort verschlüsselt mit `APP_KEY`. Ohne Server gelten die `MAIL_*`-Variablen, siehe unten |
 | `setup.completed_at` | Zeitpunkt der Einrichtung; ohne ihn leitet jede Seite auf `/setup` |
 | `demo.seeded_at`, `demo.labels` | Zeitpunkt der Demo-Daten und die Codes des Testetiketten-Blatts, siehe [DEMO.md](DEMO.md); leer in einer echten Instanz |
 
-**E-Mail** (Verwaltung › Einstellungen › E-Mail, `settings.manage`): Server, Port, Verschlüsselung (STARTTLS oder SSL/TLS), Benutzer, Passwort und Absender. `App\Support\MailSettings::apply()` setzt sie vor jeder Anfrage (Middleware `ApplyMailSettings`) und jedem Job (`Queue::before`) als SMTP-Mailer; ist kein Server eingetragen, bleibt die Umgebung (`MAIL_MAILER`, `MAIL_HOST` …). Das Passwort geht nie an den Browser; ein leeres Feld behält das gespeicherte. Der **Status** ist eine echte Anmeldung am Server (Timeout 10 s), 5 Minuten im Cache und nach jedem Speichern oder „Erneut prüfen“ neu. Das Menü zeigt ihn als Badge am Eintrag E-Mail („verbunden“/„getrennt“, bei zugeklappter Gruppe ein roter Punkt); die Seite liest dafür nur den Cache und baut nie selbst eine Verbindung auf. „Test-Mail senden“ schickt eine kurze Mail an eine frei wählbare Adresse (Vorgabe: die eigene) und zeigt den Fehler des Servers, wenn sie nicht rausgeht.
+**E-Mail** (Verwaltung › Einstellungen › Benachrichtigungen, bis Phase 4 „E-Mail“, `settings.manage`): Server, Port, Verschlüsselung (STARTTLS oder SSL/TLS), Benutzer, Passwort und Absender. `App\Support\MailSettings::apply()` setzt sie vor jeder Anfrage (Middleware `ApplyMailSettings`) und jedem Job (`Queue::before`) als SMTP-Mailer; ist kein Server eingetragen, bleibt die Umgebung (`MAIL_MAILER`, `MAIL_HOST` …). Das Passwort geht nie an den Browser; ein leeres Feld behält das gespeicherte. Der **Status** ist eine echte Anmeldung am Server (Timeout 10 s), 5 Minuten im Cache und nach jedem Speichern oder „Erneut prüfen“ neu. Das Menü zeigt ihn als Badge am Eintrag Benachrichtigungen („verbunden“/„getrennt“, bei zugeklappter Gruppe ein roter Punkt); die Seite liest dafür nur den Cache und baut nie selbst eine Verbindung auf. „Test-Mail senden“ schickt eine kurze Mail an eine frei wählbare Adresse (Vorgabe: die eigene) und zeigt den Fehler des Servers, wenn sie nicht rausgeht.
 
 Module bringen eigene Schlüssel mit (`Settings::addDefaults()`, Präfix = Modulschlüssel, z. B. `loans.buffer_hours`); sie liegen in derselben Tabelle, `Settings::module('loans')` liefert sie gesammelt.
 | `inventory.number_prefix` | Präfix neuer Artikelnummern, siehe [INVENTORY.md](INVENTORY.md#artikelnummern) |
 | `labels.base_url`, `labels.base_url_confirmed` | Adresse in den Codes der Etiketten und die vor dem ersten Druck bestätigte Adresse, siehe [LABELS.md](LABELS.md#kurzlink-und-code) |
 
 **Logo und Favicon** lädt man unter Verwaltung › Einstellungen › Allgemein hoch (`settings.manage`). `App\Support\Branding` legt sie auf S3 unter `branding/` ab und merkt sich den Pfad in den Einstellungen; ein neues Bild ersetzt und löscht das alte. Ausgeliefert werden sie über `/branding/logo` und `/branding/favicon`, auch an Gäste (Anmeldeseite, Browser-Tab), mit einer Woche Browser-Cache; der Dateiname steckt in der Adresse, so erscheint ein neues Bild sofort. Ohne eigenes Favicon gilt `public/favicon.ico`, ohne Logo steht nur der Name. Das **Druck-Logo** (`print_logo`) kommt auf Etiketten und die Inhaltsliste einer Box (`Branding::printKind()`); ohne eigenes gilt das Logo. So kann am Bildschirm ein helles Logo stehen und auf Papier und dem Niimbot ein dunkles. Das Logo steht oben links in der Seitenleiste als Quadrat von 64 Pixeln neben dem Kurznamen (`LayoutBrand size="nav"`), in der oberen Leiste am Handy und am Kiosk klein neben dem Namen und auf der Anmeldeseite mittig über dem Namen als Quadrat von 250 Pixeln (auf schmalen Bildschirmen 60 % der Breite). Am besten passt ein quadratisches Logo. Logo: PNG, JPG oder WebP bis 2 MB; Favicon: PNG oder ICO bis 512 KB; SVG ist verboten, weil es Skripte enthalten kann.
+
+## Benachrichtigungen
+
+Seit Phase 5: Helfer für E-Mail und Push (`NotificationEvents`, `StocksNotification`), Konto-Einstellungen im Profil, Geräte mit Push, Service Worker `public/sw.js`, Befehl `stocks:notify-test`. Beschrieben in [NOTIFICATIONS.md](NOTIFICATIONS.md). Die Seite Verwaltung › Einstellungen › Benachrichtigungen zeigt außerdem die fehlgeschlagenen Aufträge der Warteschlange und den Zustand von Push.
 
 ## Kiosk
 
@@ -115,7 +121,8 @@ Der Kiosk ist seit Phase 4 das Modul `modules/Kiosk`, beschrieben in [KIOSK.md](
 
 | Tabelle | Zweck |
 |---|---|
-| `users` | Konten (`firstname`, `lastname`, `email`, `password`, `pin`, `is_disabled`, `last_login_at`) |
+| `users` | Konten (`firstname`, `lastname`, `email`, `password`, `pin`, `is_disabled`, `last_login_at`, `notification_preferences`) |
+| `push_subscriptions` | Push-Abos je Gerät (`subscribable`: Konto oder Buchung, `endpoint`, Schlüssel, `device`, `last_used_at`), siehe [NOTIFICATIONS.md](NOTIFICATIONS.md) |
 | `password_reset_tokens` | Passwort zurücksetzen |
 | `invitations`, `invitation_role` | Offene Einladungen und ihre Rollen |
 | `roles`, `permissions` und Zwischentabellen | `spatie/laravel-permission`; `roles` hat zusätzlich `description` und `is_system` |
@@ -130,8 +137,9 @@ Der Kiosk ist seit Phase 4 das Modul `modules/Kiosk`, beschrieben in [KIOSK.md](
 |---|---|
 | Einrichtung | `/setup` |
 | Anmeldung | `/login`, `/logout`, `/forgot-password`, `/reset-password/{token}`, `/invitation/{token}` |
-| Angemeldet | `/dashboard`, `/profile`, `/styleguide` |
-| Verwaltung | `/admin/users`, `/admin/roles`, `/admin/modules`, `/admin/settings`, `/admin/audit-log` |
+| Angemeldet | `/dashboard`, `/profile` (mit `PUT /profile/notifications`, `POST`/`DELETE /profile/push`, `POST /profile/notify-test`), `/styleguide` |
+| Verwaltung | `/admin/users`, `/admin/roles`, `/admin/modules`, `/admin/settings`, `/admin/mail` (mit `retry`), `/admin/audit-log` |
+| Web-App | `/manifest.webmanifest`, `/web-app/icon-{size}.png`, `/sw.js` (Service Worker für Push) |
 
 `php artisan route:list --except-vendor` zeigt alle Routen mit Namen.
 

@@ -6,6 +6,8 @@ use App\Enums\ItemKind;
 use App\Http\Controllers\Controller;
 use App\Models\Item;
 use App\Models\User;
+use App\Support\QrCode;
+use App\Support\Settings;
 use App\Support\Surface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -33,16 +35,24 @@ use Modules\Loans\Models\Council;
 use Modules\Loans\Models\Event;
 use Modules\Loans\Models\Loan;
 use Modules\Loans\Models\LoanDocument;
+use Modules\Loans\Models\LoanExtensionRequest;
 use Modules\Loans\Models\LoanItem;
+use Modules\Loans\Models\LoanMessage;
+use Modules\Loans\Models\LoanNotification;
 use Modules\Loans\Support\Availability;
 use Modules\Loans\Support\LoanDocuments;
+use Modules\Loans\Support\LoanNotifier;
+use Modules\Loans\Support\LoanPage;
+use Modules\Loans\Support\LoanPageData;
 use Modules\Loans\Support\LoansTable;
+use Modules\Loans\Support\Reminders;
 use Modules\Loans\Support\RowTree;
 use Modules\Loans\Support\SignatureInput;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 /**
- * Loans: list, detail, form, confirm, extend, cancel, pin, documents.
+ * Loans: list, detail (with borrower page, chat and messages), form, confirm, extend, cancel, pin,
+ * documents.
  */
 class LoanController extends Controller
 {
@@ -58,7 +68,7 @@ class LoanController extends Controller
 
         return Inertia::render('Loans::Loans/Index', [
             'loans' => $table->scroll(),
-            'statuses' => [['value' => 'open', 'label' => 'Offen (alles außer abgeschlossen)'], ['value' => 'overdue', 'label' => 'Überfällig'], ...LoanStatus::options()],
+            'statuses' => [['value' => 'open', 'label' => 'Offen (alles außer abgeschlossen)'], ['value' => 'overdue', 'label' => 'Überfällig'], ['value' => 'unread', 'label' => 'Ungelesene Nachricht'], ...LoanStatus::options()],
             'events' => Event::options(),
             'filters' => $request->only(['status', 'from', 'to', 'contact', 'event']),
             'contact' => $request->integer('contact') ? Contact::find($request->integer('contact'))?->only(['id', 'name']) : null,
@@ -101,7 +111,7 @@ class LoanController extends Controller
     /**
      * Display a loan with its positions, availability and documents.
      */
-    public function show(Request $request, Loan $loan, Availability $availability, LoanDocuments $documents, ConfirmLoan $confirmLoan): Response
+    public function show(Request $request, Loan $loan, Availability $availability, LoanDocuments $documents, ConfirmLoan $confirmLoan, LoanPage $page, LoanPageData $pageData): Response
     {
         $loan->load(['borrower.council', 'responsible.council', 'responsibleUser', 'issuer', 'event', 'creator', 'documents.signatures']);
         $canManage = $request->user()->can('loans.manage');
@@ -154,7 +164,57 @@ class LoanController extends Controller
             // rest of a partial issue that may still leave, or that missed its time
             'hasRest' => IssueLoan::hasRest($loan),
             'restExpired' => IssueLoan::restExpired($loan),
+            // borrower page, chat and messages: for those who manage loans
+            'borrowerPage' => $canManage && LoanPage::exists($loan) ? $this->page($loan, $page, $pageData) : null,
         ]);
+    }
+
+    /**
+     * Borrower page of a loan on its page in Stocks: link with code, state, chat, open extension
+     * request and the log of messages.
+     *
+     * @return array<string, mixed>
+     */
+    private function page(Loan $loan, LoanPage $page, LoanPageData $pageData): array
+    {
+        $url = LoanPage::url($loan);
+
+        return [
+            'url' => $url,
+            'qr' => QrCode::svg($url, 200),
+            'open' => $page->isOpen($loan),
+            'blocked' => $loan->access_blocked_at !== null,
+            'expires_at' => $page->expiresAt($loan)?->toIso8601String(),
+            'days_after_close' => (int) app(Settings::class)->get('loans.page_days_after_close', 30),
+            'push_devices' => $loan->pushSubscriptions()->count(),
+            'messages' => $pageData->messages($loan, 0, 'staff', auth()->id()),
+            'unread' => $loan->messages()->where('sender', LoanMessage::CONTACT)->whereNull('read_by_staff_at')->count(),
+            'extension' => $loan->extensionRequests()->where('status', LoanExtensionRequest::OPEN)->first()?->summary(),
+            'log' => $loan->notificationLog()->with('sender')->limit(100)->get()->map(fn (LoanNotification $row) => [
+                'id' => $row->id,
+                'type' => $row->type,
+                'label' => self::messageLabel($row->type).($row->stage ? " (Stufe {$row->stage})" : ''),
+                'channel' => $row->channel,
+                'recipient' => $row->recipient,
+                'sent_by' => $row->sender?->name,
+                'sent_at' => $row->sent_at->toIso8601String(),
+            ]),
+            'reminders' => collect(Reminders::MANUAL)->map(fn (string $label, string $value) => ['value' => $value, 'label' => $label])->values(),
+            'has_email' => filled($loan->routeNotificationForMail()),
+        ];
+    }
+
+    /**
+     * German name of a message type of the log.
+     */
+    public static function messageLabel(string $type): string
+    {
+        return [
+            'confirmed' => 'Buchung bestätigt', 'pickup_reminder' => 'Erinnerung Abholung', 'issued' => 'Ausgabe erfolgt',
+            'return_reminder' => 'Erinnerung Rückgabe', 'overdue' => 'Überfällig', 'overdue_staff' => 'Überfällig (an den FSR)',
+            'chat' => 'Neue Chat-Nachricht', 'chat_staff' => 'Neue Chat-Nachricht (an den FSR)', 'extension_requested' => 'Verlängerung angefragt',
+            'extension_decided' => 'Verlängerung entschieden', 'returned' => 'Rückgabe gebucht', 'defect' => 'Mangel gemeldet', 'cancelled' => 'Storniert',
+        ][$type] ?? $type;
     }
 
     /**
@@ -241,9 +301,10 @@ class LoanController extends Controller
     /**
      * Confirm a draft.
      */
-    public function confirm(Loan $loan, ConfirmLoan $confirmLoan): RedirectResponse
+    public function confirm(Request $request, Loan $loan, ConfirmLoan $confirmLoan): RedirectResponse
     {
-        $confirmLoan->handle($loan);
+        // the mail with link and pack pin can be left out in the dialog
+        $confirmLoan->handle($loan, $request->boolean('notify', true));
 
         return back()->with('success', "{$loan->number} ist bestätigt, die Gegenstände sind reserviert.");
     }
@@ -356,6 +417,10 @@ class LoanController extends Controller
             $stats['unchecked'] = Loan::where('status', LoanStatus::ReturnedUnchecked)->count();
             $stats['defects'] = Loan::where('status', LoanStatus::ClosedWithDefects)->whereNull('defects_closed_at')->count();
             $stats['not_stowed'] = StowItem::pending()->count();
+        }
+        if ($request->user()->can('loans.manage')) {
+            $stats['unread_messages'] = LoanNotifier::unreadCount();
+            $stats['open_extensions'] = LoanExtensionRequest::where('status', LoanExtensionRequest::OPEN)->count();
         }
 
         return response()->json($stats);

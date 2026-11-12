@@ -12,9 +12,11 @@ use App\Models\Location;
 use App\Models\Module;
 use App\Models\Printer;
 use App\Models\PrinterModel;
+use App\Models\PushSubscription;
 use App\Models\Role;
 use App\Models\Setting;
 use App\Models\User;
+use App\Notifications\StocksNotification;
 use App\Support\Audit\AuditSubjects;
 use App\Support\Demo\InventoryDemo;
 use App\Support\Extensions\DashboardTiles;
@@ -24,16 +26,20 @@ use App\Support\Extensions\Navigation;
 use App\Support\Extensions\SurfaceRoutes;
 use App\Support\MailSettings;
 use App\Support\Modules\ModuleRegistry;
+use App\Support\Notifications\NotificationEvents;
 use App\Support\Settings;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Mail\Events\MessageSending;
+use Illuminate\Notifications\Events\NotificationSending;
+use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use NotificationChannels\WebPush\Events\NotificationSent as PushSent;
 use Symfony\Component\Mime\Address;
 
 class AppServiceProvider extends ServiceProvider
@@ -54,6 +60,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(SurfaceRoutes::class);
         $this->app->singleton(AuditSubjects::class);
         $this->app->singleton(Settings::class);
+        $this->app->singleton(NotificationEvents::class);
 
         foreach ($this->app->make(ModuleRegistry::class)->all() as $module) {
             $this->app->register($module->provider);
@@ -93,6 +100,20 @@ class AppServiceProvider extends ServiceProvider
         // queued mails use the mail server of the settings too
         Queue::before(fn () => app(MailSettings::class)->apply());
 
+        // notifications of Stocks may keep a log (e.g. the messages of a loan), and a device that
+        // received a push was used (documentation/NOTIFICATIONS.md)
+        Event::listen(NotificationSending::class, fn () => NotificationEvents::isMuted() ? false : null);
+        Event::listen(NotificationSent::class, function (NotificationSent $event) {
+            if ($event->notification instanceof StocksNotification) {
+                $event->notification->sent($event->notifiable, $event->channel, $event->response);
+            }
+        });
+        Event::listen(PushSent::class, function (PushSent $event) {
+            if ($event->subscription instanceof PushSubscription) {
+                $event->subscription->forceFill(['last_used_at' => now()])->saveQuietly();
+            }
+        });
+
         // short links of labels: guests can not try out the inventory quickly (see ShortLinkController)
         RateLimiter::for('short-links', fn (Request $request) => $request->user()
             ? Limit::perMinute(120)->by('user:'.$request->user()->id)
@@ -125,7 +146,7 @@ class AppServiceProvider extends ServiceProvider
         $navigation->addGroup('admin', 'settings', 'Einstellungen', 'gear', order: 40);
         $navigation->add('admin', 'Allgemein', 'admin.settings.edit', 'sliders', 'settings.manage', order: 10, group: 'settings');
         // the last connection test of the mail server, never a new one (the menu must not wait)
-        $navigation->add('admin', 'E-Mail', 'admin.mail.edit', 'envelope', 'settings.manage', order: 15, group: 'settings', badge: function () {
+        $navigation->add('admin', 'Benachrichtigungen', 'admin.mail.edit', 'envelope', 'settings.manage', order: 15, group: 'settings', badge: function () {
             $ok = app(MailSettings::class)->lastStatus()['ok'] ?? null;
 
             return match ($ok) {

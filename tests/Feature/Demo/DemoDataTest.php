@@ -72,7 +72,8 @@ class DemoDataTest extends TestCase
         $this->assertNotEmpty($labels);
         $unknown = collect($labels)->firstWhere('purpose', 'Unbekannte Nummer');
         foreach ($labels as $label) {
-            if ($label === $unknown) {
+            // the unknown number, and labels with an address of their own (borrower page)
+            if ($label === $unknown || isset($label['url'])) {
                 continue;
             }
             $known = Item::where('number', $label['code'])->exists() || Location::where('full_code', $label['code'])->exists() || ReservedNumber::where('number', $label['code'])->exists();

@@ -2,9 +2,12 @@
 
 use App\Actions\Setup\InstallStocks;
 use App\Models\Item;
+use App\Models\User;
+use App\Notifications\TestNotification;
 use App\Support\Demo\DemoGenerator;
 use App\Support\Demo\TestSheet;
 use App\Support\Modules\ModuleRegistry;
+use App\Support\Notifications\WebPush;
 use Database\Factories\UserFactory;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
@@ -72,3 +75,34 @@ Artisan::command('stocks:demo-sheet {path=documentation/demo/testetiketten.pdf :
     File::put($path, $sheet->pdf());
     $this->info("Testetiketten gespeichert: {$this->argument('path')}");
 })->purpose('Write the test label sheet of the demo data as pdf');
+
+Artisan::command('stocks:notify-test {email : E-Mail-Adresse eines Kontos} {--channel=mail : mail oder push}', function (string $email) {
+    $channel = $this->option('channel');
+    if (! in_array($channel, ['mail', 'push'], true)) {
+        $this->error('Kanal ist „mail“ oder „push“.');
+
+        return 1;
+    }
+    $user = User::where('email', mb_strtolower($email))->first();
+    if ($user === null) {
+        $this->error("Kein Konto mit {$email}.");
+
+        return 1;
+    }
+    if ($channel === 'push' && ! WebPush::enabled()) {
+        $this->error('Push ist aus: VAPID_PUBLIC_KEY und VAPID_PRIVATE_KEY fehlen in der .env (php artisan webpush:vapid).');
+
+        return 1;
+    }
+    if ($channel === 'push' && ! $user->pushSubscriptions()->exists()) {
+        $this->error("{$user->name} hat kein Gerät mit Push. Erst im Profil „Push auf diesem Gerät einschalten“.");
+
+        return 1;
+    }
+
+    // at once, not through the queue, so errors show here
+    $user->notifyNow(new TestNotification($channel));
+    $this->info($channel === 'push'
+        ? 'Push an '.$user->pushSubscriptions()->count().' Gerät(e) von '.$user->name.' geschickt.'
+        : "Testmail an {$user->email} geschickt.");
+})->purpose('Send a test notification by mail or push to an account');

@@ -5,6 +5,7 @@ use App\Http\Middleware\EnsureModuleActive;
 use App\Http\Middleware\EnsureSetupCompleted;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\KeepPreviousPage;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -25,6 +26,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo(fn () => route('login'));
         $middleware->redirectUsersTo(fn () => route('dashboard'));
 
+        // before the session starts: json requests do not become the previous page
+        $middleware->web(prepend: [
+            KeepPreviousPage::class,
+        ]);
         $middleware->web(append: [
             EnsureSetupCompleted::class,
             EnsureUserIsActive::class,

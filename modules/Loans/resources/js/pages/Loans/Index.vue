@@ -53,6 +53,10 @@
           row.number
         }}</UiLink>
         <p class="text-sm text-ink-muted">{{ row.purpose ?? row.event }}</p>
+        <UiBadge v-if="row.unread_messages" variant="accent">
+          <FontAwesomeIcon :icon="['fas', 'comments']" />
+          {{ row.unread_messages }} ungelesen
+        </UiBadge>
       </template>
       <template #cell-status="{ row }">
         <LoansStatusBadge :loan="row" />

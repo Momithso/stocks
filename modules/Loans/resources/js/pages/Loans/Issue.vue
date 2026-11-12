@@ -51,10 +51,16 @@
   <div v-if="current === 'material'" class="space-y-6">
     <UiCard
       title="Material abhaken"
-      :description="`${checkedCount} von ${positionCount} Positionen abgehakt. Scanne jedes Teil oder hake es von Hand ab; der Inhalt einer Box kann einzeln abgehakt werden, muss aber nicht. Was nicht abgehakt ist, bleibt als Rest (Teilausgabe). Fällt dir ein Mangel auf, vermerke ihn an der Zeile.`"
+      :description="`${checkedCount} von ${positionCount} Positionen abgehakt. Scanne jedes Teil oder hake es von Hand ab; der Inhalt einer Box kann einzeln abgehakt werden, muss aber nicht. Was nicht abgehakt ist, bleibt als Rest (Teilausgabe); ein Teil aus einer abgehakten Box ohne Haken bleibt hier und kommt aus der Box. Fällt dir ein Mangel auf, vermerke ihn an der Zeile.`"
     >
       <LoansScanInput @scan="scan" />
     </UiCard>
+
+    <UiAlert v-if="loan.early" type="info">
+      Abholung vor dem Termin ({{ formatDateTime(loan.pickup_at) }}). Die
+      Leihzeit beginnt jetzt; was bis dahin noch anderweitig gebucht ist, steht
+      rot an der Zeile und kann nur später mitgehen.
+    </UiAlert>
 
     <UiCard flush>
       <ul class="divide-y divide-line">
@@ -98,6 +104,9 @@
                   ·
                   {{ row.checked_by_scan ? "gescannt" : "von Hand" }}</template
                 >
+                <UiBadge v-if="staysHere(row)" variant="warning" class="ml-1"
+                  >bleibt hier</UiBadge
+                >
               </p>
               <p
                 v-for="note in [...row.box_checks, ...row.hints]"
@@ -105,6 +114,11 @@
                 class="text-xs text-yellow-700"
               >
                 {{ note }}
+              </p>
+              <p v-if="row.early" class="text-sm text-red-700">
+                <FontAwesomeIcon :icon="['fas', 'clock']" class="mr-1" />{{
+                  row.early
+                }}
               </p>
               <p v-if="row.issue_defect" class="text-sm text-red-700">
                 <FontAwesomeIcon
@@ -116,7 +130,8 @@
                 v-if="row.is_container && !row.hints.length"
                 class="text-xs text-ink-muted"
               >
-                Abhaken hakt den Inhalt mit ab.
+                Abhaken hakt den Inhalt mit ab. Ein Teil nicht mitgeben: seinen
+                Haken wegnehmen, es bleibt am Platz der Box.
               </p>
               <div class="flex flex-wrap items-center gap-x-3 gap-y-2 pt-1">
                 <!-- bulk items: the scan asks for the quantity -->
@@ -149,6 +164,14 @@
           </div>
         </li>
       </ul>
+      <p
+        v-if="leftBehind.length"
+        class="border-t border-line px-4 py-3 text-sm text-yellow-800 dark:text-yellow-200 sm:px-6"
+      >
+        Bleibt hier und kommt aus der Box:
+        {{ leftBehind.map((row) => `${row.number} ${row.name}`).join(", ") }}.
+        Es steht danach am Platz der Box und nicht auf der Materialliste.
+      </p>
       <p
         v-if="missing.length"
         class="border-t border-line px-4 py-3 text-sm text-ink-muted sm:px-6"
@@ -422,7 +445,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
 import { router, useForm, usePage } from "@inertiajs/vue3";
-import type { Contact, LoanSummary } from "../../http";
+import { formatDateTime, type Contact, type LoanSummary } from "../../http";
 import LoansScanInput from "../../components/ScanInput.vue";
 import LoansSignaturePad from "../../components/SignaturePad.vue";
 import LoansContactPicker from "../../components/ContactPicker.vue";
@@ -447,6 +470,8 @@ type Row = {
   hints: string[];
   issue_state: string | null;
   issue_defect: string | null;
+  // picked up early: why the row can not leave yet
+  early: string | null;
 };
 
 /**
@@ -462,6 +487,7 @@ const props = defineProps<{
     borrower: string | null;
     supplement: boolean;
     expired: boolean;
+    early: boolean;
   };
   rows: Row[];
   states: Option[];
@@ -496,6 +522,12 @@ const checkedCount = computed(
 const missing = computed(() =>
   positions.value.filter((row) => !row.checked_at),
 );
+// a row of the contents without tick whose box is ticked: the box leaves, the row stays here
+const staysHere = (row: Row) =>
+  row.depth > 0 &&
+  !row.checked_at &&
+  !!props.rows.find((other) => other.id === row.parent_id)?.checked_at;
+const leftBehind = computed(() => props.rows.filter(staysHere));
 
 // the steps of the issue: the rest only when something stays here, the person only the first
 // time (a supplement is signed by the same person); after the material once something is ticked

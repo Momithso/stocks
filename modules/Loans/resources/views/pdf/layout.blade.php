@@ -1,6 +1,6 @@
 {{--
     Common frame of the loan documents (see Modules\Loans\Support\LoanDocuments): head with print logo,
-    organization and number, a footer with the checksum of the signed content.
+    organization, number and the code of the borrower page, a footer with the checksum of the signed content.
 --}}
 <!DOCTYPE html>
 <html lang="de">
@@ -47,6 +47,13 @@
                 <div class="mono" style="font-size: 11pt; font-weight: bold;">{{ $doc['number'] }}</div>
                 <div class="muted" style="font-size: 7.5pt;">@yield('title')</div>
             </td>
+            {{-- code of the borrower page: status, documents, chat (added when the pdf is made) --}}
+            @if (! empty($qr))
+                <td style="width: 20mm; text-align: center; vertical-align: top; padding-left: 3mm;">
+                    <img src="{{ $qr }}" style="width: 18mm; height: 18mm;" alt="">
+                    <div class="muted" style="font-size: 5.5pt;">Verleihseite</div>
+                </td>
+            @endif
         </tr>
     </table>
 

@@ -21,8 +21,13 @@ use Modules\Loans\Enums\LoanStatus;
 use Modules\Loans\Enums\ReturnState;
 use Modules\Loans\Enums\SignatureRole;
 use Modules\Loans\Models\Loan;
+use Modules\Loans\Models\LoanExtensionRequest;
 use Modules\Loans\Models\LoanItem;
+use Modules\Loans\Models\LoanMessage;
+use Modules\Loans\Notifications\DefectReported;
+use Modules\Loans\Notifications\LoanReturned;
 use Modules\Loans\Support\LoanDocuments;
+use Modules\Loans\Support\LoanNotifier;
 use Modules\Loans\Support\SignatureInput;
 use Modules\Loans\Support\Snapshot;
 
@@ -39,6 +44,7 @@ use Modules\Loans\Support\Snapshot;
  * 4. completeInspection() closes the inspection; every row of it must be handled one by one.
  *
  * Mode "inspect" works on the rows that came back unchecked, mode "return" on the rows still out.
+ * The borrower gets every receipt by mail, and a message when a defect was found.
  */
 class ReturnLoan
 {
@@ -48,6 +54,7 @@ class ReturnLoan
         private readonly RetireItem $retireItem,
         private readonly RecordDefect $recordDefect,
         private readonly LoanDocuments $documents,
+        private readonly LoanNotifier $notifier,
     ) {}
 
     /**
@@ -255,6 +262,7 @@ class ReturnLoan
                 $this->bookItem($actor, $loan, $row, false);
             }
             $this->finish($loan);
+            $this->reportDefects($loan, $rows);
         });
     }
 
@@ -338,7 +346,29 @@ class ReturnLoan
             }
 
             $this->finishIfBack($loan);
+            $this->notifier->toContact($loan, new LoanReturned($loan, $document->id));
+            $this->reportDefects($loan, $rows->filter(fn (LoanItem $row) => $row->isReturnHandled()));
         });
+    }
+
+    /**
+     * Tell the borrower about defects found in the given rows: a note in the chat and a message.
+     *
+     * @param  Collection<int, LoanItem>  $rows
+     */
+    private function reportDefects(Loan $loan, Collection $rows): void
+    {
+        $defects = $rows->filter(fn (LoanItem $row) => $row->return_state !== null && $row->return_state !== ReturnState::Ok);
+        if ($defects->isEmpty() || $loan->isInternal()) {
+            return;
+        }
+
+        $loan->messages()->create([
+            'sender' => LoanMessage::SYSTEM,
+            'author_name' => 'Stocks',
+            'body' => 'Mangel gemeldet: '.$defects->map(fn (LoanItem $row) => "{$row->item->name} ({$row->return_state->label()})")->implode(', ').'.',
+        ]);
+        $this->notifier->toContact($loan, new DefectReported($loan));
     }
 
     /**
@@ -404,6 +434,8 @@ class ReturnLoan
             'status' => $status,
             'inspected_at' => $status === LoanStatus::ReturnedUnchecked ? null : now(),
         ])->save();
+        // a later return time does not matter any more
+        LoanExtensionRequest::closeOpen($loan, 'Die Rückgabe ist gebucht.');
     }
 
     /**

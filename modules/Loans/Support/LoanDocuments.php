@@ -89,13 +89,14 @@ class LoanDocuments
      */
     public function pdf(LoanDocument $document): string
     {
-        $document->loadMissing('signatures');
+        $document->loadMissing('signatures', 'loan');
 
+        // the code of the borrower page is added when the pdf is made, the snapshot stays as signed
         return $this->render(match ($document->type) {
             DocumentType::Contract => 'loans::pdf.contract',
             DocumentType::MaterialList => 'loans::pdf.list',
             default => 'loans::pdf.receipt',
-        }, $document->snapshot, SignatureInput::summaries($document), $document->hash);
+        }, $document->snapshot, SignatureInput::summaries($document), $document->hash, LoanPage::qrDataUri($document->loan));
     }
 
     /**
@@ -125,7 +126,7 @@ class LoanDocuments
             'positions' => $this->positions($loan),
             'pin' => $loan->pack_pin,
             'date' => now()->format('d.m.Y'),
-        ], [], null);
+        ], [], null, LoanPage::qrDataUri($loan));
     }
 
     /**
@@ -324,7 +325,7 @@ class LoanDocuments
      * @param  array<string, mixed>  $snapshot
      * @param  list<array<string, mixed>>  $signatures
      */
-    private function render(string $view, array $snapshot, array $signatures, ?string $hash): string
+    private function render(string $view, array $snapshot, array $signatures, ?string $hash, ?string $qr = null): string
     {
         $logo = $this->branding->contents($this->branding->printKind());
 
@@ -332,6 +333,7 @@ class LoanDocuments
             'doc' => $snapshot,
             'signatures' => $signatures,
             'hash' => $hash,
+            'qr' => $qr,
             'logo' => $logo !== null ? 'data:image/png;base64,'.base64_encode($this->png($logo)) : null,
         ])->output();
     }

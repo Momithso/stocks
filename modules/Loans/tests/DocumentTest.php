@@ -2,8 +2,11 @@
 
 namespace Modules\Loans\Tests;
 
+use App\Support\Settings;
 use Modules\Loans\Enums\DocumentType;
+use Modules\Loans\Notifications\LoanConfirmed;
 use Modules\Loans\Support\ContractTemplate;
+use Modules\Loans\Support\Reminders;
 use Modules\Loans\Support\Snapshot;
 
 /**
@@ -85,5 +88,27 @@ class DocumentTest extends LoansTestCase
         $this->actingAs($admin)->get('/loans/settings')->assertInertia(fn ($page) => $page->where('isDefaultText', true));
         $this->assertStringContainsString('Eigener Vertrag', $loan->refresh()->contract_text);
         $this->actingAs($this->userWithPermissions('loans.view', 'loans.manage'))->get('/loans/settings')->assertForbidden();
+    }
+
+    public function test_the_settings_of_page_and_messages_are_kept(): void
+    {
+        $data = ['loans' => [
+            'lender' => 'AStA', 'place' => null, 'buffer_hours' => 0, 'number_prefix' => 'B', 'contract_template' => '## Vertrag',
+            'page_days_after_close' => 14, 'remind_pickup_hours' => 0, 'remind_return_hours' => 12, 'overdue_days' => '2, 5',
+            'pickup_place' => 'Fachschaftsraum E1', 'mail_texts' => ['confirmed' => 'Bitte Ausweis mitbringen, {responsible}.', 'nonsense' => 'x', 'issued' => ''],
+        ]];
+
+        $this->actingAs($this->admin())->put('/loans/settings', [...$data, 'loans' => [...$data['loans'], 'overdue_days' => 'eins']])->assertSessionHasErrors('loans.overdue_days');
+        $this->put('/loans/settings', $data)->assertSessionHasNoErrors();
+
+        $settings = app(Settings::class);
+        $this->assertSame(14, $settings->get('loans.page_days_after_close'));
+        $this->assertSame(['confirmed' => 'Bitte Ausweis mitbringen, {responsible}.'], $settings->get('loans.mail_texts'));
+        $this->assertSame([2, 5], app(Reminders::class)->overdueDays());
+
+        $loan = $this->confirmed([$this->item()]);
+        $lines = (new LoanConfirmed($loan))->message($loan)->lines;
+        $this->assertContains('Bitte Ausweis mitbringen, Erika Muster.', $lines);
+        $this->assertStringContainsString('Fachschaftsraum E1', implode(' ', $lines));
     }
 }

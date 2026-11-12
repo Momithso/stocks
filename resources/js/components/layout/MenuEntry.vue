@@ -59,11 +59,13 @@
     @click="emit('navigate')"
   >
     <FontAwesomeIcon :icon="['fas', entry.icon]" class="w-4" />
-    <span v-if="!collapsed" class="flex-1">{{ entry.title }}</span>
-    <!-- short status of the entry, e.g. of the mail server -->
-    <UiBadge v-if="entry.badge && !collapsed" :variant="entry.badge.variant">
-      {{ entry.badge.text }}
-    </UiBadge>
+    <!-- title and below it the short status of the entry, e.g. of the mail server -->
+    <span v-if="!collapsed" class="flex min-w-0 flex-1 flex-col items-start">
+      <span class="break-words">{{ entry.title }}</span>
+      <UiBadge v-if="entry.badge" :variant="entry.badge.variant" class="mt-0.5">
+        {{ entry.badge.text }}
+      </UiBadge>
+    </span>
   </InertiaLink>
 </template>
 

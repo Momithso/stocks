@@ -25,11 +25,17 @@
       <dl class="space-y-3 text-sm">
         <div>
           <dt class="text-ink-muted">E-Mail</dt>
-          <dd>{{ contact.email ?? "–" }}</dd>
+          <dd>
+            <UiContactLink kind="email" :value="contact.email" />
+            <template v-if="!contact.email">–</template>
+          </dd>
         </div>
         <div>
           <dt class="text-ink-muted">Telefon</dt>
-          <dd>{{ contact.phone ?? "–" }}</dd>
+          <dd>
+            <UiContactLink kind="phone" :value="contact.phone" />
+            <template v-if="!contact.phone">–</template>
+          </dd>
         </div>
         <div>
           <dt class="text-ink-muted">Anschrift</dt>

@@ -32,6 +32,12 @@
           >unvollständig</UiBadge
         >
       </template>
+      <template #cell-email="{ row }">
+        <UiContactLink kind="email" :value="row.email" :icon="false" />
+      </template>
+      <template #cell-phone="{ row }">
+        <UiContactLink kind="phone" :value="row.phone" :icon="false" />
+      </template>
     </UiTable>
   </UiCard>
 

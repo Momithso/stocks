@@ -29,9 +29,11 @@ LABEL maintainer="Stocks"
 # use workdir from swoole container
 WORKDIR /app
 
-# install php extensions: MariaDB, Redis (cache and sessions), signals and sockets for Octane
-RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS linux-headers \
-    && docker-php-ext-install bcmath pdo_mysql pcntl sockets \
+# install php extensions: MariaDB, Redis (cache, sessions, queue), signals and sockets for Octane,
+# gmp for the encryption of web push (works without, but slower)
+RUN apk add --no-cache gmp \
+    && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS linux-headers gmp-dev \
+    && docker-php-ext-install bcmath pdo_mysql pcntl sockets gmp \
     && pecl install redis \
     && docker-php-ext-enable redis \
     && apk del .build-deps

@@ -5,9 +5,11 @@ namespace Modules\Loans\Tests;
 use App\Enums\MovementType;
 use App\Models\Location;
 use Illuminate\Http\UploadedFile;
+use Modules\Loans\Actions\IssueLoan;
 use Modules\Loans\Enums\DocumentType;
 use Modules\Loans\Enums\LoanStatus;
 use Modules\Loans\Models\LoanItem;
+use Modules\Loans\Support\Availability;
 
 /**
  * The issue: scan, tick off, foreign and missing items, freezing the boxes, splitting bulk items,
@@ -46,13 +48,44 @@ class IssueTest extends LoansTestCase
         $this->actingAs($admin)->post("/loans/{$loan->id}/issue/check", ['code' => $box->number]);
         $this->assertSame(3, $loan->loanItems()->whereNotNull('checked_at')->count());
 
+        // taking back a row of the contents keeps the box ticked: that row stays here
         $row = $loan->loanItems()->where('item_id', $first->id)->first();
         $this->actingAs($admin)->post("/loans/{$loan->id}/issue/rows/{$row->id}/uncheck");
-        $this->assertNull($loan->positions()->first()->checked_at);
-
-        $this->actingAs($admin)->post("/loans/{$loan->id}/issue/check", ['code' => $first->number]);
         $this->assertNotNull($loan->positions()->first()->checked_at);
-        unset($second);
+        $this->assertNull($row->refresh()->checked_at);
+
+        // taking back the box takes back its contents; the last content ticks it again
+        $this->actingAs($admin)->post("/loans/{$loan->id}/issue/rows/{$loan->positions()->first()->id}/uncheck");
+        $this->assertSame(0, $loan->loanItems()->whereNotNull('checked_at')->count());
+        $this->actingAs($admin)->post("/loans/{$loan->id}/issue/check", ['code' => $first->number]);
+        $this->actingAs($admin)->post("/loans/{$loan->id}/issue/check", ['code' => $second->number]);
+        $this->assertNotNull($loan->positions()->first()->checked_at);
+    }
+
+    public function test_a_row_of_the_contents_taken_back_stays_at_the_place_of_the_box(): void
+    {
+        $box = $this->item(['is_container' => true]);
+        $stays = $this->item(['location_id' => null, 'container_id' => $box->id, 'name' => 'Ersatzkabel']);
+        $goes = $this->item(['location_id' => null, 'container_id' => $box->id]);
+        $loan = $this->confirmed([$box], now()->subHour());
+        $admin = $this->admin();
+        $this->actingAs($admin)->get("/loans/{$loan->id}/issue");
+        $this->post("/loans/{$loan->id}/issue/check", ['code' => $box->number]);
+        $row = $loan->loanItems()->where('item_id', $stays->id)->first();
+        $this->post("/loans/{$loan->id}/issue/rows/{$row->id}/uncheck");
+
+        $this->post("/loans/{$loan->id}/issue/complete", ['signatures' => ['responsible' => self::SIGNATURE, 'issuer' => self::SIGNATURE]])->assertSessionHasNoErrors();
+
+        $stays->refresh();
+        $this->assertNull($stays->container_id);
+        $this->assertSame($this->shelf->id, $stays->location_id);
+        $this->assertSame($box->id, $goes->refresh()->container_id);
+        $this->assertFalse($loan->loanItems()->where('item_id', $stays->id)->exists());
+        $names = array_column($loan->documents()->firstWhere('type', 'list')->snapshot['positions'], 'name');
+        $this->assertNotContains('Ersatzkabel', $names);
+        // it is free for others while the box is out
+        $this->assertNull(app(Availability::class)->problemOf($stays));
+        $this->assertFalse(app(Availability::class)->check($stays, 1, now(), now()->addDay())['blocked']);
     }
 
     public function test_the_issue_freezes_boxes_moves_items_out_and_locks_them(): void
@@ -130,5 +163,27 @@ class IssueTest extends LoansTestCase
         $other->update(['phone' => '1']);
         $this->actingAs($this->admin())->post("/loans/{$loan->id}/issue/responsible", ['responsible_contact_id' => $other->id])->assertSessionHasNoErrors();
         $this->assertSame($other->id, $loan->refresh()->responsible_contact_id);
+    }
+
+    public function test_an_early_pickup_checks_only_what_leaves_and_names_the_rest_at_its_row(): void
+    {
+        $free = $this->item();
+        $busy = $this->item();
+        // the busy item is out with another loan until this evening
+        $this->issued([$busy], now()->subDay(), now()->addHours(6));
+        $loan = $this->confirmed([$free, $busy], now()->addDay(), now()->addDays(2));
+        $admin = $this->admin();
+
+        $page = $this->actingAs($admin)->get("/loans/{$loan->id}/issue")->assertInertia(fn ($page) => $page->where('loan.early', true));
+        $rows = collect($page->viewData('page')['props']['rows'])->keyBy('number');
+        $this->assertNull($rows[$free->number]['early']);
+        $this->assertStringContainsString('Jetzt noch nicht frei', $rows[$busy->number]['early']);
+
+        // only the free one leaves; the busy one stays as rest and does not stop the early pickup
+        $this->post("/loans/{$loan->id}/issue/check", ['code' => $free->number])->assertSessionHasNoErrors();
+        $this->post("/loans/{$loan->id}/issue/complete", ['signatures' => ['responsible' => self::SIGNATURE, 'issuer' => self::SIGNATURE]])->assertSessionHasNoErrors();
+        $this->assertSame(LoanStatus::Issued, $loan->refresh()->status);
+        $this->assertTrue($loan->pickup_at->isPast());
+        $this->assertTrue(IssueLoan::hasRest($loan));
     }
 }

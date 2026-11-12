@@ -4,7 +4,10 @@
     :description="loan.purpose ?? loan.kind_label"
   >
     <template v-if="loan.status === 'draft'">
-      <UiButton v-if="can('loans.manage')" icon="check" @click="confirm"
+      <UiButton
+        v-if="can('loans.manage')"
+        icon="check"
+        @click="loan.kind === 'internal' ? confirm() : (confirmOpen = true)"
         >Bestätigen</UiButton
       >
     </template>
@@ -173,6 +176,33 @@
         </li>
       </ul>
     </UiCard>
+    <!-- request of the borrower page for a later return -->
+    <UiAlert
+      v-if="borrowerPage?.extension && can('loans.manage')"
+      id="verlaengerung"
+      type="warning"
+    >
+      Verlängerung angefragt bis
+      <strong>{{
+        formatDateTime(borrowerPage.extension.requested_return_at)
+      }}</strong>
+      (bisher {{ formatDateTime(loan.return_at) }})<template
+        v-if="borrowerPage.extension.note"
+        >: „{{ borrowerPage.extension.note }}“</template
+      >.
+      <span class="mt-2 flex flex-wrap gap-2">
+        <UiButton size="sm" icon="check" @click="decide('accept')"
+          >Annehmen</UiButton
+        >
+        <UiButton
+          size="sm"
+          variant="secondary"
+          icon="xmark"
+          @click="declineOpen = true"
+          >Ablehnen</UiButton
+        >
+      </span>
+    </UiAlert>
     <UiAlert v-if="pendingStow" type="info">
       {{ pendingStow }}
       {{ pendingStow === 1 ? "Gegenstand ist" : "Gegenstände sind" }} zurück,
@@ -368,6 +398,20 @@
           </tbody>
         </table>
       </UiCard>
+
+      <LoansLoanChat
+        v-if="borrowerPage"
+        :loan-id="loan.id"
+        :initial="borrowerPage.messages"
+        :initial-unread="borrowerPage.unread"
+      />
+      <LoansMessageLog
+        v-if="borrowerPage"
+        :loan-id="loan.id"
+        :log="borrowerPage.log"
+        :reminders="borrowerPage.reminders"
+        :has-email="borrowerPage.has_email"
+      />
     </div>
 
     <div class="order-first space-y-6 lg:order-none">
@@ -396,8 +440,9 @@
               >
               <template v-else>{{ loan.responsible?.name ?? "–" }}</template>
               <template v-if="loan.responsible?.email">
-                <br />{{ loan.responsible.email }} · {{ loan.responsible.phone
-                }}<br />{{ loan.responsible.address }}
+                <UiContactLink kind="email" :value="loan.responsible.email" />
+                <UiContactLink kind="phone" :value="loan.responsible.phone" />
+                {{ loan.responsible.address }}
               </template>
             </dd>
           </div>
@@ -461,6 +506,12 @@
         </div>
       </UiCard>
 
+      <LoansPageCard
+        v-if="borrowerPage"
+        :loan-id="loan.id"
+        :page="borrowerPage"
+      />
+
       <UiCard v-if="documents.length" title="Dokumente" flush>
         <ul class="divide-y divide-line">
           <li
@@ -521,6 +572,43 @@
       </UiCard>
     </div>
   </div>
+
+  <UiModal v-if="confirmOpen" title="Bestätigen" @close="confirmOpen = false">
+    <form class="space-y-5" @submit.prevent="confirm">
+      <p class="text-sm">
+        Die Gegenstände werden reserviert, die Buchung bekommt eine Pack-PIN und
+        eine Verleihseite.
+      </p>
+      <UiCheckbox
+        v-model="confirmNotify"
+        label="Bestätigung per E-Mail senden"
+        description="Mit Link zur Verleihseite, Zeitraum, Pack-PIN und der Buchungsbestätigung als PDF."
+      />
+      <UiButton type="submit" icon="check" class="w-full">Bestätigen</UiButton>
+    </form>
+  </UiModal>
+
+  <UiModal
+    v-if="declineOpen"
+    title="Verlängerung ablehnen"
+    @close="declineOpen = false"
+  >
+    <form class="space-y-5" @submit.prevent="decide('decline')">
+      <UiTextarea
+        v-model="decisionForm.answer"
+        label="Antwort an den Entleiher"
+        required
+        :error="decisionForm.errors.answer"
+      />
+      <UiButton
+        type="submit"
+        variant="danger"
+        class="w-full"
+        :disabled="decisionForm.processing"
+        >Ablehnen</UiButton
+      >
+    </form>
+  </UiModal>
 
   <UiModal v-if="cancelOpen" title="Stornieren" @close="cancelOpen = false">
     <form class="space-y-5" @submit.prevent="cancel">
@@ -615,6 +703,12 @@ import { router, useForm, usePage } from "@inertiajs/vue3";
 import { formatDateTime, type Contact, type LoanSummary } from "../../http";
 import LoansStatusBadge from "../../components/StatusBadge.vue";
 import LoansItemPicker from "../../components/ItemPicker.vue";
+import LoansLoanChat from "../../components/LoanChat.vue";
+import LoansMessageLog, { type LogRow } from "../../components/MessageLog.vue";
+import LoansPageCard, {
+  type BorrowerPage,
+} from "../../components/PageCard.vue";
+import type { ChatMessage } from "../../components/ChatThread.vue";
 
 type LoanRef = {
   id: number;
@@ -710,6 +804,21 @@ const props = defineProps<{
     quantity: number | null;
     unit: string | null;
   }[];
+  // borrower page, chat and messages; only with loans.manage
+  borrowerPage:
+    | (BorrowerPage & {
+        messages: ChatMessage[];
+        unread: number;
+        extension: {
+          id: number;
+          requested_return_at: string;
+          note: string | null;
+        } | null;
+        log: LogRow[];
+        reminders: Option[];
+        has_email: boolean;
+      })
+    | null;
 }>();
 
 const page = usePage<SharedProps>();
@@ -718,7 +827,7 @@ const isOpen = computed(() =>
   ["draft", "confirmed"].includes(props.loan.status),
 );
 const errorMessages = computed(() =>
-  ["loan", "item", "quantity", "pin", "row"]
+  ["loan", "item", "quantity", "pin", "row", "return_at"]
     .map((key) => page.props.errors?.[key])
     .filter(Boolean),
 );
@@ -726,8 +835,22 @@ const errorMessages = computed(() =>
 const options = { preserveScroll: true };
 const found = (rowId: number) =>
   router.post(`/loans/${props.loan.id}/missing/${rowId}/found`, {}, options);
+const confirmOpen = ref(false);
+const confirmNotify = ref(true);
 const confirm = () =>
-  router.post(`/loans/${props.loan.id}/confirm`, {}, options);
+  router.post(
+    `/loans/${props.loan.id}/confirm`,
+    { notify: confirmNotify.value },
+    { ...options, onFinish: () => (confirmOpen.value = false) },
+  );
+
+const declineOpen = ref(false);
+const decisionForm = useForm({ answer: "" });
+const decide = (decision: "accept" | "decline") =>
+  decisionForm.post(
+    `/loans/${props.loan.id}/extension-requests/${props.borrowerPage?.extension?.id}/${decision}`,
+    { ...options, onSuccess: () => (declineOpen.value = false) },
+  );
 const remove = (id: number) =>
   router.delete(`/loans/${props.loan.id}/positions/${id}`, options);
 const setQuantity = (id: number, quantity: string) =>

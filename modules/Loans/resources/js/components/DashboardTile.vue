@@ -52,6 +52,29 @@
             </dd>
           </div>
         </template>
+        <template v-if="stats.unread_messages !== undefined">
+          <div>
+            <dt class="text-sm text-ink-muted">Ungelesene Nachrichten</dt>
+            <dd
+              :class="[
+                'text-2xl font-semibold',
+                stats.unread_messages ? 'text-accent' : '',
+              ]"
+            >
+              <UiLink href="/loans?status=unread">{{
+                stats.unread_messages
+              }}</UiLink>
+            </dd>
+          </div>
+          <div>
+            <dt class="text-sm text-ink-muted">Verlängerung angefragt</dt>
+            <dd class="text-2xl font-semibold">
+              <UiLink href="/loans?status=issued">{{
+                stats.open_extensions
+              }}</UiLink>
+            </dd>
+          </div>
+        </template>
       </dl>
       <ul
         v-if="stats.overdue.length"
@@ -91,6 +114,8 @@ type Stats = {
   unchecked?: number;
   defects?: number;
   not_stowed?: number;
+  unread_messages?: number;
+  open_extensions?: number;
 };
 const stats = ref<Stats | null>(null);
 const today = isoDate(new Date());

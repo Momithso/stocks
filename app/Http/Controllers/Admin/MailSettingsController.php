@@ -3,17 +3,22 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\PushSubscription;
 use App\Support\MailSettings;
+use App\Support\Notifications\WebPush;
 use App\Support\Settings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Mail server and sender (Verwaltung › Einstellungen › E-Mail), with connection status and a test
- * mail. The password is stored encrypted and never sent to the browser.
+ * Mail server and sender (Verwaltung › Einstellungen › Benachrichtigungen), with connection status,
+ * a test mail, the failed jobs of the queue and the state of push. The password is stored encrypted
+ * and never sent to the browser.
  */
 class MailSettingsController extends Controller
 {
@@ -32,6 +37,8 @@ class MailSettingsController extends Controller
             'status' => $this->mailSettings->status(),
             'environment' => ['mailer' => config('mail.default'), 'from' => config('mail.from.address')],
             'testAddress' => $request->user()->email,
+            'failedJobs' => DB::table('failed_jobs')->count(),
+            'push' => ['enabled' => WebPush::enabled(), 'devices' => PushSubscription::count()],
         ]);
     }
 
@@ -90,5 +97,15 @@ class MailSettingsController extends Controller
         }
 
         return back()->with('success', "Die Test-Mail ist an {$validated['to']} unterwegs.");
+    }
+
+    /**
+     * Put the failed jobs of the queue back into it.
+     */
+    public function retry(): RedirectResponse
+    {
+        Artisan::call('queue:retry', ['id' => ['all']]);
+
+        return back()->with('success', 'Die fehlgeschlagenen Aufträge sind wieder in der Warteschlange.');
     }
 }

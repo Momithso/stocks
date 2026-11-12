@@ -6,8 +6,10 @@ use App\Actions\Setup\InstallStocks;
 use App\Models\User;
 use App\Support\Extensions\DemoData;
 use App\Support\Modules\ModuleRegistry;
+use App\Support\Notifications\NotificationEvents;
 use App\Support\Settings;
 use Database\Factories\UserFactory;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -45,11 +47,13 @@ class DemoGenerator
     {
         // the database was emptied: cached settings, modules and permissions are stale
         Cache::flush();
+        // jobs still waiting in the queue belong to the old data (e.g. mails to its contacts)
+        rescue(fn () => Artisan::call('queue:clear', ['--force' => true]), report: false);
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         // all modules except the example are on, so every part adds its data
         $this->installStocks->handle(
-            settings: ['organization.name' => 'Demo-Fachschaft', 'organization.short_name' => 'Demo', 'legal.contact_email' => 'fsr@example.com', 'organization.address' => "Demo-Fachschaft\nEupener Straße 70\n52066 Aachen"],
+            settings: ['organization.name' => 'Demo-Fachschaft', 'organization.short_name' => 'Demo', 'legal.contact_email' => 'fsr@example.com', 'organization.address' => "Demo-Fachschaft\nEupener Straße 70\n52066 Aachen", 'organization.phone' => '0241 6009 12345'],
             admin: ['firstname' => 'Ada', 'lastname' => 'Admin', 'email' => self::ADMIN_EMAIL, 'password' => UserFactory::PASSWORD],
             activeModules: array_values(array_diff(array_keys($this->modules->all()), ['example'])),
         );
@@ -65,9 +69,12 @@ class DemoGenerator
         }
 
         $demo = new DemoContext($seed, $admin);
-        foreach ($this->demoData->parts() as $class) {
-            app($class)->run($demo);
-        }
+        // the generator sends nothing: no mails, no push
+        NotificationEvents::quietly(function () use ($demo) {
+            foreach ($this->demoData->parts() as $class) {
+                app($class)->run($demo);
+            }
+        });
 
         $this->settings->set(['demo.seeded_at' => now()->toIso8601String(), 'demo.labels' => $demo->labels()]);
 

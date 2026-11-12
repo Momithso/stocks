@@ -1,6 +1,6 @@
 # Verleih
 
-Das Modul `modules/Loans` (Schlüssel `loans`) verwaltet, wer was von wann bis wann leiht: Kontakte, Veranstaltungen, Buchungen mit Verfügbarkeit, Kalender, Ausgabe und Rückgabe per Scan mit Leihvertrag und Unterschrift. Im Code heißt die Buchung `Loan`. Ausgabe und Rückgabe laufen am PC und Handy und mit dem Modul Kiosk auch am Tablet ([KIOSK.md](KIOSK.md#verleih-am-kiosk)); die Verleihseite für Entleiher und E-Mails kommen in Phase 5.
+Das Modul `modules/Loans` (Schlüssel `loans`) verwaltet, wer was von wann bis wann leiht: Kontakte, Veranstaltungen, Buchungen mit Verfügbarkeit, Kalender, Ausgabe und Rückgabe per Scan mit Leihvertrag und Unterschrift. Im Code heißt die Buchung `Loan`. Ausgabe und Rückgabe laufen am PC und Handy und mit dem Modul Kiosk auch am Tablet ([KIOSK.md](KIOSK.md#verleih-am-kiosk)); seit Phase 5 gibt es die Verleihseite für Entleiher mit Chat und die Nachrichten per E-Mail und Push.
 
 ## Inhalt
 
@@ -12,6 +12,9 @@ Das Modul `modules/Loans` (Schlüssel `loans`) verwaltet, wer was von wann bis w
 - [Ausgabe](#ausgabe)
 - [Dokumente und Unterschrift](#dokumente-und-unterschrift)
 - [Pack-PIN](#pack-pin)
+- [Verleihseite](#verleihseite)
+- [Chat](#chat)
+- [Nachrichten an Entleiher und FSR](#nachrichten-an-entleiher-und-fsr)
 - [Rückgabe](#rückgabe)
 - [Prüfung und Einräumen](#prüfung-und-einräumen)
 - [Am Gegenstand](#am-gegenstand)
@@ -72,10 +75,10 @@ Positionen (`loan_items`) sind Gegenstände, Boxen oder eine Anzahl eines Mengen
 
 - direkt, oder über eine Box, in der er liegt: eine gebuchte Box belegt ihren ganzen Inhalt;
 - ist ein Gegenstand aus einer Box einzeln gebucht, lässt sich die Box nur mit Hinweis buchen („Unvollständig: …“);
-- Mengenartikel zählen: frei = Bestand am Ort + mit Buchungen ausgegebene Teile − überlappend gebuchte Anzahl. Ein ausgegebener Teil (abgeteilt) ist selbst ganz belegt;
+- Mengenartikel zählen: frei = Bestand am Ort + mit Buchungen ausgegebene Teile + zurückgegebene, noch nicht eingeräumte Teile − überlappend gebuchte Anzahl. Ein ausgegebener Teil (abgeteilt) ist selbst ganz belegt;
 - eine überfällige Buchung überlappt jeden späteren Zeitraum, bis die Gegenstände zurück sind;
 - zwischen zwei Buchungen bleibt der Puffer `loans.buffer_hours` frei (Vorgabe 0);
-- schon zurückgebuchte Zeilen einer Teilrückgabe belegen nichts mehr.
+- schon zurückgebuchte Zeilen einer Teilrückgabe belegen nichts mehr, auch nicht über ihre Box: ein zurückgegebenes Teil aus einer Box, die noch draußen ist, ist frei.
 
 `check()` liefert je Position: `problem` (nicht verleihbar), `conflicts` (andere Buchungen), `drafts` (Vormerkungen mit Nummer, Zeitraum, Ersteller), `hints` (unvollständige Box, ungeprüft zurück), `free` (Mengen), `next_free` (nächster Beginn mit derselben Dauer; leer, solange eine überfällige Buchung den Gegenstand hält) und `blocked`.
 
@@ -96,14 +99,16 @@ Die Liste Verleih › Buchungen hat Filter nach Status (auch „offen“ und „
 Die Seite führt in Schritten mit einem Strahl oben (`components/Steps.vue`): **Material → Rest → Person → Dokumente → Unterschriften** (Eigenbedarf ohne Person; „Rest“ nur, wenn etwas nicht abgehakt ist). „Weiter“ und die späteren Schritte gehen, sobald mindestens eine Position abgehakt ist; wird auf einem anderen Gerät alles wieder offen, springt die Seite zurück zum Material. Fertige Schritte lassen sich im Strahl wieder öffnen, eine schon geleistete Unterschrift bleibt dabei stehen. Die Unterschriftenfelder sind groß (am Tablet nebeneinander).
 
 1. **Vorbereiten:** Der Inhalt jeder Box wird zu Zeilen unter der Box (`parent_id`), Boxen in Boxen eingerückt; beim Öffnen und beim Abschluss wird er mit dem aktuellen Inhalt abgeglichen.
-2. **Scannen** (Kamera, Handscanner, Tippen): Jeder Scan hakt eine Zeile ab (`checked_by_scan`); von Hand geht es auch. Eine abgehakte Box hakt ihren Inhalt mit ab (Boxen in Boxen auch); ist der letzte Inhalt einer Box abgehakt, ist es auch die Box. Wird etwas wieder offen, sind es auch die Boxen darüber. Bei Mengenartikeln bestätigt man die Anzahl; weniger als gebucht teilt die Position, der Rest bleibt eine eigene Position (wieder abgehakt oder zurückgenommen wird sie wieder eins). Ein fremder Gegenstand gibt eine Warnung und, wenn er frei ist, „Zur Buchung hinzufügen“. Kontrollen per Pack-PIN stehen an der Box.
+2. **Scannen** (Kamera, Handscanner, Tippen): Jeder Scan hakt eine Zeile ab (`checked_by_scan`); von Hand geht es auch. Eine abgehakte Box hakt ihren Inhalt mit ab (Boxen in Boxen auch); ist der letzte Inhalt einer Box abgehakt, ist es auch die Box. Wird eine Box wieder offen, ist es ihr ganzer Inhalt. Wird nur ein Teil des Inhalts wieder offen, bleibt die Box abgehakt und das Teil **bleibt hier** (Hinweis „bleibt hier“ an der Zeile und unter der Liste). Bei Mengenartikeln bestätigt man die Anzahl; weniger als gebucht teilt die Position, der Rest bleibt eine eigene Position (wieder abgehakt oder zurückgenommen wird sie wieder eins). Ein fremder Gegenstand gibt eine Warnung und, wenn er frei ist, „Zur Buchung hinzufügen“. Kontrollen per Pack-PIN stehen an der Box.
    **Mangel bei der Ausgabe:** an jeder Zeile „Mangel“ mit Art (beschädigt, verschmutzt, unvollständig), Notiz und Fotos (`loan_items.issue_state`, `issue_note`, `RecordDefect`). „Beschädigt“ ändert den Zustand mit Verweis auf die Buchung, die anderen schreiben einen Eintrag in den Verlauf. „Nicht ausgeben“ hält eine Position zurück, sie wird Rest. Der Mangel steht auf der Materialliste, bei der Rückgabe an der Zeile („Schon bei der Ausgabe: …“), im Buchungsfenster und auf dem Rückgabebeleg; niemand haftet dafür bei der Rückgabe.
    **Rest (Teilausgabe):** Was nicht abgehakt ist, geht nicht mit. Im Schritt „Rest“ steht jede solche Position mit „Später ausgeben“ (bleibt gebucht und reserviert) oder „Streichen“ (fliegt aus der Buchung). Eine Teilausgabe ist kein Mangel. Die letzte Position einer bestätigten Buchung lässt sich nicht streichen, dafür gibt es „Stornieren“.
-   **Ungeprüft zurückgekommene Box:** Ihr Inhalt wird einzeln abgehakt, ein Scan der Box selbst wird abgelehnt; mit dem letzten Inhalt ist die Box abgehakt. Beim Abschluss prüft der Server, dass in jeder Box, die geht, alles abgehakt ist (auch was nach dem Abhaken in die Box gelegt wurde).
+   **Ungeprüft zurückgekommene Box:** Ihr Inhalt wird einzeln abgehakt, ein Scan der Box selbst wird abgelehnt; mit dem letzten Inhalt ist die Box abgehakt. Ist der Inhalt einzeln abgehakt, gilt für ein wieder offenes Teil dasselbe wie oben: es bleibt hier.
 3. **Verantwortliche Person:** Holt jemand anderes ab, wird sie vorher geändert; der neue Kontakt muss vollständig sein.
 4. **Dokumente:** Leihvertrag und Materialliste als Vorschau-PDF ohne Unterschriften, der Vertrag auch zum Lesen auf der Seite.
 5. **Unterschriften:** erst die verantwortliche Person, dann der Herausgeber (angemeldet, `loans.issue`). Oder „auf Papier unterschrieben“ mit optionalem Foto oder Scan des Blatts.
-6. **Abschluss:** Nur das Abgehakte geht: Inhalt und Zustände werden eingefroren, die Dokumente mit Prüfsumme gespeichert (`loan_items.issued_at`, `issue_document_id`), die Gegenstände verlassen ihren Ort (`MoveItem::takeAway`, Bewegung `issue` mit Buchungsnummer). Der Stammplatz bleibt, der Inhalt einer Box bleibt in der Box. Von Mengenartikeln wird die Anzahl abgeteilt (`issued_item_id`), wie beim Umlagern einer Teilmenge. Eine Ausgabe vor dem Abholtermin setzt die Abholung auf jetzt, wenn nichts kollidiert.
+6. **Abschluss:** Nur das Abgehakte geht: Inhalt und Zustände werden eingefroren, die Dokumente mit Prüfsumme gespeichert (`loan_items.issued_at`, `issue_document_id`), die Gegenstände verlassen ihren Ort (`MoveItem::takeAway`, Bewegung `issue` mit Buchungsnummer). Der Stammplatz bleibt, der Inhalt einer Box bleibt in der Box. Von Mengenartikeln wird die Anzahl abgeteilt (`issued_item_id`), wie beim Umlagern einer Teilmenge.
+   **Bleibt hier:** Ein nicht abgehakter Inhalt einer abgehakten Box (auch was erst nach dem Abhaken in die Box gelegt wurde) kommt beim Abschluss aus der Box und steht danach am Platz der Box (Regal oder die Box darum; hat die Box keinen Platz: „Ohne Platz“), Bewegung `move` mit Vermerk (`IssueLoan::leaveBehind()`). Seine Zeile verlässt die Buchung, er steht nicht auf der Materialliste und wird bei der Rückgabe nicht erwartet. Nichts davon gilt als Mangel.
+   **Abholung vor dem Termin:** Die Ausgabe setzt die Abholung auf jetzt. Geprüft wird nur, was jetzt mitgeht (abgehakte Positionen mit ihrer Menge), nicht der Rest. Schon im Schritt Material steht an jeder Position, die bis zum Abholtermin noch anderweitig gebucht ist, rot mit welcher Buchung und bis wann; sie kann als Rest später mitgehen.
 
 Ausgegebene Gegenstände sind gesperrt: kein Umlagern, Teilen oder Ausmustern (siehe [Am Gegenstand](#am-gegenstand)).
 
@@ -128,7 +133,7 @@ Gespeichert wird je Dokument der eingefrorene Inhalt (`loan_documents.snapshot`)
 
 **Vertragstext** (`Support\ContractTemplate`): mitgeliefert in `modules/Loans/resources/contract.txt` (Leihvertrag nach §§ 598 ff. BGB, elf Paragraphen, nicht juristisch geprüft). Unter Verwaltung › Einstellungen › Verleih änderbar; gespeichert wird nur ein abweichender Text, „Zurück zum mitgelieferten Text“ löscht ihn wieder. Kleine Auszeichnung: Leerzeile trennt Absätze, `## `/`### ` Überschriften, `1. ` und `- ` Listen, `**fett**`. Variablen: `{number}`, `{lender}`, `{issuer}`, `{borrower}`, `{responsible}`, `{responsible_address}`, `{responsible_phone}`, `{responsible_email}`, `{pickup}`, `{return}`, `{purpose}`, `{contact}`, `{privacy_url}`, `{place}`, `{date}`. Der Text wird vor der Auszeichnung maskiert und kann kein HTML enthalten. Jede Buchung behält den Text ihrer Ausgabe (`loans.contract_text` und im Snapshot).
 
-Der QR-Code zur Verleihseite kommt erst mit Phase 5 auf die Dokumente.
+Seit Phase 5 tragen Buchungsbestätigung, Leihvertrag, Materialliste und Rückgabebeleg oben rechts den QR-Code der Verleihseite. Er wird beim Erzeugen des PDFs eingesetzt (`LoanPage::qrDataUri()`), der Snapshot und seine Prüfsumme bleiben unverändert; nach „Neu ausstellen“ zeigen neu heruntergeladene PDFs den neuen Link.
 
 ## Pack-PIN
 
@@ -140,7 +145,58 @@ Mit der Pack-PIN bestätigt jemand ohne Konto, dass er eine Box für eine Buchun
 - „Kontrolle bestätigen“ speichert Name, abgehakte Nummern und Zeilenzahl an der Position (`loan_box_checks`). Mehrere Kontrollen bleiben sichtbar, am Ausgabe-Bildschirm, auf der Buchung und auf der Materialliste.
 - Nach fünf falschen PINs wartet das PIN-Feld dieser Box 15 Minuten, gezählt je Box und Adresse (`CheckBox`, Rate Limiter). Die PIN selbst wird nie gesperrt, damit niemand ohne Konto die Packenden aussperren kann. Dazu kommt das Rate Limit der Kurzlinks.
 
-Der Vermerk ersetzt weder den Scan bei der Ausgabe noch die Unterschriften.
+Der Vermerk ersetzt weder den Scan bei der Ausgabe noch die Unterschriften. Seit Phase 5 kann der Entleiher die PIN auf der Verleihseite ansehen und ändern (sechs Ziffern, 5 Änderungen je Stunde und Adresse).
+
+## Verleihseite
+
+Seite des Entleihers ohne Konto unter `/v/{loan}/{token}` (`Http\LoanPageController`, Seite `Loans::Page/Show`, Layout `PublicLayout`). Den Link gibt es ab der Bestätigung, nur für Verleih an Kontakte (nicht für Entwürfe und Eigenbedarf). Er steht in jeder Nachricht und als QR-Code auf den Dokumenten.
+
+- **Schlüssel** (`Support\LoanPage`): HMAC-SHA-256 aus `APP_KEY`, Buchung und `loans.access_version`, 32 Byte base64url (43 Zeichen). Gespeichert wird nur die Version, so kann Stocks den Link jederzeit wieder in Mails und PDFs schreiben. **Wer `APP_KEY` ändert, macht alle Links ungültig.**
+- **Dauer:** Der Link gilt während der ganzen Leihe, auch lang oder überfällig. Er läuft `loans.page_days_after_close` Tage (Vorgabe 30) nach dem Abschluss ab: abgeschlossen = geprüft, mit Mängeln = Mängel abgeschlossen (`defects_closed_at`), storniert = `cancelled_at`.
+- **Prüfung** in der Middleware `loan.page` (`Http\LoanPageAccess`): Verleih, bestätigt, nicht gesperrt, nicht abgelaufen, Schlüssel passt (`hash_equals`). Jeder Fehler antwortet gleich mit 404. Alle Antworten tragen `X-Robots-Tag: noindex, nofollow` und `Referrer-Policy: no-referrer`.
+- **Sperren / Neu ausstellen** auf der Buchung (Karte „Verleihseite“, `loans.manage`): Sperren macht den Link sofort tot, Entsperren wieder lebendig. Neu ausstellen erhöht die Version; der alte Link und alle Push-Abos der Seite sind weg.
+- **Reiter:**
+  - *Übersicht:* Kopf mit Anlass, Nummer, Status für den Entleiher (Bestätigt, Nicht abgeholt, Ausgegeben, Überfällig, Angenommen und ungeprüft, Abgeschlossen, mit Mängeln, Storniert), ein Satz zum Stand und Fortschritt Bestätigt → Abgeholt → Zurück → Geprüft. Karten Termine (mit Abholort und „Verlängerung anfragen“), Pack-PIN (eine Zeile, Auge zum Zeigen, Stift zum Ändern), Dokumente (wie auf der Buchung, ohne Papier-Scan), Mängel (erst wenn Rückgabe bzw. Prüfung gebucht ist, mit Art und Notiz wie auf dem Rückgabebeleg), Kontakte (Verantwortliche Person, Entleiher, FSR mit `organization.phone`, `legal.contact_email` und den beteiligten Mitgliedern mit Namen), Benachrichtigungen.
+  - *Material:* vor der Ausgabe die Positionen mit dem aktuellen Inhalt der Boxen zum Lesen, ab der Ausgabe die Zeilen, die gegangen sind, zum Abhaken (`loan_items.borrower_checked_at`). Eine Box hakt ihren Inhalt mit ab, eine zurückgenommene Zeile auch ihre Box; „zurücksetzen“. Der Stand gilt für alle mit dem Link und ist nur eine Hilfe: er ersetzt weder Rückgabe noch Pack-PIN.
+  - *Chat:* siehe unten.
+- **Live:** Die Seite fragt alle 5 Sekunden `…/poll` (Stand, neue Nachrichten, Haken). Zwei Handys sehen so denselben Stand.
+- **Web-App:** eigenes Manifest je Buchung (`…/manifest.webmanifest`, Name „Ausleihe B-…“, `start_url` und `scope` = Link, `standalone`). Auf dem Home-Bildschirm ist die Seite eine eigene App, getrennt von Stocks; am iPhone ist das die Voraussetzung für Push.
+- **Verlängerung anfragen** (nur ausgegeben, eine offene Anfrage je Buchung, `loan_extension_requests`): Wunschtermin und Notiz. Die Beteiligten im FSR bekommen „Verlängerung angefragt“, die Buchung zeigt eine Hinweisbox mit „Annehmen“ (ruft `ExtendLoan`, bei Kollision bleibt die Anfrage offen und die Meldung erscheint) und „Ablehnen“ (mit Antwort). Beides steht als Systemnachricht im Chat und geht an den Entleiher. Die Anfrage wird dabei gesperrt; ein zweiter Klick meldet „schon entschieden“. Kommt das Material vorher zurück (oder wird storniert), ist die Anfrage **erledigt** (`done`): Systemnachricht im Chat, keine Mail, sie zählt nicht mehr als offen.
+
+Nicht sichtbar: Standorte, andere Buchungen, Unterschriftsbilder außerhalb der PDFs. Wer den Link hat (auch per Foto des QR-Codes), sieht Telefon und Anschrift und kommt an die PDFs mit Unterschrift; dagegen helfen „Sperren“ und „Neu ausstellen“.
+
+## Chat
+
+Je Buchung ein Chat zwischen Verleihseite und FSR (`loan_messages`, Komponente `ChatThread.vue` für beide Seiten im Stil eines Messengers: eigene Nachrichten rechts, Uhrzeit in der Blase, Tagestrenner, Verlauf scrollt in sich, Eingabe unten).
+
+- Entleiher schreiben als „Entleiher (Name der verantwortlichen Person)“, Mitglieder mit ihrem Namen (in Stocks steht nur die eigene Nachricht rechts, die von Kolleg:innen links mit Namen), Stocks als Systemnachricht (Verlängerung, Mangel). Text bleibt Text, höchstens 2000 Zeichen, Links werden nicht anklickbar. Nach einer Stornierung ist der Chat nur noch lesbar.
+- FSR-Seite: Karte „Chat“ auf der Buchung (`loans.manage`), Abfrage alle 5 Sekunden; wer die Buchung offen hat, hat gelesen. Zähler am Menüeintrag „Buchungen“ (gecacht, geleert beim Senden und Lesen), in der Buchungsliste, Filter „Ungelesene Nachricht“, Kachel auf dem Dashboard (dort auch offene Verlängerungsanfragen).
+- Benachrichtigung an die Gegenseite: höchstens eine je 15 Minuten und Buchung, solange nichts gelesen wurde (`LoanNotifier::chat()`). Siehe nächster Abschnitt für die Empfänger. Ein Tipp auf die Push-Mitteilung öffnet den Chat (`?tab=chat` bzw. `#chat`).
+
+## Nachrichten an Entleiher und FSR
+
+Jede Nachricht ist eine Klasse in `modules/Loans/Notifications` auf Basis von `LoanEventNotification` (Kern-Helfer, siehe [NOTIFICATIONS.md](NOTIFICATIONS.md)). Mail und Push entstehen aus demselben Inhalt; Anhänge nur per Mail, Push ohne Anschrift und Pack-PIN.
+
+| Nachricht (`type`) | Auslöser | Empfänger | Anhang |
+|---|---|---|---|
+| Buchung bestätigt (`confirmed`) | `ConfirmLoan`, im Dialog abwählbar | Entleiher-Seite, immer per Mail | Buchungsbestätigung |
+| Erinnerung Abholung (`pickup_reminder`) | `loans.remind_pickup_hours` vor der Abholung, bestätigt | Entleiher-Seite | – |
+| Ausgabe erfolgt (`issued`) | `IssueLoan::complete()` (auch Nachausgabe) | Entleiher-Seite, immer per Mail | Leihvertrag, Materialliste dieser Ausgabe |
+| Erinnerung Rückgabe (`return_reminder`) | `loans.remind_return_hours` vor der Rückgabe, etwas ist draußen | Entleiher-Seite | – |
+| Überfällig (`overdue`, Stufe 1–3) | `Loan::overdue()`, nach `loans.overdue_days` (1, 3, 7) | Entleiher-Seite, immer per Mail; ab Stufe 2 auch die Beteiligten (`overdue_staff`) | – |
+| Neue Chat-Nachricht (`chat`, `chat_staff`) | Chat | Gegenseite | – |
+| Verlängerung angefragt (`extension_requested`) | Verleihseite | Beteiligte | – |
+| Verlängerung entschieden (`extension_decided`) | Annehmen oder Ablehnen | Entleiher-Seite | – |
+| Rückgabe gebucht (`returned`) | `ReturnLoan` (auch ungeprüft, mit Hinweis) | Entleiher-Seite, immer per Mail | Rückgabebeleg |
+| Mangel gemeldet (`defect`) | Rückgabe oder Prüfung mit Mangel | Entleiher-Seite | – |
+| Storniert (`cancelled`) | `CancelLoan` nach einer Bestätigung | Entleiher-Seite | – |
+
+- **Entleiher-Seite** = Mail an die verantwortliche Person und an den Entleiher, falls das ein anderer Kontakt mit E-Mail ist (`Loan::routeNotificationForMail()`), und Push an die Geräte, die es auf der Verleihseite eingeschaltet haben. Was davon kommt, stellt der Entleiher auf der Verleihseite ein (`loans.notification_preferences`, gilt für alle mit dem Link); die Pflicht-Mails lassen sich nicht abschalten. Fehlt die Mail-Adresse, entfällt die Mail; die Buchung zeigt einen Hinweis.
+- **Beteiligte** = wer die Buchung angelegt, ausgegeben oder im Chat geantwortet hat, mit aktivem Konto und `loans.manage`, je nach eigener Einstellung im Profil. Haben alle abgeschaltet, geht nichts raus. Nur ohne aktive Beteiligte geht die Mail an `legal.contact_email` (`LoanNotifier`).
+- **Protokoll** (`loan_notifications`, Karte „Nachrichten“ auf der Buchung): je Empfänger und Kanal eine Zeile, geschrieben nach dem Versand (Listener auf `NotificationSent`). Erinnerungen schreiben vorher eine Zeile „ausgelöst“ (Kanal `trigger`), auch wenn niemand sie bekommt; daran erkennt `loans:remind`, was schon raus ist. Jede Erinnerung merkt sich den Termin, um den es ging (`due_at`: Abholung bzw. Rückgabe): Nach einer Verlängerung oder einem neuen Abholtermin kommen Erinnerung und Überfällig-Stufen neu. Eine von Hand geschickte Erinnerung ersetzt die automatische für denselben Termin.
+- **Erinnerungen:** `php artisan loans:remind` alle 15 Minuten (Dienst `scheduler`, nur wenn das Modul an ist), mehrfaches Laufen ist ungefährlich. Nicht abgeholte Buchungen und ein verfallener Rest bekommen keine Überfällig-Nachricht. Wurde eine Buchung erst innerhalb der Erinnerungsfrist bestätigt, kommt keine Abholerinnerung (die Bestätigung nennt den Termin gerade). Mails an zwei Kontakte (Verantwortliche Person und abweichender Entleiher) grüßen beide. Täglich löscht der Scheduler die Push-Abos gesperrter und abgelaufener Verleihseiten.
+- **Von Hand:** „Erinnerung senden“ auf der Buchung (Bestätigung, Abholung, Ausgabe, Rückgabe, Überfällig mit der aktuellen Stufe); das Protokoll zeigt, wer sie geschickt hat.
+- **Texte:** fester Aufbau je Nachricht, dazu je Nachricht ein Zusatztext in den Einstellungen mit `{number}`, `{pickup}`, `{return}`, `{responsible}`. Mails werden von Laravel maskiert.
 
 ## Rückgabe
 
@@ -166,7 +222,7 @@ Schritte: **Material → Übersicht → Unterschriften**. Die Übersicht zeigt, 
 - **Mängel abschließen** (`loans.cancel`): Was dann noch vermisst ist, wird als verloren ausgemustert (Grund „verloren“, die Notiz im Vermerk); der Dialog nennt es vorher.
 - Bekommt ein vermisster Gegenstand auf anderem Weg einen Ort (Umlagern) oder wird zurückgebucht, ist er nicht mehr vermisst (`LoanItem::scopeStillMissing`).
 
-**Einräumen** (Verleih › Rückgaben, `StowItem`): Liste „Noch nicht eingeräumt“ mit Stammplatz. Gegenstand scannen, dann das Regal: Der Gegenstand wird dorthin umgelagert (der Stammplatz wird bestätigt, ein anderer Ort wird genannt). Ein abgeteilter Teil geht ohne Regal zum Ursprung zurück (`MergeItem`), mit der zurückgekommenen Menge. Fehlt von einem ganz ausgegebenen Mengenartikel etwas, wird der Rest beim Einräumen als verloren ausgebucht. Ein Gegenstand, der auf anderem Weg einen Ort bekommt, gilt als eingeräumt. Die Seite zeigt außerdem „Prüfung offen“ und „Mängel offen“.
+**Einräumen** (Verleih › Rückgaben, `StowItem`): Liste „Noch nicht eingeräumt“ mit Stammplatz. Gegenstand scannen, dann das Regal: Der Gegenstand wird dorthin umgelagert (der Stammplatz wird bestätigt, ein anderer Ort wird genannt). Ein abgeteilter Teil geht ohne Regal zum Ursprung zurück (`MergeItem`), mit der zurückgekommenen Menge. Solange er wartet, zählt er für neue Buchungen schon als frei; braucht eine Ausgabe die Menge, bucht sie ihn vorher selbst zurück (wie Einräumen, `IssueLoan::restock()`). Fehlt von einem ganz ausgegebenen Mengenartikel etwas, wird der Rest beim Einräumen als verloren ausgebucht. Ein Gegenstand, der auf anderem Weg einen Ort bekommt, gilt als eingeräumt. Die Seite zeigt außerdem „Prüfung offen“ und „Mängel offen“.
 
 ## Am Gegenstand
 
@@ -193,6 +249,11 @@ Verwaltung › Einstellungen › Verleih (`loans.settings`):
 | `loans.buffer_hours` | Stunden, die zwischen zwei Buchungen frei bleiben (0 bis 168) |
 | `loans.number_prefix` | Präfix der Buchungsnummer, Vorgabe `B` |
 | `loans.contract_template` | eigener Vertragstext; leer: der mitgelieferte |
+| `loans.page_days_after_close` | Tage, die der Link der Verleihseite nach Abschluss oder Storno noch gilt, Vorgabe 30 |
+| `loans.remind_pickup_hours`, `loans.remind_return_hours` | Erinnerung so viele Stunden vor Abholung bzw. Rückgabe, Vorgabe 24, 0 = aus |
+| `loans.overdue_days` | Stufen der Überfällig-Nachrichten in Tagen, Vorgabe „1, 3, 7“ (höchstens fünf) |
+| `loans.pickup_place` | Abholort auf Seite und in Nachrichten; leer: Anschrift der Organisation |
+| `loans.mail_texts` | Zusatztext je Nachricht (nur gefüllte werden gespeichert) |
 
 Dazu die Liste der Fachschaften und eine Vorschau des Vertrags mit Beispielwerten (auch als PDF). Zeiten gelten in der Zeitzone `APP_TIMEZONE` (Vorgabe `Europe/Berlin`).
 
@@ -201,12 +262,12 @@ Dazu die Liste der Fachschaften und eine Vorschau des Vertrags mit Beispielwerte
 | Recht | Erlaubt | Freies Mitglied | FSR-Mitglied | Vorstand | Admin |
 |---|---|---|---|---|---|
 | `loans.view` | Buchungen, Kalender, Veranstaltungen, Reiter am Gegenstand | ja | ja | ja | ja |
-| `loans.manage` | Buchungen anlegen, ändern, bestätigen, verlängern, Pack-PIN; Kontakte; Veranstaltungen ändern; Kontaktdaten sehen | – | ja | ja | ja |
+| `loans.manage` | Buchungen anlegen, ändern, bestätigen, verlängern, Pack-PIN; Kontakte; Veranstaltungen ändern; Kontaktdaten sehen; Chat, Verleihseite sperren und neu ausstellen, Verlängerungsanfragen, „Erinnerung senden“, Benachrichtigungen des Verleihs im Profil | – | ja | ja | ja |
 | `loans.issue` | Ausgabe, Rückgabe, Prüfung, Einräumen, Liste „Rückgaben“ | – | ja | ja | ja |
 | `loans.cancel` | Stornieren, Mängel abschließen | – | – | ja | ja |
 | `loans.settings` | Leihvertrag, Verleiher, Puffer, Präfix, Fachschaften | – | – | ja | ja |
 
-Die Vorgaben stehen unter `start_roles` in `module.json` und gelten bei der Einrichtung; in bestehenden Instanzen vergibt man sie in der Rollenverwaltung. Die Pack-PIN braucht kein Recht, nur die PIN.
+Die Vorgaben stehen unter `start_roles` in `module.json` und gelten bei der Einrichtung; in bestehenden Instanzen vergibt man sie in der Rollenverwaltung. Die Pack-PIN braucht kein Recht, nur die PIN; die Verleihseite nur den Link. Phase 5 bringt keine neuen Rechte.
 
 ## Datenbank
 
@@ -220,6 +281,13 @@ Die Vorgaben stehen unter `start_roles` in `module.json` und gelten bei der Einr
 | `loan_documents` | `loan_id`, `type` (confirmation, contract, list, return_receipt, paper_scan), `snapshot` (JSON), `hash`, `path` (nur Papier-Scan), `created_by` |
 | `loan_signatures` | `loan_id`, `loan_document_id`, `role` (responsible, issuer, returner, receiver), `name`, `image`, `signed_at`, `user_id`, `device`, `document_hash`, `on_paper` |
 | `loan_box_checks` | `loan_item_id`, `name`, `ticks` (JSON), `total`, `checked_at` |
+| `loans` (Phase 5) | `access_version` (Version des Schlüssels), `access_blocked_at`, `notification_preferences` (JSON, Einstellungen der Verleihseite, nur Abweichungen) |
+| `loan_items` (Phase 5) | `borrower_checked_at` (Checkliste der Verleihseite) |
+| `loan_messages` | `loan_id`, `sender` (contact, user, system), `user_id`, `author_name`, `body`, `read_by_staff_at`, `read_by_contact_at` |
+| `loan_extension_requests` | `loan_id`, `requested_return_at`, `note`, `status` (open, accepted, declined, done), `answer`, `decided_by`, `decided_at`; auditiert |
+| `loan_notifications` | `loan_id`, `type`, `stage`, `due_at` (Termin einer Erinnerung), `channel` (mail, push, trigger), `recipient`, `sent_by` (leer = automatisch), `sent_at` |
+
+Push-Abos der Verleihseite liegen in der Kern-Tabelle `push_subscriptions` (`subscribable` = die Buchung).
 
 Im Kern: Bewegungsarten `issue` und `return` und der Fremdschlüssel für `item_condition_changes.loan_id`. Ob ein Gegenstand ausgegeben, ungeprüft oder noch nicht eingeräumt ist, steht nicht in einer Spalte des Kerns; der Kern fragt das Modul. Buchungen mit Ausgabe werden nie gelöscht, nur Entwürfe.
 
@@ -229,7 +297,8 @@ Alle unter `/loans` hinter `auth` und `module:loans`; ausgeschaltet antworten si
 
 | Bereich | Adressen |
 |---|---|
-| Buchungen | `/loans`, `/loans/create`, `/loans/{id}`, `/loans/{id}/edit`, `confirm`, `extend`, `cancel`, `pin`, `close-defects`, `positions`, `/loans/search-items`, `/loans/add-item/{item}` |
+| Buchungen | `/loans`, `/loans/create`, `/loans/{id}`, `/loans/{id}/edit`, `confirm` (mit `notify`), `extend`, `cancel`, `pin`, `close-defects`, `positions`, `/loans/search-items`, `/loans/add-item/{item}` |
+| Chat, Verleihseite, Nachrichten (`loans.manage`) | `GET`/`POST /loans/{id}/messages`, `page/block`, `page/reissue`, `extension-requests/{id}/accept`, `extension-requests/{id}/decline`, `remind` |
 | Ausgabe | `/loans/{id}/issue`, `issue/check`, `issue/rows/{row}/uncheck`, `issue/rows/{row}/defect`, `issue/rows/{row}/reset-defect`, `issue/rows/{row}/drop`, `issue/responsible`, `issue/complete`, `/loans/{id}/preview/{contract,list}.pdf` |
 | Rückgabe, Prüfung | `/loans/{id}/return`, `/loans/{id}/inspect`, je `check`, `rows/{row}/defect`, `rows/{row}/reset`; `return/complete`, `return/unchecked`, `inspect/complete` |
 | Rückgaben, Einräumen | `/loans/returns`, `/loans/returns/stow` |
@@ -239,6 +308,7 @@ Alle unter `/loans` hinter `auth` und `module:loans`; ausgeschaltet antworten si
 | Kontakte, Veranstaltungen | `/loans/contacts…`, `/loans/events…` |
 | Einstellungen | `/loans/settings`, `/loans/settings/preview.pdf`, `/loans/councils…` |
 | Öffentlich (ohne Anmeldung) | `POST /s/{code}/pack-pin`, `POST /s/{code}/box-check` (Rate Limit `short-links`) |
+| Verleihseite (ohne Anmeldung, `loan.page`) | `/v/{id}/{token}` (`?tab=chat` oder `?tab=material`), `…/poll`, `…/manifest.webmanifest`, `…/documents/{document}`, `POST …/messages`, `…/ticks`, `…/extension`, `…/pin`, `…/push` (auch `DELETE`), `PUT …/notifications`; Rate Limits `loan-page` (60/min je Adresse und Buchung, dazu 600/min je Adresse), `loan-page-messages` (10/min, auch Verlängerung), `loan-page-pin` (5/h), `loan-page-push` (10/h), je Adresse und Buchung, damit Entleiher hinter einer gemeinsamen Adresse (Hochschul-WLAN) sich nicht gegenseitig ausbremsen; im Hintergrund fragt die Seite nicht nach |
 | Kiosk (Modul Kiosk) | `/kiosk/loans`, `/kiosk/loans/find` und Ausgabe, Rückgabe, Prüfung, Einräumen, Kurzinfo, „Wieder da“ und Mängel abschließen unter `/kiosk/loans/…` aus `routes/kiosk.php`, siehe [KIOSK.md](KIOSK.md#verleih-am-kiosk) |
 
 ## Sicherheit
@@ -249,6 +319,7 @@ Alle unter `/loans` hinter `auth` und `module:loans`; ausgeschaltet antworten si
 - Unterschriebene Dokumente (Vertrag, Materialliste, Rückgabebeleg, Foto des Blatts) und Unterschriftsbilder nur mit `loans.issue` oder `loans.manage` (`LoanController::canSeeDocuments()`); wer nur `loans.view` hat, sieht Positionen und Status. Die Buchungsbestätigung mit PIN nur mit `loans.manage`.
 - Die Prüfsumme der Dokumente liegt neben ihrem Inhalt: Sie zeigt versehentliche Änderungen, schützt aber nicht vor jemandem mit Schreibzugriff auf die Datenbank.
 - Ausgegebene Gegenstände sind gegen Umlagern und Ausmustern gesperrt; die Sperre prüfen die Actions des Kerns, nicht nur die Oberfläche.
+- Verleihseite: Schlüssel 256 Bit, nicht gespeichert, Vergleich mit `hash_equals`, 404 bei jedem Fehler, `noindex` und `no-referrer`, eigene Rate Limits. Routen binden Dokument, Zeile und Nachricht immer an die Buchung des Links. Push-Endpunkte nur von bekannten Push-Diensten (https), höchstens 10 Geräte je Buchung. Push-Inhalte ohne Anschrift und Pack-PIN.
 
 ## Code
 
@@ -256,6 +327,7 @@ Alle unter `/loans` hinter `auth` und `module:loans`; ausgeschaltet antworten si
 |---|---|
 | Provider, Rechte | `modules/Loans/LoansServiceProvider.php`, `module.json` |
 | Vorgänge | `modules/Loans/Actions` (`SaveLoan`, `ChangePositions`, `ConfirmLoan`, `CancelLoan`, `ExtendLoan`, `IssueLoan`, `ReturnLoan`, `StowItem`, `CheckBox`) |
+| Verleihseite, Chat, Nachrichten | `Http/LoanPageController.php`, `Http/LoanPageAccess.php`, `Http/ChatController.php`, `Http/BorrowerPageController.php`, `Support/LoanPage.php`, `Support/LoanPageData.php`, `Support/LoanNotifier.php`, `Support/Reminders.php`, `Notifications/`, `Console/RemindCommand.php`; Seiten `pages/Page/Show.vue`, Komponenten `ChatThread.vue`, `LoanChat.vue`, `PageCard.vue`, `MessageLog.vue` |
 | Verfügbarkeit, Dokumente, Vertrag | `modules/Loans/Support` |
 | Seiten und Komponenten | `modules/Loans/resources/js` (Startseite am Kiosk: `pages/Kiosk.vue`, `Http/KioskLoanController.php`) |
 | PDFs | `modules/Loans/resources/views/pdf` |

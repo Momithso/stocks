@@ -5,9 +5,11 @@ namespace Modules\Loans\Tests;
 use App\Models\Item;
 use App\Models\Location;
 use App\Models\ReservedNumber;
+use App\Models\User;
 use App\Support\Demo\DemoGenerator;
 use App\Support\Demo\TestSheet;
 use App\Support\Settings;
+use Illuminate\Support\Facades\Notification;
 use Modules\Loans\Actions\IssueLoan;
 use Modules\Loans\Actions\StowItem;
 use Modules\Loans\Enums\LoanKind;
@@ -16,7 +18,10 @@ use Modules\Loans\Models\Contact;
 use Modules\Loans\Models\Event;
 use Modules\Loans\Models\Loan;
 use Modules\Loans\Models\LoanBoxCheck;
+use Modules\Loans\Models\LoanExtensionRequest;
 use Modules\Loans\Models\LoanItem;
+use Modules\Loans\Models\LoanMessage;
+use Modules\Loans\Models\LoanNotification;
 use Modules\Loans\Support\Availability;
 
 /**
@@ -68,10 +73,37 @@ class DemoTest extends LoansTestCase
             if ($label['purpose'] === 'Unbekannte Nummer') {
                 continue;
             }
+            // the borrower page of a loan: its link opens the page
+            if (isset($label['url'])) {
+                $this->get($label['url'])->assertOk();
+
+                continue;
+            }
             $known = Item::where('number', $label['code'])->exists() || Location::where('full_code', $label['code'])->exists() || ReservedNumber::where('number', $label['code'])->exists();
             $this->assertTrue($known, "{$label['code']} ({$label['purpose']}) gibt es nicht.");
         }
 
         $this->assertStringStartsWith('%PDF', app(TestSheet::class)->pdf());
+    }
+
+    public function test_the_generator_fills_the_borrower_pages_without_sending(): void
+    {
+        Notification::fake();
+        app(DemoGenerator::class)->run();
+
+        Notification::assertNothingSent();
+        $this->assertGreaterThanOrEqual(3, Loan::has('messages')->count());
+        $this->assertSame(1, LoanMessage::where('sender', 'contact')->whereNull('read_by_staff_at')->distinct()->count('loan_id'));
+        $this->assertSame(1, LoanExtensionRequest::where('status', 'open')->count());
+        $this->assertSame(1, LoanExtensionRequest::where('status', 'accepted')->count());
+        $this->assertTrue(LoanNotification::where('channel', 'push')->exists() && LoanNotification::where('channel', 'mail')->exists());
+        $this->assertSame(1, Loan::whereNotNull('access_blocked_at')->count());
+        $this->assertTrue(LoanItem::whereNotNull('borrower_checked_at')->exists());
+        $this->assertNotNull(User::where('email', 'demo2@example.com')->value('notification_preferences'));
+
+        // what would be due right after seeding is marked, the scheduler sends nothing
+        $this->assertTrue(LoanNotification::where('recipient', 'Demo, nicht verschickt')->exists());
+        $this->artisan('loans:remind')->expectsOutput('0 Erinnerung(en) ausgelöst.');
+        Notification::assertNothingSent();
     }
 }

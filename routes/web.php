@@ -50,7 +50,8 @@ Route::get('/setup', [SetupController::class, 'show'])->name('setup.show');
 Route::get('/branding/{kind}', [BrandingController::class, 'show'])->whereIn('kind', ['logo', 'favicon', 'print_logo'])->name('branding.show');
 Route::post('/setup', [SetupController::class, 'store'])->middleware('throttle:10,1')->name('setup.store');
 
-// web app: manifest and icons from the logo, also for guests (added to the home screen before login)
+// web app: manifest and icons from the logo, also for guests (added to the home screen before login);
+// the service worker for push lies in public/sw.js
 Route::get('/manifest.webmanifest', [WebAppController::class, 'manifest'])->name('web-app.manifest');
 Route::get('/web-app/icon-{size}.png', [WebAppController::class, 'icon'])->whereNumber('size')->name('web-app.icon');
 
@@ -80,6 +81,11 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    // notifications and push of the own account (documentation/NOTIFICATIONS.md)
+    Route::put('/profile/notifications', [ProfileController::class, 'notifications'])->name('profile.notifications');
+    Route::post('/profile/push', [ProfileController::class, 'subscribe'])->middleware('throttle:10,60')->name('profile.push');
+    Route::delete('/profile/push', [ProfileController::class, 'unsubscribe'])->name('profile.push.destroy');
+    Route::post('/profile/notify-test', [ProfileController::class, 'test'])->middleware('throttle:10,1')->name('profile.notify-test');
 
     Route::get('/styleguide', fn () => Inertia::render('Styleguide'))->middleware('can:settings.manage')->name('styleguide');
 
@@ -214,6 +220,7 @@ Route::middleware('auth')->group(function () {
             Route::put('/mail', [MailSettingsController::class, 'update'])->name('mail.update');
             Route::post('/mail/check', [MailSettingsController::class, 'check'])->name('mail.check');
             Route::post('/mail/test', [MailSettingsController::class, 'test'])->middleware('throttle:10,1')->name('mail.test');
+            Route::post('/mail/retry', [MailSettingsController::class, 'retry'])->name('mail.retry');
         });
 
         Route::get('/audit-log', [AuditLogController::class, 'index'])->middleware('can:audit.view')->name('audit-log');

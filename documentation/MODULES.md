@@ -96,6 +96,8 @@ public function boot(Navigation $navigation, DashboardTiles $dashboardTiles, Sur
 | Hinweis und Sperre am Gegenstand | `ItemExtensions::addInfo()` | siehe [Gegenstände](#gegenstände) |
 | Öffentliche Box-Seite | `ItemExtensions::addPublicBoxSection()` | Abschnitt unter der Inhaltsliste auf `/s/{code}` |
 | Demo-Daten | `DemoData::add()` | eigener Teil des Generators, siehe [DEMO.md](DEMO.md#neue-daten-in-einer-phase) |
+| Benachrichtigungen | `NotificationEvents::add()` | Ereignis mit Empfängern (Mitglieder oder Kontakte), Recht, Vorgabe-Kanälen und Pflicht-Mail; erscheint im Profil bzw. auf der Verleihseite; Klassen leiten von `StocksNotification` ab, siehe [NOTIFICATIONS.md](NOTIFICATIONS.md) |
+| Zeitplan | `callAfterResolving(Schedule::class, …)` | Befehle des Moduls im Dienst `scheduler`, mit `->when()` nur bei eingeschaltetem Modul (Beispiel: `LoansServiceProvider::registerSchedule()`) |
 | Ereignisse | Laravel-Events | Listener im Provider registrieren |
 
 ### Gegenstände

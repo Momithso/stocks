@@ -17,9 +17,12 @@ Jede Organisation bekommt eine eigene Instanz mit eigener Datenbank. Alle Instan
    AWS_ACCESS_KEY_ID=...         # Zugang zum mitgestarteten MinIO für Fotos
    AWS_SECRET_ACCESS_KEY=...
    WEB_PORT=8000                 # je Instanz ein eigener Port hinter dem Reverse Proxy
+   VAPID_PUBLIC_KEY=...          # Push, einmal erzeugt mit „php artisan webpush:vapid --show“; leer: nur Mails
+   VAPID_PRIVATE_KEY=...
    ```
 
-3. `docker compose up -d`. Beim Start laufen die Migrationen und `stocks:sync` von selbst.
+3. `docker compose up -d`. Beim Start laufen die Migrationen und `stocks:sync` von selbst. Neben `web` laufen aus demselben Image `queue` (verschickt Mails und Push) und `scheduler` (Erinnerungen alle 15 Minuten); ohne sie gehen keine Benachrichtigungen raus.
+   Stocks muss über **HTTPS** erreichbar sein (Reverse Proxy), sonst gibt es keinen Push; der Server muss die Push-Dienste erreichen (siehe [NOTIFICATIONS.md](NOTIFICATIONS.md#push-einrichten)).
 4. Einrichten, entweder im Browser unter `/setup` mit dem `SETUP_TOKEN` oder ohne Browser:
 
    ```bash
@@ -39,6 +42,8 @@ Danach ist `/setup` gesperrt. Den `SETUP_TOKEN` kann man wieder entfernen.
 
 **Update auf Phase 4:** Der Kiosk ist jetzt ein Modul und nach dem Update ausgeschaltet. Wer Tablets nutzt, schaltet unter Verwaltung › Module „Kiosk“ ein; gekoppelte Geräte, PINs und Protokolleinträge bleiben erhalten. Rechte `kiosk.use` und `kiosk.devices.manage` behalten ihre Rollen. Danach unter Verwaltung › Einstellungen › Kiosk-Geräte die Plattform jedes Geräts wählen ([KIOSK.md](KIOSK.md)).
 
+**Update auf Phase 5:** Die Compose-Datei hat zwei neue Dienste (`queue`, `scheduler`) und `QUEUE_CONNECTION=redis`; die neue `docker-compose.yaml` übernehmen. Für Push die VAPID-Schlüssel erzeugen (`docker compose run --rm web php artisan webpush:vapid --show`) und in die `.env` eintragen. Unter Verwaltung › Einstellungen › Allgemein die zentrale Telefonnummer eintragen (Feld „Telefon“, erscheint auf der Verleihseite) und unter › Verleih Abholort und Erinnerungen prüfen. Bestätigte Buchungen haben sofort eine Verleihseite; Mails gehen erst bei neuen Ereignissen raus. **`APP_KEY` nicht ändern:** die Links der Verleihseiten hängen daran, auch die QR-Codes auf gedruckten Verträgen und Listen; ein neuer Schlüssel macht sie alle ungültig.
+
 ## Umgebungsvariablen von Stocks
 
 | Variable | Bedeutung |
@@ -48,6 +53,8 @@ Danach ist `/setup` gesperrt. Den `SETUP_TOKEN` kann man wieder entfernen.
 | `APP_FORCE_HTTPS` | Links immer mit https erzeugen (hinter einem Reverse Proxy) |
 | `APP_TIMEZONE` | Zeitzone, in der Zeiten eingegeben, gespeichert und gedruckt werden (Abholung, Rückgabe); Vorgabe `Europe/Berlin` |
 | `AWS_*` | S3-Speicher für Fotos, standardmäßig das mitgestartete MinIO; siehe [INVENTORY.md](INVENTORY.md#fotos-auf-s3) |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Schlüssel für Web Push; ohne sie ist Push aus, siehe [NOTIFICATIONS.md](NOTIFICATIONS.md) |
+| `QUEUE_CONNECTION` | `redis` mit dem Dienst `queue`; `sync` verschickt sofort im Request (nur Entwicklung) |
 
 Alle anderen Variablen sind die von Laravel und Octane, siehe `.env.example`.
 

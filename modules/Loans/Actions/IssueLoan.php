@@ -22,8 +22,10 @@ use Modules\Loans\Models\Contact;
 use Modules\Loans\Models\Loan;
 use Modules\Loans\Models\LoanDocument;
 use Modules\Loans\Models\LoanItem;
+use Modules\Loans\Notifications\LoanIssued;
 use Modules\Loans\Support\Availability;
 use Modules\Loans\Support\LoanDocuments;
+use Modules\Loans\Support\LoanNotifier;
 use Modules\Loans\Support\SignatureInput;
 use Modules\Loans\Support\Snapshot;
 
@@ -33,7 +35,8 @@ use Modules\Loans\Support\Snapshot;
  *
  * 1. prepare(): the contents of every box become rows below it (refreshed until the end),
  * 2. check() / uncheck(): every scan ticks a row off, by hand as well; fewer pieces of a bulk
- *    item than booked split the position, the rest stays a position of its own,
+ *    item than booked split the position, the rest stays a position of its own; a row of the
+ *    contents of a ticked box that is taken back stays here (leaveBehind()),
  * 3. defect(): a defect found now is documented (and may keep the row back),
  * 4. complete(): signatures (or "auf Papier"), the contract and the material list are frozen with
  *    their SHA-256 hash, the ticked items leave their place ("ausgegeben") and the time runs.
@@ -52,6 +55,8 @@ class IssueLoan
         private readonly ConfirmLoan $confirmLoan,
         private readonly RecordDefect $recordDefect,
         private readonly ReturnLoan $returnLoan,
+        private readonly StowItem $stowItem,
+        private readonly LoanNotifier $notifier,
     ) {}
 
     /**
@@ -217,7 +222,8 @@ class IssueLoan
     /**
      * Tick a row (or take the tick back) together with the rows it belongs to: a box takes its
      * contents along, and a box whose contents are all ticked is ticked itself. A box that came back
-     * unchecked before does not tick its contents, they are ticked one by one.
+     * unchecked before does not tick its contents, they are ticked one by one. Taking back a row of
+     * the contents leaves the box ticked: that row stays here.
      *
      * @param  array{checked_at: mixed, checked_by: int|null, checked_by_scan: bool}  $fields
      */
@@ -230,13 +236,13 @@ class IssueLoan
             LoanItem::whereIn('id', $row->descendantIds())->update($fields);
         }
 
-        for ($parent = $row->parent; $parent !== null; $parent = $parent->parent) {
-            $complete = ! $parent->children()->whereNull('checked_at')->exists();
-            if ($ticking && ! $complete) {
+        // a box whose contents are all ticked is ticked itself; taking a row of the contents back
+        // keeps the box ticked: the box leaves, the row stays here (leaveBehind())
+        for ($parent = $row->parent; $ticking && $parent !== null; $parent = $parent->parent) {
+            if ($parent->children()->whereNull('checked_at')->exists()) {
                 break;
             }
-            // a box with a row taken back is no longer complete
-            $parent->forceFill($ticking ? $fields : ['checked_at' => null, 'checked_by' => null, 'checked_by_scan' => false])->save();
+            $parent->forceFill($fields)->save();
         }
     }
 
@@ -288,14 +294,16 @@ class IssueLoan
             if ($leaving->isEmpty()) {
                 throw ValidationException::withMessages(['loan' => 'Noch nichts abgehakt.']);
             }
-            $this->ensureComplete($leaving);
+            // contents of a leaving box that are not ticked stay here, at the place of the box
+            $this->leaveBehind($issuer, $loan, $leaving);
             if ($first && ($problems = $this->confirmLoan->responsibleProblems($loan))) {
                 throw ValidationException::withMessages(['loan' => implode(' ', $problems)]);
             }
 
-            // picked up early: the time starts now, if nothing collides
+            // picked up early: the time starts now, if nothing of what leaves collides (the rest
+            // keeps its time)
             if ($first && $loan->pickup_at->isFuture()) {
-                if ($problems = $this->availability->problems($loan, now(), $loan->return_at)) {
+                if ($problems = $this->availability->problems($loan, now(), $loan->return_at, $leaving)) {
                     throw ValidationException::withMessages(['loan' => 'Eine Ausgabe vor dem Abholtermin geht nicht: '.implode(' ', $problems)]);
                 }
                 $loan->pickup_at = now();
@@ -312,8 +320,10 @@ class IssueLoan
             // the contract only the first time; a supplement gets a material list of its own
             $types = $loan->isInternal() || ! $first ? [DocumentType::MaterialList] : [DocumentType::Contract, DocumentType::MaterialList];
             $list = null;
+            $created = [];
             foreach ($types as $type) {
                 $document = $loan->documents()->create(['type' => $type, 'snapshot' => $snapshot, 'hash' => $hash, 'created_by' => $issuer->id]);
+                $created[] = $document->id;
                 $list = $type === DocumentType::MaterialList ? $document : $list;
                 if (! $loan->isInternal()) {
                     SignatureInput::store($loan, $document, [
@@ -328,6 +338,9 @@ class IssueLoan
 
             // the items leave their place; the contents of a box stay in it and travel along
             foreach ($leaving as $position) {
+                if ($position->item->kind === ItemKind::Bulk) {
+                    $this->restock($issuer, $position->item, $position->quantity);
+                }
                 $left = $this->moveItem->takeAway($issuer, $position->item, MovementType::Issue, $position->item->kind === ItemKind::Bulk ? $position->quantity : null, "Ausgegeben mit {$loan->number}.");
                 if ($left->isNot($position->item)) {
                     $position->forceFill(['issued_item_id' => $left->id])->save();
@@ -344,23 +357,52 @@ class IssueLoan
                 ]);
             }
             $loan->save();
+
+            // contract and material list of this issue to the borrower
+            $this->notifier->toContact($loan, new LoanIssued($loan, $created));
         }));
     }
 
     /**
-     * Check that every leaving box leaves with its contents ticked off (e.g. contents put into the
-     * box after it was ticked, or a box that came back unchecked).
+     * Parts of a bulk item that came back and are not put away yet count as free (Availability).
+     * When the origin has too little for the issue, they go back to it first, like "Einräumen".
+     */
+    private function restock(User $actor, Item $item, int $needed): void
+    {
+        if ($item->refresh()->quantity >= $needed) {
+            return;
+        }
+        foreach (StowItem::pending()->where('item_id', $item->id)->whereNotNull('issued_item_id')->orderBy('returned_at')->get() as $row) {
+            $this->stowItem->handle($actor, $row, null);
+            if ($item->refresh()->quantity >= $needed) {
+                return;
+            }
+        }
+    }
+
+    /**
+     * Rows of the contents of leaving boxes that are not ticked: they do not leave. The item is
+     * taken out of its box and put where the box stands (without place if the box has none); its
+     * row and the rows of its own contents leave the loan, so neither the material list nor the
+     * return expects them. Ticked rows inside an unticked one stay with it.
      *
      * @param  Collection<int, LoanItem>  $leaving
      *
      * @throws ValidationException
      */
-    private function ensureComplete(Collection $leaving): void
+    private function leaveBehind(User $actor, Loan $loan, Collection $leaving): void
     {
         foreach ($leaving as $position) {
-            $open = LoanItem::whereIn('id', $position->descendantIds())->whereNull('checked_at')->with('item')->get();
-            if ($open->isNotEmpty()) {
-                throw ValidationException::withMessages(['loan' => "In {$position->item->number} ist noch nicht alles abgehakt: ".$open->map(fn (LoanItem $row) => $row->item->number)->implode(', ').'.']);
+            $rows = LoanItem::whereIn('id', $position->descendantIds())->with(['item', 'parent.item'])->get();
+            $stay = $rows->filter(fn (LoanItem $row) => $row->checked_at === null && $row->parent->checked_at !== null);
+            foreach ($stay as $row) {
+                $box = $row->parent->item;
+                $target = $box->place();
+                $note = "Bleibt bei der Ausgabe von {$loan->number} hier, aus {$box->number} genommen.";
+                $target !== null
+                    ? $this->moveItem->handle($actor, $row->item, $target, note: $note)
+                    : $this->moveItem->takeAway($actor, $row->item, MovementType::Move, note: $note);
+                LoanItem::whereIn('id', [$row->id, ...$row->descendantIds()])->delete();
             }
         }
     }

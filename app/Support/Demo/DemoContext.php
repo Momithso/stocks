@@ -150,14 +150,15 @@ class DemoContext
      *
      * @param  string  $purpose  what the label is meant for, e.g. "Box, bestätigte Buchung: für die Ausgabe"
      * @param  string  $expect  what should happen when it is scanned
+     * @param  string|null  $url  address in the code instead of the short link of $code (e.g. a borrower page)
      */
-    public function label(string $code, string $name, string $purpose, string $expect): void
+    public function label(string $code, string $name, string $purpose, string $expect, ?string $url = null): void
     {
-        $this->labels[] = compact('code', 'name', 'purpose', 'expect');
+        $this->labels[] = [...compact('code', 'name', 'purpose', 'expect'), ...($url ? ['url' => $url] : [])];
     }
 
     /**
-     * @return list<array{code: string, name: string, purpose: string, expect: string}>
+     * @return list<array{code: string, name: string, purpose: string, expect: string, url?: string}>
      */
     public function labels(): array
     {

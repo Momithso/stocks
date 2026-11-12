@@ -37,6 +37,8 @@ class Settings
         'organization.print_logo_path' => null,
         // postal address, lines separated by line breaks (letterhead of the box contents pdf)
         'organization.address' => null,
+        // central phone number (borrower page), accounts have none
+        'organization.phone' => null,
         'legal.imprint_url' => null,
         'legal.privacy_url' => null,
         'legal.contact_email' => null,

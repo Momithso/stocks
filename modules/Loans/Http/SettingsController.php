@@ -7,6 +7,7 @@ use App\Support\Settings;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -18,10 +19,21 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 /**
  * Settings of the loan module (Verwaltung › Einstellungen › Verleih): contract text and lender,
- * buffer between loans, number prefix, councils.
+ * buffer between loans, number prefix, councils, borrower page and messages.
  */
 class SettingsController extends Controller
 {
+    /**
+     * Messages of the borrower side with an extra text in the settings.
+     *
+     * @var array<string, string>
+     */
+    public const MAIL_TEXTS = [
+        'confirmed' => 'Buchung bestätigt', 'pickup_reminder' => 'Erinnerung an die Abholung', 'issued' => 'Ausgabe erfolgt',
+        'return_reminder' => 'Erinnerung an die Rückgabe', 'overdue' => 'Überfällig', 'returned' => 'Rückgabe gebucht',
+        'defect' => 'Mangel gemeldet', 'cancelled' => 'Storniert', 'extension_decided' => 'Verlängerung entschieden', 'chat' => 'Neue Chat-Nachricht',
+    ];
+
     /**
      * Display the settings.
      */
@@ -33,6 +45,7 @@ class SettingsController extends Controller
             'variables' => collect(ContractTemplate::VARIABLES)->map(fn (string $label, string $name) => ['name' => $name, 'label' => $label])->values(),
             'example' => $documents->exampleContract($template->text()),
             'councils' => Council::withCount('contacts')->orderBy('number')->get(),
+            'mailTexts' => collect(self::MAIL_TEXTS)->map(fn (string $label, string $type) => ['type' => $type, 'label' => $label])->values(),
         ]);
     }
 
@@ -47,21 +60,42 @@ class SettingsController extends Controller
             'loans.buffer_hours' => ['required', 'integer', 'min:0', 'max:168'],
             'loans.number_prefix' => ['required', 'regex:/^[A-Z0-9]{1,6}$/'],
             'loans.contract_template' => ['required', 'string', 'max:50000'],
+            'loans.page_days_after_close' => ['sometimes', 'required', 'integer', 'min:1', 'max:365'],
+            'loans.remind_pickup_hours' => ['sometimes', 'required', 'integer', 'min:0', 'max:336'],
+            'loans.remind_return_hours' => ['sometimes', 'required', 'integer', 'min:0', 'max:336'],
+            'loans.overdue_days' => ['sometimes', 'required', 'string', 'max:40', 'regex:/^\s*\d{1,3}(\s*,\s*\d{1,3}){0,4}\s*$/'],
+            'loans.pickup_place' => ['nullable', 'string', 'max:300'],
+            'loans.mail_texts' => ['nullable', 'array'],
+            'loans.mail_texts.*' => ['nullable', 'string', 'max:2000'],
             'reset_text' => ['boolean'],
-        ], ['loans.number_prefix.regex' => 'Das Präfix hat 1 bis 6 Großbuchstaben oder Ziffern.'], [
+        ], ['loans.number_prefix.regex' => 'Das Präfix hat 1 bis 6 Großbuchstaben oder Ziffern.', 'loans.overdue_days.regex' => 'Bis zu fünf Tage, mit Komma getrennt, z. B. 1, 3, 7.'], [
             'loans.lender' => 'Verleiher',
             'loans.place' => 'Ort der Unterschrift',
             'loans.buffer_hours' => 'Puffer',
             'loans.number_prefix' => 'Präfix',
             'loans.contract_template' => 'Vertragstext',
+            'loans.page_days_after_close' => 'Tage nach Abschluss',
+            'loans.remind_pickup_hours' => 'Erinnerung vor der Abholung',
+            'loans.remind_return_hours' => 'Erinnerung vor der Rückgabe',
+            'loans.overdue_days' => 'Überfällig-Stufen',
+            'loans.pickup_place' => 'Abholort',
         ]);
 
-        $values = collect($validated)->except('reset_text')->dot()->all();
+        // the extra texts stay one array (only those with text), the rest are single keys
+        $texts = array_filter(array_intersect_key($validated['loans']['mail_texts'] ?? [], self::MAIL_TEXTS), fn ($text) => filled($text));
+        $values = Arr::dot(Arr::except($validated, ['reset_text', 'loans.mail_texts']));
+        if (array_key_exists('mail_texts', $validated['loans'])) {
+            $values['loans.mail_texts'] = array_map('trim', $texts);
+        }
         // the text that comes with the module is not stored, so updates of it arrive
         if ($request->boolean('reset_text') || trim($values['loans.contract_template']) === trim(ContractTemplate::default())) {
             $values['loans.contract_template'] = null;
         }
-        $values['loans.buffer_hours'] = (int) $values['loans.buffer_hours'];
+        foreach (['loans.buffer_hours', 'loans.page_days_after_close', 'loans.remind_pickup_hours', 'loans.remind_return_hours'] as $key) {
+            if (array_key_exists($key, $values)) {
+                $values[$key] = (int) $values[$key];
+            }
+        }
         $settings->set($values);
 
         return back()->with('success', 'Die Einstellungen des Verleihs wurden gespeichert.');

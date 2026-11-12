@@ -1,7 +1,9 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Modules\Loans\Http\BorrowerPageController;
 use Modules\Loans\Http\CalendarController;
+use Modules\Loans\Http\ChatController;
 use Modules\Loans\Http\ContactController;
 use Modules\Loans\Http\EventController;
 use Modules\Loans\Http\IssueController;
@@ -17,7 +19,7 @@ use Modules\Loans\Http\SettingsController;
 */
 
 // ids are numbers, so "/loans/settings" never matches "/loans/{loan}"
-Route::patterns(array_fill_keys(['loan', 'position', 'row', 'document', 'contact', 'event', 'council'], '[0-9]+'));
+Route::patterns(array_fill_keys(['loan', 'position', 'row', 'document', 'contact', 'event', 'council', 'extensionRequest'], '[0-9]+'));
 
 Route::prefix('loans')->name('loans.')->group(function () {
     Route::middleware('can:loans.view')->group(function () {
@@ -46,6 +48,15 @@ Route::prefix('loans')->name('loans.')->group(function () {
         Route::put('/{loan}/positions/{position}', [PositionController::class, 'update'])->scopeBindings()->name('positions.update');
         Route::delete('/{loan}/positions/{position}', [PositionController::class, 'destroy'])->scopeBindings()->name('positions.destroy');
         Route::get('/search-items', [PositionController::class, 'search'])->name('search-items');
+
+        // chat and borrower page (documentation/LOANS.md)
+        Route::get('/{loan}/messages', [ChatController::class, 'index'])->name('messages.index');
+        Route::post('/{loan}/messages', [ChatController::class, 'store'])->middleware('throttle:30,1')->name('messages.store');
+        Route::post('/{loan}/page/block', [BorrowerPageController::class, 'block'])->name('page.block');
+        Route::post('/{loan}/page/reissue', [BorrowerPageController::class, 'reissue'])->name('page.reissue');
+        Route::post('/{loan}/extension-requests/{extensionRequest}/accept', [BorrowerPageController::class, 'accept'])->scopeBindings()->name('extension.accept');
+        Route::post('/{loan}/extension-requests/{extensionRequest}/decline', [BorrowerPageController::class, 'decline'])->scopeBindings()->name('extension.decline');
+        Route::post('/{loan}/remind', [BorrowerPageController::class, 'remind'])->middleware('throttle:20,1')->name('remind');
 
         Route::get('/contacts', [ContactController::class, 'index'])->name('contacts.index');
         Route::get('/contacts/search', [ContactController::class, 'search'])->name('contacts.search');

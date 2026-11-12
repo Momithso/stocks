@@ -183,7 +183,7 @@ class LoanGuardsTest extends LoansTestCase
         app(ChangePositions::class)->add($loan, $box->load('condition'));
     }
 
-    public function test_a_box_that_came_back_unchecked_leaves_only_with_its_contents_ticked(): void
+    public function test_a_box_that_came_back_unchecked_leaves_with_its_contents_ticked_one_by_one(): void
     {
         $box = $this->item(['is_container' => true]);
         $inside = $this->item(['location_id' => null, 'container_id' => $box->id]);
@@ -198,9 +198,11 @@ class LoanGuardsTest extends LoansTestCase
         $this->actingAs($admin)->post("/loans/{$second->id}/issue/check", ['code' => $inside->number])->assertSessionHasNoErrors();
         $this->assertNotNull($second->positions()->first()->checked_at, 'the box is ticked with its contents');
 
-        // something put into the box after the tick must be ticked too
+        // something put into the box after the tick and not ticked stays here, at the place of the box
         $later = $this->item(['location_id' => null, 'container_id' => $box->id]);
-        $this->actingAs($admin)->post("/loans/{$second->id}/issue/complete", $this->issueSignatures())->assertSessionHasErrors(['loan' => "In {$box->number} ist noch nicht alles abgehakt: {$later->number}."]);
+        $this->actingAs($admin)->post("/loans/{$second->id}/issue/complete", $this->issueSignatures())->assertSessionHasNoErrors();
+        $this->assertNull($later->refresh()->container_id);
+        $this->assertSame($box->id, $inside->refresh()->container_id);
     }
 
     public function test_the_last_position_of_a_confirmed_loan_is_cancelled_not_dropped(): void

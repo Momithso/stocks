@@ -82,6 +82,13 @@
           hint="Für den Briefkopf der Inhaltsliste einer Box, eine Zeile je Adresszeile."
           :error="form.errors['organization.address']"
         />
+        <UiInput
+          v-model="form.organization.phone"
+          label="Telefon"
+          type="tel"
+          hint="Zentrale Nummer, z. B. auf der Verleihseite."
+          :error="form.errors['organization.phone']"
+        />
       </div>
     </UiCard>
 
@@ -224,6 +231,7 @@ const form = useForm({
     short_name: value("organization.short_name"),
     accent_color: value("organization.accent_color"),
     address: value("organization.address"),
+    phone: value("organization.phone"),
   },
   legal: {
     imprint_url: value("legal.imprint_url"),

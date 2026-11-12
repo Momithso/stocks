@@ -9,10 +9,12 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Notifications\RoutesNotifications;
 use Illuminate\Support\Carbon;
 use Modules\Loans\Enums\DocumentType;
 use Modules\Loans\Enums\LoanKind;
 use Modules\Loans\Enums\LoanStatus;
+use NotificationChannels\WebPush\HasPushSubscriptions;
 use OwenIt\Auditing\Contracts\Auditable;
 
 /**
@@ -22,6 +24,10 @@ use OwenIt\Auditing\Contracts\Auditable;
  * of contacts and no contract.
  *
  * The status only changes through the actions in Modules\Loans\Actions.
+ *
+ * The loan stands for its borrower side in notifications: mails go to the responsible person (and
+ * the borrower, if that is another contact), push to the devices that switched it on on the
+ * borrower page (Modules\Loans\Support\LoanPage).
  *
  * @property int $id
  * @property string $number
@@ -48,10 +54,15 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property Carbon|null $cancelled_at
  * @property string|null $cancelled_reason
  * @property int|null $created_by
+ * @property int $access_version version of the key of the borrower page
+ * @property Carbon|null $access_blocked_at
+ * @property array<string, array<string, bool>>|null $notification_preferences settings of the borrower page
  */
 class Loan extends Model implements Auditable, AuditSubject
 {
+    use HasPushSubscriptions;
     use \OwenIt\Auditing\Auditable;
+    use RoutesNotifications;
 
     /**
      * Cache of isOverdue(): something of the loan is out.
@@ -70,7 +81,7 @@ class Loan extends Model implements Auditable, AuditSubject
      *
      * @var list<string>
      */
-    protected $auditExclude = ['pack_pin', 'pin_attempts', 'contract_text'];
+    protected $auditExclude = ['pack_pin', 'pin_attempts', 'contract_text', 'notification_preferences'];
 
     /**
      * @return array<string, string>
@@ -90,6 +101,9 @@ class Loan extends Model implements Auditable, AuditSubject
             'cancelled_at' => 'datetime',
             'pack_pin' => 'encrypted',
             'pin_attempts' => 'integer',
+            'access_version' => 'integer',
+            'access_blocked_at' => 'datetime',
+            'notification_preferences' => 'array',
         ];
     }
 
@@ -177,6 +191,62 @@ class Loan extends Model implements Auditable, AuditSubject
     public function documents(): HasMany
     {
         return $this->hasMany(LoanDocument::class)->orderBy('id');
+    }
+
+    /**
+     * Chat of the borrower page.
+     *
+     * @return HasMany<LoanMessage, $this>
+     */
+    public function messages(): HasMany
+    {
+        return $this->hasMany(LoanMessage::class)->orderBy('id');
+    }
+
+    /**
+     * Requests of the borrower page for a later return time, newest first.
+     *
+     * @return HasMany<LoanExtensionRequest, $this>
+     */
+    public function extensionRequests(): HasMany
+    {
+        return $this->hasMany(LoanExtensionRequest::class)->latest('id');
+    }
+
+    /**
+     * Log of the notifications, newest first.
+     *
+     * @return HasMany<LoanNotification, $this>
+     */
+    public function notificationLog(): HasMany
+    {
+        return $this->hasMany(LoanNotification::class)->latest('sent_at')->latest('id');
+    }
+
+    /**
+     * Mail addresses of the borrower side: the responsible person, and the borrower if that is
+     * another contact with an address.
+     *
+     * @return array<string, string>
+     */
+    public function routeNotificationForMail(): array
+    {
+        if ($this->isInternal()) {
+            return [];
+        }
+
+        return collect([$this->responsible, $this->borrower])->filter(fn (?Contact $contact) => filled($contact?->email))
+            ->mapWithKeys(fn (Contact $contact) => [mb_strtolower($contact->email) => $contact->name])->all();
+    }
+
+    /**
+     * Settings of the borrower page: deviations from the defaults.
+     *
+     * @return array<string, array<string, bool>>|null
+     */
+    public function notificationPreferences(): ?array
+    {
+        return $this->notification_preferences;
     }
 
     /**

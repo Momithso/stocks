@@ -8,7 +8,7 @@ services:
       - redis
       - mariadb
       - minio
-    environment:
+    environment: &environment
       APP_NAME: Stocks
       APP_ENV: '${APP_ENV:-production}'
       APP_KEY: '${APP_KEY}'
@@ -32,7 +32,8 @@ services:
       DB_PASSWORD: '${DB_PASSWORD}'
       CACHE_STORE: redis
       SESSION_DRIVER: redis
-      QUEUE_CONNECTION: sync
+      # notifications go through the queue (service "queue"), see documentation/NOTIFICATIONS.md
+      QUEUE_CONNECTION: redis
       REDIS_HOST: redis
       REDIS_PASSWORD: '${REDIS_PASSWORD}'
       REDIS_PORT: 6379
@@ -43,6 +44,10 @@ services:
       MAIL_PASSWORD: '${MAIL_PASSWORD}'
       MAIL_FROM_ADDRESS: '${MAIL_FROM_ADDRESS}'
       MAIL_FROM_NAME: '${MAIL_FROM_NAME:-Stocks}'
+      # web push, created once with "php artisan webpush:vapid"; empty: no push, only mails
+      VAPID_PUBLIC_KEY: '${VAPID_PUBLIC_KEY:-}'
+      VAPID_PRIVATE_KEY: '${VAPID_PRIVATE_KEY:-}'
+      VAPID_SUBJECT: '${VAPID_SUBJECT:-}'
       # photos of items on S3, by default the MinIO below
       AWS_ACCESS_KEY_ID: '${AWS_ACCESS_KEY_ID:-minioadmin}'
       AWS_SECRET_ACCESS_KEY: '${AWS_SECRET_ACCESS_KEY:-minioadmin123}'
@@ -52,6 +57,30 @@ services:
       AWS_USE_PATH_STYLE_ENDPOINT: '${AWS_USE_PATH_STYLE_ENDPOINT:-true}'
     ports:
       - '${WEB_PORT:-8000}:8000'
+    networks:
+      - stocks
+  # sends the queued notifications (mails, push); same image and environment as "web"
+  queue:
+    image: ghcr.io/momithso/stocks:latest
+    restart: unless-stopped
+    depends_on:
+      - web
+    environment: *environment
+    command: php artisan queue:work --tries=3 --max-time=3600
+    healthcheck:
+      disable: true
+    networks:
+      - stocks
+  # runs the time plan: reminders of loans every 15 minutes, cleaning up once a day
+  scheduler:
+    image: ghcr.io/momithso/stocks:latest
+    restart: unless-stopped
+    depends_on:
+      - web
+    environment: *environment
+    command: php artisan schedule:work
+    healthcheck:
+      disable: true
     networks:
       - stocks
   redis:

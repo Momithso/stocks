@@ -22,7 +22,9 @@ use Modules\Loans\Models\Contact;
 use Modules\Loans\Models\Council;
 use Modules\Loans\Models\Event;
 use Modules\Loans\Models\Loan;
+use Modules\Loans\Models\LoanExtensionRequest;
 use Modules\Loans\Models\LoanItem;
+use Modules\Loans\Models\LoanMessage;
 
 /**
  * Demo data of the loan module: 80 contacts, 12 events and 120 loans in every status, built from
@@ -32,6 +34,9 @@ use Modules\Loans\Models\LoanItem;
  * issue and to the return for the return, so documents, history and audit carry real dates. Past
  * loans may share items (they hold nothing any more); loans that hold items now or later get items
  * of their own.
+ *
+ * The borrower page (Phase 5) gets chats, ticks of the checklist, extension requests, a log of
+ * messages and a blocked link; the generator itself sends nothing.
  */
 class LoansDemo implements DemoPart
 {
@@ -69,6 +74,13 @@ class LoansDemo implements DemoPart
      */
     private string $signature;
 
+    /**
+     * Loans of the test sheet whose borrower pages get a chat (issued and overdue).
+     */
+    private ?Loan $pageLoan = null;
+
+    private ?Loan $overdueLoan = null;
+
     public function __construct(
         private readonly SaveLoan $saveLoan,
         private readonly ChangePositions $positions,
@@ -93,6 +105,7 @@ class LoansDemo implements DemoPart
             $this->createEvents();
             $this->createPastLoans();
             $this->createCurrentLoans();
+            $this->createPageData();
         } finally {
             Carbon::setTestNow();
         }
@@ -278,18 +291,21 @@ class LoansDemo implements DemoPart
         $this->issue($issued, $issuedPickup);
         $this->demo->label($issuedBox->number, $issuedBox->name, 'Box, ausgegeben: für die Rückgabe', "In {$issued->number}; im Scan-Tab „Rückgabe dieser Buchung“, gesperrt fürs Umlagern.");
         $this->demo->label($issuedItem->number, $issuedItem->name, 'Ausgegeben, zum Zurücknehmen', "Hakt in der Rückgabe von {$issued->number} ab.");
+        $this->pageLoan = $issued;
 
         $overdueItem = $this->takeLendable();
         $overduePickup = $this->demo->today->subDays(8)->setTime(10, 0);
         $overdue = $this->draft($overduePickup, $this->demo->today->subDays(3)->setTime(12, 0), [$overdueItem]);
         $this->issue($overdue, $overduePickup);
         $this->demo->label($overdueItem->number, $overdueItem->name, 'Überfällig', "In {$overdue->number}, seit drei Tagen überfällig; rot in Kalender und Dashboard.");
+        $this->overdueLoan = $overdue;
 
         $internalItem = $this->takeLendable();
         $internalPickup = $this->demo->today->subDay()->setTime(9, 0);
         $internal = $this->draft($internalPickup, $this->demo->today->addDays(2)->setTime(18, 0), [$internalItem], internal: true);
         $this->issue($internal, $internalPickup);
-        $this->demo->label($internalItem->number, $internalItem->name, 'Eigenbedarf, ausgegeben', "In {$internal->number} (ohne Vertrag und Unterschrift).");
+        // the place of this label on the sheet went to the borrower page (Phase 5)
+        $this->demo->label($issued->number, "Verleihseite {$issued->number}", 'Verleihseite ohne Anmeldung', 'Öffnet die Seite des Entleihers: Reiter Chat (eine ungelesene Antwort), Übersicht, Material zum Abhaken; offene Verlängerungsanfrage.', LoanPage::url($issued));
 
         // one more issued loan with a partial return
         $partialItems = [$this->takeLendable(), $this->takeLendable()];
@@ -324,6 +340,95 @@ class LoansDemo implements DemoPart
 
         // kept out of other loans as before, so the generator gives the same data
         $this->takeLendable();
+    }
+
+    /**
+     * Borrower pages: chats (one unread by the organization), ticks of the checklist, an open and
+     * an accepted extension request, a log of messages (mail and push mixed), a blocked link, and
+     * members with own notification settings. Nothing is sent.
+     */
+    private function createPageData(): void
+    {
+        $member = $this->member;
+        $talk = function (Loan $loan, array $messages) {
+            foreach ($messages as [$time, $sender, $body]) {
+                $message = $loan->messages()->make([
+                    'sender' => $sender,
+                    'user_id' => $sender === LoanMessage::USER ? $this->member->id : null,
+                    'author_name' => match ($sender) {
+                        LoanMessage::CONTACT => 'Entleiher ('.$loan->responsible?->name.')',
+                        LoanMessage::USER => $this->member->name,
+                        default => 'Stocks',
+                    },
+                    'body' => $body,
+                ]);
+                $message->forceFill(['created_at' => $time, 'updated_at' => $time, 'read_by_staff_at' => $time, 'read_by_contact_at' => $time])->save();
+            }
+        };
+        $log = function (Loan $loan, string $type, ?int $stage, CarbonImmutable $time, bool $push) {
+            $loan->loadMissing('responsible');
+            $loan->notificationLog()->create(['type' => $type, 'stage' => $stage, 'channel' => 'trigger', 'recipient' => 'automatisch', 'sent_at' => $time]);
+            $loan->notificationLog()->create(['type' => $type, 'stage' => $stage, 'channel' => 'mail', 'recipient' => "{$loan->responsible?->name} <{$loan->responsible?->email}>", 'sent_at' => $time]);
+            if ($push) {
+                $loan->notificationLog()->create(['type' => $type, 'stage' => $stage, 'channel' => 'push', 'recipient' => 'Verleihseite: iPhone', 'sent_at' => $time->addSecond()]);
+            }
+        };
+
+        if ($loan = $this->pageLoan?->refresh()) {
+            $start = CarbonImmutable::parse($loan->issued_at);
+            $talk($loan, [
+                [$start->addHours(3), LoanMessage::CONTACT, 'Hallo, das Kabel für die Box fehlt, oder ist es in der Kiste?'],
+                [$start->addHours(4), LoanMessage::USER, 'Das liegt im Deckel der Box, in der kleinen Tasche.'],
+                [$start->addHours(5), LoanMessage::CONTACT, 'Gefunden, danke!'],
+            ]);
+            // the last answer of the borrower is still unread in Stocks
+            $loan->messages()->latest('id')->first()->forceFill(['read_by_staff_at' => null])->save();
+            foreach ($loan->loanItems()->whereNotNull('issued_at')->limit(2)->get() as $row) {
+                $row->forceFill(['borrower_checked_at' => $start->addHours(2)])->save();
+            }
+            $request = $loan->extensionRequests()->make(['requested_return_at' => CarbonImmutable::parse($loan->return_at)->addDays(2), 'note' => 'Unser Fest wurde um zwei Tage verschoben.']);
+            $request->forceFill(['created_at' => $start->addDay(), 'updated_at' => $start->addDay()])->save();
+            $talk($loan, [[$start->addDay(), LoanMessage::SYSTEM, 'Verlängerung bis '.$request->requested_return_at->format('d.m.Y, H:i').' Uhr angefragt. Notiz: '.$request->note]]);
+            $log($loan, 'confirmed', null, CarbonImmutable::parse($loan->confirmed_at), false);
+            $log($loan, 'issued', null, $start, true);
+            $loan->forceFill(['notification_preferences' => ['loans.return_reminder' => ['mail' => false]]])->save();
+        }
+
+        if ($loan = $this->overdueLoan?->refresh()) {
+            $return = CarbonImmutable::parse($loan->return_at);
+            $log($loan, 'overdue', 1, $return->addDay(), true);
+            $log($loan, 'overdue', 2, $return->addDays(3), true);
+            $loan->notificationLog()->create(['type' => 'overdue_staff', 'stage' => 2, 'channel' => 'mail', 'recipient' => "{$member->name} <{$member->email}>", 'sent_at' => $return->addDays(3)]);
+            $talk($loan, [
+                [$return->addDay()->setTime(9, 30), LoanMessage::USER, 'Hallo, die Rückgabe war gestern. Wann könnt ihr vorbeikommen?'],
+                [$return->addDays(2)->setTime(18, 5), LoanMessage::CONTACT, 'Sorry, ich bin krank. Mein Mitbewohner bringt alles am Freitag.'],
+            ]);
+        }
+
+        // a closed loan with a conversation and an accepted extension
+        if ($closed = Loan::where('status', 'closed')->where('kind', 'external')->orderBy('id')->first()) {
+            $issued = CarbonImmutable::parse($closed->issued_at);
+            $request = $closed->extensionRequests()->make(['requested_return_at' => CarbonImmutable::parse($closed->return_at), 'note' => 'Einen Tag länger, bitte.']);
+            $request->forceFill(['status' => LoanExtensionRequest::ACCEPTED, 'answer' => 'Geht klar.', 'decided_by' => $member->id, 'decided_at' => $issued->addHours(6), 'created_at' => $issued->addHours(2), 'updated_at' => $issued->addHours(6)])->save();
+            $talk($closed, [
+                [$issued->addHours(2), LoanMessage::SYSTEM, 'Verlängerung angefragt. Notiz: Einen Tag länger, bitte.'],
+                [$issued->addHours(6), LoanMessage::SYSTEM, 'Verlängerung angenommen. Geht klar.'],
+                [$issued->addHours(7), LoanMessage::CONTACT, 'Super, danke euch!'],
+            ]);
+            $log($closed, 'extension_decided', null, $issued->addHours(6), false);
+            $log($closed, 'returned', null, CarbonImmutable::parse($closed->returned_at ?? $closed->return_at), false);
+        }
+
+        // a blocked link (e.g. the code was photographed by somebody else)
+        Loan::where('status', 'confirmed')->where('kind', 'external')->orderByDesc('id')->first()?->forceFill(['access_blocked_at' => $this->demo->today->subDay()])->save();
+
+        // members with own settings: no chat mails, no overdue messages
+        User::where('email', 'demo2@example.com')->first()?->forceFill(['notification_preferences' => ['loans.chat_staff' => ['mail' => false]]])->save();
+        User::where('email', 'demo1@example.com')->first()?->forceFill(['notification_preferences' => ['loans.overdue_staff' => ['mail' => false, 'push' => false]]])->save();
+
+        // reminders that would be due right now count as triggered, so the scheduler sends nothing
+        // right after seeding; later ones go out as usual
+        app(Reminders::class)->run(send: false);
     }
 
     /**

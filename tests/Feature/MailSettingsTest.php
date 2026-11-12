@@ -56,7 +56,7 @@ class MailSettingsTest extends TestCase
         $this->actingAs($this->admin())->get('/dashboard')->assertInertia(fn ($page) => $page->where('navigation', function ($sections) {
             $entries = collect($sections)->flatMap(fn ($section) => $section['entries'])->flatMap(fn ($entry) => $entry['children'] ?? [$entry]);
 
-            return $entries->firstWhere('title', 'E-Mail')['badge']['text'] === 'getrennt';
+            return $entries->firstWhere('title', 'Benachrichtigungen')['badge']['text'] === 'getrennt';
         }));
     }
 

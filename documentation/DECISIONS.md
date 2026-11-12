@@ -2,6 +2,62 @@
 
 Warum Stocks so gebaut ist, wie es gebaut ist. Neue Einträge oben; jeder Eintrag mit Datum, Entscheidung, Grund und verworfener Alternative.
 
+## 2026-11-12 · Review von Phase 5
+
+**Erinnerungen hängen am Termin.** Das Protokoll merkt sich, um welche Abholung bzw. Rückgabe es ging (`loan_notifications.due_at`). Grund: Nach einer Verlängerung kam sonst keine Rückgabe-Erinnerung und keine Überfällig-Stufe mehr. Verworfen: Protokoll bei jeder Verlängerung leeren (es soll vollständig bleiben).
+
+**Limits der Verleihseite je Adresse und Buchung.** Viele Entleiher teilen sich eine Adresse (Hochschul-WLAN); 60 Abfragen je Minute und Adresse reichten dann für etwa fünf offene Seiten. Gegen das Durchprobieren von Links gibt es zusätzlich 600 je Adresse.
+
+**Zurückgekommene Teilmengen bucht die Ausgabe selbst zurück** (Entscheidung von Maurice). Sie zählen schon vor dem Einräumen als frei; fehlt dem Ursprung Menge, holt die Ausgabe sie wie beim Einräumen zurück. Verworfen: erst nach dem Einräumen frei, oder nur ein Hinweis bei der Ausgabe.
+
+**Offene Verlängerungsanfragen erledigen sich** bei Rückgabe oder Storno (Status `done`, Chat-Eintrag, keine Mail; Entscheidung von Maurice). Verworfen: automatisch ablehnen mit Mail, stehen lassen.
+
+**Mängel auf der Verleihseite erst nach dem Buchen**, mit Notiz wie auf dem Rückgabebeleg (Entscheidung von Maurice). Während der Rückgabe kann sich eine Markierung noch ändern.
+
+**QR-Code der Verleihseite bleibt auf allen PDFs** (Entscheidung von Maurice). Wer eine Papierkopie weitergibt, gibt den Zugang mit; dagegen hilft „Neuer Link“ auf der Buchung.
+
+## 2026-11-12 · Rückmeldungen zu Phase 5
+
+**Hintergrund-Abfragen werden nicht zur „vorigen Seite“.** Json-GETs (Live-Update, Chat, Nachschlagen) gelten als Ajax (Middleware `KeepPreviousPage` vor der Session), sonst landete `back()` nach einem Formular auf dem Json („All Inertia requests must receive a valid Inertia response“). Verleihseite und Buchung leiten nach ihren Aktionen zusätzlich fest auf ihre Seite.
+
+**Teil einer Box zurücklassen.** Ein wieder offener Inhalt einer abgehakten Box bleibt hier, statt die Ausgabe zu blockieren; er kommt aus der Box und steht danach am Platz der Box (Entscheidung von Maurice, Variante A; verworfen: „Ohne Platz“). Das gilt auch für etwas, das nach dem Abhaken in die Box gelegt wurde; der Hinweis „bleibt hier“ steht vor dem Unterschreiben an der Zeile. Verworfen: wie bisher die Ausgabe ablehnen.
+
+**Frühe Abholung prüft nur, was mitgeht.** Der Rest und nicht Abgehaktes zählen nicht; der Schritt Material nennt die Kollision schon an der Zeile.
+
+**Teilrückgabe gibt frei.** Ein zurückgegebenes Teil einer Box, die noch draußen ist, und zurückgegebene, noch nicht eingeräumte Teile eines Mengenartikels zählen wieder als frei.
+
+**Seeden verschickt nichts.** Was direkt danach fällig wäre, steht als „Demo, nicht verschickt“ im Protokoll; die Warteschlange wird geleert. Spätere Ereignisse verschicken normal (Entscheidung von Maurice; verworfen: mit Demo-Daten nie an Kontakte).
+
+**Badge im Menü unter dem Titel**, damit längere Titel wie „Benachrichtigungen“ ihn nicht verdecken.
+
+## 2026-11-12 · Phase 5 (Verleihseite und Nachrichten)
+
+**Schlüssel der Verleihseite berechnet statt als Hash gespeichert.** HMAC-SHA-256 aus `APP_KEY`, Buchung und einer Versionsnummer, 32 Byte. Grund: Mit nur einem Hash in der Datenbank könnte Stocks den Link nicht erneut in Mails und auf PDFs schreiben. Neu ausstellen erhöht die Version. Folge: Ein neuer `APP_KEY` macht alle Links ungültig. Verworfen: Hash in der Datenbank (Gesamtplan).
+
+**Link gilt während der ganzen Leihe, danach 30 Tage** (`loans.page_days_after_close`, Entscheidung von Maurice). Gezählt ab Abschluss, Storno oder dem Abschluss der Mängel.
+
+**Dokumente ohne E-Mail-Code, Kontaktdaten sichtbar.** Wer den Link hat, lädt die PDFs und sieht Telefon, E-Mail und Anschrift beider Seiten, für den FSR die zentrale Nummer (`organization.phone`) und die beteiligten Mitglieder mit Namen (Entscheidungen von Maurice). Gegenmittel sind Sperren und Neu ausstellen.
+
+**Drei Reiter Chat, Übersicht, Material, Aussehen wie Stocks** (Rückmeldungen zum Entwurf): Komponenten des Kerns, Pack-PIN in einer Zeile mit Auge und Stift, Dokumente wie auf der Buchung, Chat wie ein Messenger, der auf den Bildschirm passt.
+
+**Empfänger im FSR sind die Beteiligten.** Wer angelegt, ausgegeben oder im Chat geantwortet hat, mit aktivem Konto und `loans.manage`, nach eigener Einstellung. Abgeschaltet heißt abgeschaltet; `legal.contact_email` nur, wenn es keine aktiven Beteiligten gibt (Entscheidung von Maurice). Verworfen: alle mit `loans.manage`.
+
+**Einstellungen je Ereignis und Kanal.** Mitglieder im Profil, Entleiher auf der Verleihseite (an der Buchung, gilt für alle mit dem Link). Bestätigung, Ausgabe, Rückgabebeleg und Überfällig kommen immer per Mail.
+
+**Push über die Web-App, für Mitglieder und Entleiher.** Paket `laravel-notification-channels/webpush`, Service Worker nur für Push, VAPID-Schlüssel nur aus der `.env`. Die Verleihseite hat ein eigenes Manifest je Buchung, damit sie am iPhone als eigene App auf den Home-Bildschirm kommt. Push-Endpunkte nur von bekannten Diensten. Der Test auf echten Geräten steht noch aus (siehe unten).
+
+**Helfer im Kern statt im Verleih.** `NotificationEvents` (Erweiterungspunkt), `StocksNotification` (Basisklasse), Protokoll über `sent()`; dazu `stocks:notify-test` und ein Knopf im Profil (Entscheidung von Maurice: beides). Grund: Anfrage-Website und SMS nutzen ihn später.
+
+**Erinnerungen per Protokoll entdoppelt.** `loans:remind` läuft alle 15 Minuten und schickt, was in `loan_notifications` fehlt. Vor jeder Erinnerung steht eine Zeile „ausgelöst“, auch wenn niemand sie bekommt (alles abgeschaltet, keine Adresse); sonst käme sie alle 15 Minuten neu.
+
+**Chat-Nachrichten gebündelt** (eine Benachrichtigung je 15 Minuten und Seite, solange nichts gelesen wurde), über einen Cache-Schlüssel, den das Lesen löscht.
+
+**Abholort als Einstellung** (`loans.pickup_place`, leer: Anschrift der Organisation), **Zusatztexte je Nachricht** statt frei gestalteter Mails. Offen bei Maurice: Abholort und Wortlaut prüfen, SMS (Frage 6 des Gesamtplans, frühestens Phase 7).
+
+**Kein Webpush ohne Paketquelle in der Entwicklungsumgebung:** Packagist war aus der Cloud nicht erreichbar; `composer.lock` wurde aus den Quellen auf GitHub mit denselben Adressen wie bei Packagist erzeugt (9 neue Pakete, keine bestehenden geändert). `php-http/discovery` bringt ein Composer-Plugin mit, das in `allow-plugins` abgeschaltet ist; es wird nicht gebraucht.
+
+**Ergebnis des Push-Tests auf echten Geräten:** offen. Maurice prüft auf stocks-dev iPhone (vom Home-Bildschirm), Android und PC (Profil › „Push auf diesem Gerät einschalten“, „Testbenachrichtigung senden“). Ergebnis hier eintragen.
+
 ## 2026-11-12 · Review von Phase 3 und 4
 
 **Doppelt gesendete Vorgänge laufen einmal.** Ausgabe, Rückgabe, Prüfung, Mängel abschließen, Einräumen und „Wieder da“ sperren ihre Zeile in der Transaktion und prüfen den Stand dort neu. Was erst prüft und dann reserviert, läuft nacheinander über eine Cache-Sperre (`Availability::exclusively()`), weil zwei Entwürfe für denselben Gegenstand keine gemeinsame Zeile haben. Grund: Doppeltipp am Tablet und wiederholte Anfragen ergaben zwei Verträge und doppelte Bewegungen. Verworfen: nur den Knopf in der Oberfläche sperren.

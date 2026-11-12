@@ -44,6 +44,7 @@ class SettingsController extends Controller
             'organization.short_name' => ['required', 'string', 'max:30'],
             'organization.accent_color' => ['required', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'organization.address' => ['nullable', 'string', 'max:300'],
+            'organization.phone' => ['nullable', 'string', 'max:40', 'regex:/^[0-9 +()\/-]+$/'],
             'legal.imprint_url' => ['nullable', 'url'],
             'legal.privacy_url' => ['nullable', 'url'],
             'legal.contact_email' => ['nullable', 'email'],
@@ -51,7 +52,7 @@ class SettingsController extends Controller
             'inventory.number_prefix' => ['nullable', 'regex:/^[A-Z0-9]{1,6}$/'],
             // address in the codes of labels; old labels keep the old address
             'labels.base_url' => ['nullable', 'url:http,https', 'max:100'],
-        ], ['inventory.number_prefix.regex' => 'Das Präfix hat 1 bis 6 Großbuchstaben oder Ziffern.']);
+        ], ['inventory.number_prefix.regex' => 'Das Präfix hat 1 bis 6 Großbuchstaben oder Ziffern.', 'organization.phone.regex' => 'Die Telefonnummer hat nur Ziffern, Leerzeichen und + ( ) / -.']);
 
         $settings->set(collect($validated)->dot()->all());
 

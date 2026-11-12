@@ -28,6 +28,7 @@ export const sendJson = async <T>(
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
+      "X-Requested-With": "XMLHttpRequest",
       "X-XSRF-TOKEN": xsrfToken(),
     },
     body: JSON.stringify(data),
@@ -51,7 +52,11 @@ export const sendJson = async <T>(
  */
 export const getJson = async <T>(url: string): Promise<T | null> => {
   const response = await fetch(url, {
-    headers: { Accept: "application/json" },
+    // a background request: it must not become the page that back() returns to
+    headers: {
+      Accept: "application/json",
+      "X-Requested-With": "XMLHttpRequest",
+    },
   });
   return response.ok ? ((await response.json()) as T) : null;
 };

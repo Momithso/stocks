@@ -8,6 +8,7 @@ use App\Support\Settings;
 use Closure;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -79,14 +80,17 @@ class Availability
     }
 
     /**
-     * Check if all positions of a loan are free; the messages of those that are not.
+     * Check if all positions of a loan are free; the messages of those that are not. With
+     * $positions only those (e.g. what leaves at an early pickup).
      *
+     * @param  EloquentCollection<int, LoanItem>|null  $positions
      * @return list<string>
      */
-    public function problems(Loan $loan, ?Carbon $from = null, ?Carbon $to = null): array
+    public function problems(Loan $loan, ?Carbon $from = null, ?Carbon $to = null, ?EloquentCollection $positions = null): array
     {
         $messages = [];
-        foreach ($loan->positions()->with('item.condition')->whereNull('returned_at')->get() as $position) {
+        $positions = $positions?->load('item.condition') ?? $loan->positions()->with('item.condition')->whereNull('returned_at')->get();
+        foreach ($positions as $position) {
             $check = $this->check($position->item, $position->quantity, $from ?? $loan->pickup_at, $to ?? $loan->return_at, $loan);
             if ($check['blocked']) {
                 $messages[] = $this->message($position->item, $check);
@@ -168,7 +172,13 @@ class Availability
             ->where(fn (Builder $query) => $query
                 ->where('loan_items.item_id', $item->id)
                 ->orWhere('loan_items.issued_item_id', $item->id)
-                ->orWhereIn('loan_items.item_id', $boxIds))
+                // a box that is out holds what lies in it, unless its row came back already
+                // (partial return of the contents)
+                ->orWhere(fn (Builder $query) => $query->whereIn('loan_items.item_id', $boxIds)
+                    ->whereNotExists(fn ($back) => $back->selectRaw('1')->from('loan_items as back')
+                        ->whereColumn('back.loan_id', 'loan_items.loan_id')
+                        ->where('back.item_id', $item->id)
+                        ->whereNotNull('back.returned_at'))))
             ->get();
 
         $conflicts = $rows->map(fn (LoanItem $row) => ['row' => $row, 'loan' => $this->loanSummary($row->loan)])->unique(fn (array $conflict) => $conflict['row']->id)->values()->all();
@@ -177,12 +187,15 @@ class Availability
             return [$conflicts, 0];
         }
 
-        // stock: what is here plus the parts that are out with an issued loan and come back
+        // stock: what is here plus the parts that are out with an issued loan and come back, plus
+        // the parts that came back and are not put away (merged) yet
         $out = LoanItem::where('item_id', $item->id)->whereNotNull('issued_item_id')->whereNull('returned_at')
             ->whereHas('loan', fn (Builder $query) => $query->where('status', LoanStatus::Issued))->sum('quantity');
+        $back = LoanItem::where('item_id', $item->id)->whereNotNull('issued_item_id')->whereNotNull('returned_at')->whereNull('stowed_at')
+            ->with('issuedItem')->get()->sum(fn (LoanItem $row) => $row->issuedItem && ! $row->issuedItem->isRetired() ? $row->issuedItem->quantity : 0);
         $booked = $rows->where('item_id', $item->id)->sum('quantity');
 
-        return [$conflicts, $item->quantity + (int) $out - (int) $booked];
+        return [$conflicts, $item->quantity + (int) $out + (int) $back - (int) $booked];
     }
 
     /**
@@ -260,8 +273,9 @@ class Availability
             }
 
             $ends = array_map(fn (array $conflict) => $conflict['row']->loan->isOverdue() ? null : $conflict['row']->loan->return_at, $conflicts);
-            // an overdue loan holds the item until it is back: no date can be named
-            if (in_array(null, $ends, true)) {
+            // an overdue loan holds the item until it is back, and without loans in the way
+            // (not enough stock at all) waiting does not help: no date can be named
+            if ($ends === [] || in_array(null, $ends, true)) {
                 return null;
             }
             $start = Carbon::createFromTimestamp(max(array_map(fn (Carbon $end) => $end->getTimestamp(), $ends)), config('app.timezone'))->addHours($this->buffer());

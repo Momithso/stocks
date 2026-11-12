@@ -6,6 +6,7 @@ use App\Models\Item;
 use App\Models\Location;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Modules\Loans\Actions\ChangePositions;
 use Modules\Loans\Actions\ConfirmLoan;
@@ -18,8 +19,8 @@ use Modules\Loans\Models\LoanItem;
 use Tests\TestCase;
 
 /**
- * Base of the tests of the loan module: the module is on, S3 is faked, and there are helpers for
- * contacts, loans and the steps of a loan.
+ * Base of the tests of the loan module: the module is on, S3 and notifications are faked, and there
+ * are helpers for contacts, loans and the steps of a loan.
  */
 abstract class LoansTestCase extends TestCase
 {
@@ -35,6 +36,7 @@ abstract class LoansTestCase extends TestCase
         parent::setUp();
         $this->activateModule('loans');
         Storage::fake('s3');
+        Notification::fake();
         $this->shelf = Location::forceCreate(['type' => 'room', 'code' => 'R1', 'full_code' => 'R1']);
     }
 

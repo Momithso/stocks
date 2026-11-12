@@ -8,10 +8,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Modules\Loans\Enums\LoanStatus;
 use Modules\Loans\Models\Loan;
+use Modules\Loans\Models\LoanMessage;
 
 /**
- * List of loans. Filters: status ("overdue" for issued loans past their return), time (overlapping
- * from/to), contact, event.
+ * List of loans. Filters: status ("overdue" for issued loans past their return, "unread" for loans
+ * with unread messages of the borrower), time (overlapping from/to), contact, event.
  */
 class LoansTable extends Table
 {
@@ -20,7 +21,8 @@ class LoansTable extends Table
      */
     protected function query(): Builder
     {
-        return Loan::query()->with(['responsible', 'responsibleUser', 'borrower', 'event']);
+        return Loan::query()->with(['responsible', 'responsibleUser', 'borrower', 'event'])
+            ->withCount(['messages as unread_messages' => fn (Builder $query) => $query->where('sender', LoanMessage::CONTACT)->whereNull('read_by_staff_at')]);
     }
 
     /**
@@ -31,6 +33,8 @@ class LoansTable extends Table
         $status = (string) $this->request->query('status');
         if ($status === 'overdue') {
             $query->overdue();
+        } elseif ($status === 'unread') {
+            $query->whereHas('messages', fn (Builder $query) => $query->where('sender', LoanMessage::CONTACT)->whereNull('read_by_staff_at'));
         } elseif ($status === 'open') {
             $query->whereNotIn('status', [LoanStatus::Closed, LoanStatus::Cancelled]);
         } elseif ($status !== '' && LoanStatus::tryFrom($status)) {
@@ -62,6 +66,7 @@ class LoansTable extends Table
             ...$model->summary(),
             'event' => $model->event?->name,
             'purpose' => $model->purpose,
+            'unread_messages' => (int) $model->unread_messages,
         ];
     }
 

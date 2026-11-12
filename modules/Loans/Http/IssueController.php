@@ -10,6 +10,7 @@ use App\Support\Surface;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -57,6 +58,8 @@ class IssueController extends Controller
                 'supplement' => $loan->status === LoanStatus::Issued,
                 // the return time is over: nothing leaves any more (IssueLoan::ensureIssuable())
                 'expired' => $loan->return_at->isPast(),
+                // picked up before its time: only what is free until then may leave
+                'early' => $loan->status === LoanStatus::Confirmed && $loan->pickup_at->isFuture(),
             ],
             'rows' => RowTree::flatten($rows, fn (LoanItem $row) => [
                 'checked_at' => $row->checked_at?->toIso8601String(),
@@ -66,6 +69,7 @@ class IssueController extends Controller
                 'hints' => $row->parent_id === null && $row->item->is_container ? $availability->check($row->item, 1, $loan->pickup_at, $loan->return_at, $loan)['hints'] : [],
                 'issue_state' => $row->issue_state?->value,
                 'issue_defect' => $row->issueDefect(),
+                'early' => $this->earlyConflict($loan, $row, $availability),
             ]),
             'states' => array_values(array_filter(ReturnState::options(), fn (array $state) => in_array($state['value'], [ReturnState::Damaged->value, ReturnState::Dirty->value, ReturnState::Incomplete->value], true))),
             'conditions' => ItemCondition::options(),
@@ -199,5 +203,23 @@ class IssueController extends Controller
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'inline; filename="'.$documentType->label().' '.$loan->number.'.pdf"',
         ]);
+    }
+
+    /**
+     * Why a position can not leave before the pickup time: another loan holds it until then. Null
+     * if it may leave now, or the pickup time has come.
+     */
+    private function earlyConflict(Loan $loan, LoanItem $row, Availability $availability): ?string
+    {
+        if ($row->parent_id !== null || $loan->status !== LoanStatus::Confirmed || ! $loan->pickup_at->isFuture()) {
+            return null;
+        }
+        $check = $availability->check($row->item, $row->quantity, now(), $loan->pickup_at, $loan);
+        if (! $check['blocked'] || $check['problem'] !== null) {
+            return null;
+        }
+        $until = collect($check['conflicts'])->map(fn (array $conflict) => $conflict['overdue'] ? "{$conflict['number']}, überfällig" : "{$conflict['number']} bis ".Carbon::parse($conflict['return_at'])->format('d.m., H:i').' Uhr')->implode(', ');
+
+        return "Jetzt noch nicht frei ({$until}). Früher abholen geht nur ohne diese Position; sie bleibt dann als Rest.";
     }
 }
