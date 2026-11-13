@@ -8,6 +8,7 @@ use Database\Factories\UserFactory;
 use Modules\Kiosk\Models\KioskDevice;
 use Modules\Loans\Enums\LoanStatus;
 use Modules\Loans\Models\Loan;
+use Illuminate\Support\Carbon;
 
 /**
  * Issue, return and inspection on the kiosk: the pages of the pc under /kiosk, the person of the
@@ -59,6 +60,8 @@ class KioskLoansTest extends LoansTestCase
 
     public function test_the_tiles_say_what_happens_and_how_much_there_is_to_do(): void
     {
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-13 12:00:00'));
+
         $this->confirmed([$this->item()], now()->subHour());
 
         $this->asKiosk()->get('/kiosk/home')->assertInertia(fn ($page) => $page
