@@ -9,6 +9,7 @@ use App\Support\Settings;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Modules\Loans\Enums\DocumentType;
 use Modules\Loans\Enums\LoanStatus;
 use Modules\Loans\Enums\ReturnState;
@@ -339,18 +340,24 @@ class LoanDocuments
     }
 
     /**
-     * Image as png (dompdf can not read every format).
+     * Image as png scaled down to 400 px (dompdf can not read every format, a big logo would fill
+     * the memory on every document), cached by content so it is decoded only once.
      */
     private function png(string $content): string
     {
-        $image = @imagecreatefromstring($content);
-        if ($image === false) {
-            return '';
-        }
-        imagesavealpha($image, true);
-        ob_start();
-        imagepng($image);
+        return Cache::rememberForever('loan-documents.logo.'.md5($content), function () use ($content): string {
+            $source = @imagecreatefromstring($content);
+            if ($source === false) {
+                return '';
+            }
+            $scale = min(1, 400 / max(imagesx($source), imagesy($source)));
+            $image = imagescale($source, max(1, (int) round(imagesx($source) * $scale)), max(1, (int) round(imagesy($source) * $scale)));
+            unset($source);
+            imagesavealpha($image, true);
+            ob_start();
+            imagepng($image);
 
-        return (string) ob_get_clean();
+            return (string) ob_get_clean();
+        });
     }
 }
