@@ -32,9 +32,26 @@ WORKDIR /app
 # install php extensions: MariaDB, Redis (cache, sessions, queue), signals and sockets for Octane,
 # gmp for the encryption of web push (works without, but slower);
 # newer swoole images already ship redis, then pecl would fail
-RUN apk add --no-cache gmp \
-    && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS linux-headers gmp-dev \
-    && docker-php-ext-install bcmath pdo_mysql pcntl sockets gmp \
+RUN apk add --no-cache \
+        gmp \
+        libpng \
+        libjpeg-turbo \
+        freetype \
+    && apk add --no-cache --virtual .build-deps \
+        $PHPIZE_DEPS \
+        linux-headers \
+        gmp-dev \
+        libpng-dev \
+        libjpeg-turbo-dev \
+        freetype-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install \
+        bcmath \
+        pdo_mysql \
+        pcntl \
+        sockets \
+        gmp \
+        gd \
     && (php -m | grep -qi '^redis$' || (pecl install redis && docker-php-ext-enable redis)) \
     && apk del .build-deps
 
