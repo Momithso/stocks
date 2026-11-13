@@ -79,8 +79,11 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction
 COPY --from=node ["/app/public/build/", "./public/build/"]
 
 # fix storage folder
-RUN mkdir -p /app/storage/logs
+RUN mkdir -p /app/storage/logs /app/storage/fonts
 RUN chmod -R 777 ./storage
+
+# dompdf decodes photos with GD at full size, 128M (php default) is not enough for pdfs with photos
+RUN echo "memory_limit=512M" > /usr/local/etc/php/conf.d/zz-stocks.ini
 
 # defaults, overwritten by the environment of docker-compose.yaml
 ENV OCTANE_MAX_REQUESTS=500
