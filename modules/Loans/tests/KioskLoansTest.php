@@ -23,6 +23,9 @@ class KioskLoansTest extends LoansTestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->travelTo(now()->setTime(12, 0));
+
         $this->activateModule('kiosk');
         $this->device = KioskDevice::factory()->create();
         $this->person = User::factory()->withPin()->create();
@@ -60,8 +63,6 @@ class KioskLoansTest extends LoansTestCase
 
     public function test_the_tiles_say_what_happens_and_how_much_there_is_to_do(): void
     {
-        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-13 12:00:00'));
-
         $this->confirmed([$this->item()], now()->subHour());
 
         $this->asKiosk()->get('/kiosk/home')->assertInertia(fn ($page) => $page
